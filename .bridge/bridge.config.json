@@ -1,0 +1,12 @@
+{
+  "pollIntervalMs": 5000,
+  "timeoutMs": 900000,
+  "heartbeatIntervalMs": 60000,
+  "queueDir": "queue",
+  "logFile": "bridge.log",
+  "heartbeatFile": "heartbeat.json",
+  "claudeCommand": "claude",
+  "claudeArgs": ["-p", "--permission-mode", "bypassPermissions"],
+  "projectDir": "..",
+  "maxRetries": 0
+}
