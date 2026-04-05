@@ -63,6 +63,8 @@ Status values:
 
 Always write a DONE file — even for PARTIAL or BLOCKED. Never write an ERROR file (that's the watcher's job on invocation failure).
 
+**Last step of every commission:** `git add` the DONE report (and any other new queue files) and commit before marking the commission complete. Queue files are permanent records — they must be in git.
+
 ---
 
 ## The watcher injects nothing
