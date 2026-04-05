@@ -52,10 +52,69 @@ fs.mkdirSync(QUEUE_DIR, { recursive: true });
 // ---------------------------------------------------------------------------
 
 /**
+ * formatForStdout(level, event, fields)
+ *
+ * Returns a human-readable line for terminal display.
+ * bridge.log receives JSON; stdout receives this.
+ *
+ * Format: [Bridge] HH:MM:SS  <event:8>  [id]  message
+ */
+function formatForStdout(level, event, fields) {
+  // Heartbeat is too noisy for the terminal — suppress entirely.
+  if (event === 'heartbeat') return null;
+
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const ts = `${hh}:${mm}:${ss}`;
+
+  const eventCol = event.padEnd(8);
+  const idPart   = fields.id ? `${fields.id}  ` : '';
+
+  let message;
+
+  if (event === 'complete') {
+    const durationMs = fields.durationMs || 0;
+    const totalSec   = Math.floor(durationMs / 1000);
+    const mins       = Math.floor(totalSec / 60);
+    const secs       = totalSec % 60;
+    const duration   = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    const mark       = level === 'error' || level === 'warn' ? '✗' : '✓';
+    message = `Done in ${duration} ${mark}`;
+    if (fields.msg && fields.msg.includes('no DONE file')) {
+      message = `Exited cleanly but wrote no DONE file — fallback written ✗`;
+    }
+  } else if (event === 'state') {
+    message = `${fields.from} → ${fields.to}`;
+  } else if (event === 'timeout') {
+    message = `✗ Commission timed out`;
+    if (fields.durationMs) {
+      const totalSec = Math.floor(fields.durationMs / 1000);
+      const mins = Math.floor(totalSec / 60);
+      const secs = totalSec % 60;
+      message += ` after ${mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}`;
+    }
+  } else if (event === 'error') {
+    const detail = fields.exitCode != null ? `exit ${fields.exitCode}` : (fields.error || '');
+    message = `✗ ${fields.msg || 'Error'}${detail ? ` (${detail})` : ''}`;
+  } else if (event === 'invoke') {
+    const timeoutMin = Math.round((fields.timeoutMs || 0) / 60000);
+    message = `claude -p started (timeout: ${timeoutMin}min)`;
+  } else if (event === 'pickup') {
+    message = `Commission picked up (${fields.file || fields.id + '-PENDING.md'})`;
+  } else {
+    message = fields.msg || event;
+  }
+
+  return `[Bridge] ${ts}  ${eventCol}  ${idPart}${message}`;
+}
+
+/**
  * log(level, event, fields)
  *
- * Writes one JSON line to bridge.log AND mirrors to stdout.
- * Each line: { ts, level, event, ...fields }
+ * Writes one JSON line to bridge.log AND a human-readable line to stdout.
+ * Each log line: { ts, level, event, ...fields }
  */
 function log(level, event, fields) {
   const line = JSON.stringify(Object.assign({ ts: new Date().toISOString(), level, event }, fields));
@@ -65,7 +124,10 @@ function log(level, event, fields) {
     // Log file write failure must not crash the watcher.
     process.stdout.write('[log-write-error] ' + err.message + '\n');
   }
-  process.stdout.write(line + '\n');
+  const humanLine = formatForStdout(level, event, fields);
+  if (humanLine !== null) {
+    process.stdout.write(humanLine + '\n');
+  }
 }
 
 // ---------------------------------------------------------------------------
