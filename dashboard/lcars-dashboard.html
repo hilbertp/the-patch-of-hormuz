@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LCARS — Liberation of Bajor // Station Operations</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --lcars-amber:   #FF9900;
+    --lcars-peach:   #FFCC99;
+    --lcars-lavender:#CC99FF;
+    --lcars-blue:    #9999FF;
+    --lcars-red:     #FF6666;
+    --lcars-green:   #66FF99;
+    --lcars-dark:    #CC6600;
+    --lcars-purple:  #9966CC;
+    --bg:            #000000;
+    --panel-bg:      #080808;
+    --text:          #FFCC99;
+    --text-dim:      #886644;
+    --border-r:      18px;
+    --border-sm:     8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Antonio', 'Trebuchet MS', sans-serif;
+    min-height: 100vh;
+    padding: 12px;
+    overflow-x: hidden;
+  }
+
+  /* ── TOP BAR ─────────────────────────────────────────── */
+  .top-bar {
+    display: flex;
+    align-items: stretch;
+    height: 72px;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .top-elbow {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--lcars-amber);
+    border-radius: var(--border-r) var(--border-sm) var(--border-sm) var(--border-r);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #000;
+    text-align: right;
+    line-height: 1.3;
+  }
+
+  .top-title {
+    flex: 1;
+    background: var(--lcars-amber);
+    border-radius: var(--border-sm);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+  }
+
+  .top-title h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #000;
+    text-transform: uppercase;
+  }
+
+  .top-title .stardate {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: #000;
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  .top-pill {
+    width: 140px;
+    flex-shrink: 0;
+    background: var(--lcars-lavender);
+    border-radius: var(--border-sm) var(--border-r) var(--border-r) var(--border-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #000;
+    font-weight: 700;
+  }
+
+  /* ── MAIN LAYOUT ─────────────────────────────────────── */
+  .main-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr 260px;
+    grid-template-rows: auto auto;
+    gap: 8px;
+  }
+
+  /* ── LEFT SIDEBAR ─────────────────────────────────────── */
+  .left-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    grid-row: 1 / 3;
+  }
+
+  .sidebar-elbow {
+    background: var(--lcars-amber);
+    height: 40px;
+    border-radius: var(--border-r) var(--border-sm) var(--border-sm) var(--border-r);
+    display: flex;
+    align-items: center;
+    padding-left: 16px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #000;
+  }
+
+  .sidebar-block {
+    background: var(--panel-bg);
+    border: 1px solid #222;
+    border-radius: var(--border-sm);
+    padding: 14px;
+    flex: 1;
+  }
+
+  .section-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--lcars-amber);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--lcars-amber);
+    padding-bottom: 4px;
+  }
+
+  .crew-member {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #111;
+  }
+  .crew-member:last-child { border-bottom: none; }
+
+  .crew-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text);
+  }
+
+  .crew-role {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-top: 1px;
+  }
+
+  .crew-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .ind-active   { background: var(--lcars-green); box-shadow: 0 0 6px var(--lcars-green); }
+  .ind-standby  { background: var(--lcars-amber); box-shadow: 0 0 6px var(--lcars-amber); }
+  .ind-offline  { background: #333; }
+
+  .crew-color-bar {
+    width: 3px;
+    height: 28px;
+    border-radius: 2px;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+
+  /* ── CENTER PANELS ────────────────────────────────────── */
+  .center-top {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    gap: 6px;
+  }
+
+  .stat-card {
+    background: var(--panel-bg);
+    border: 1px solid #222;
+    border-radius: var(--border-sm);
+    padding: 14px 12px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .stat-card.waiting::before  { background: var(--lcars-amber); }
+  .stat-card.active::before   { background: var(--lcars-green); }
+  .stat-card.done::before     { background: var(--lcars-blue); }
+  .stat-card.error::before    { background: var(--lcars-red); }
+  .stat-card.review::before   { background: var(--lcars-lavender); }
+
+  .stat-label {
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .stat-card.waiting  .stat-value { color: var(--lcars-amber); }
+  .stat-card.active   .stat-value { color: var(--lcars-green); }
+  .stat-card.done     .stat-value { color: var(--lcars-blue); }
+  .stat-card.error    .stat-value { color: var(--lcars-red); }
+  .stat-card.review   .stat-value { color: var(--lcars-lavender); }
+
+  /* ── COMMISSION LOG ───────────────────────────────────── */
+  .center-bottom {
+    background: var(--panel-bg);
+    border: 1px solid #222;
+    border-radius: var(--border-sm);
+    padding: 14px;
+    overflow: hidden;
+  }
+
+  .commission-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .commission-table th {
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: var(--lcars-amber);
+    text-align: left;
+    padding: 4px 8px;
+    border-bottom: 1px solid #222;
+    text-transform: uppercase;
+  }
+
+  .commission-table td {
+    padding: 7px 8px;
+    border-bottom: 1px solid #111;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+  }
+
+  .commission-table tr:last-child td { border-bottom: none; }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    font-family: 'Antonio', sans-serif;
+  }
+  .tag-done     { background: #001133; color: var(--lcars-blue); border: 1px solid var(--lcars-blue); }
+  .tag-error    { background: #220000; color: var(--lcars-red); border: 1px solid var(--lcars-red); }
+  .tag-pending  { background: #221100; color: var(--lcars-amber); border: 1px solid var(--lcars-amber); }
+  .tag-progress { background: #002211; color: var(--lcars-green); border: 1px solid var(--lcars-green); }
+  .tag-merge    { background: #110022; color: var(--lcars-lavender); border: 1px solid var(--lcars-lavender); }
+
+  .cost-cell { color: var(--lcars-peach); }
+  .time-cell { color: var(--text-dim); }
+
+  /* ── RIGHT PANEL ──────────────────────────────────────── */
+  .right-panel {
+    grid-row: 1 / 3;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .right-elbow {
+    background: var(--lcars-lavender);
+    height: 40px;
+    border-radius: var(--border-sm) var(--border-r) var(--border-r) var(--border-sm);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 16px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #000;
+  }
+
+  .right-block {
+    background: var(--panel-bg);
+    border: 1px solid #222;
+    border-radius: var(--border-sm);
+    padding: 14px;
+  }
+
+  .econ-metric {
+    margin-bottom: 16px;
+  }
+  .econ-metric:last-child { margin-bottom: 0; }
+
+  .econ-label {
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .econ-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--lcars-amber);
+  }
+
+  .econ-sub {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .progress-bar-bg {
+    background: #1a1a1a;
+    border-radius: 3px;
+    height: 6px;
+    margin-top: 6px;
+  }
+
+  .progress-bar-fill {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--lcars-amber);
+    box-shadow: 0 0 8px var(--lcars-amber);
+  }
+
+  .phase-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid #111;
+    font-size: 11px;
+  }
+  .phase-row:last-child { border-bottom: none; }
+
+  .phase-name { color: var(--text-dim); font-size: 9px; letter-spacing: 1px; }
+  .phase-hours { color: var(--lcars-peach); font-family: 'Share Tech Mono', monospace; font-size: 11px; }
+
+  /* ── BOTTOM STATUS BAR ────────────────────────────────── */
+  .bottom-bar {
+    display: flex;
+    height: 36px;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .bottom-pill {
+    background: var(--lcars-purple);
+    border-radius: var(--border-r);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #000;
+    text-transform: uppercase;
+    gap: 8px;
+  }
+
+  .bottom-pill.amber  { background: var(--lcars-amber); }
+  .bottom-pill.blue   { background: var(--lcars-blue); }
+  .bottom-pill.green  { background: var(--lcars-green); }
+  .bottom-pill.red    { background: var(--lcars-red); }
+
+  .bottom-stretch {
+    flex: 1;
+    background: var(--panel-bg);
+    border: 1px solid #222;
+    border-radius: var(--border-sm);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 32px;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  /* ── BLINK ANIMATION ──────────────────────────────────── */
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 6px var(--lcars-green); }
+    50% { box-shadow: 0 0 14px var(--lcars-green); }
+  }
+
+  .blink { animation: blink 2s ease-in-out infinite; }
+  .ind-active { animation: pulse-glow 2s ease-in-out infinite; }
+
+  @keyframes scanline {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100vh); }
+  }
+
+  .scanline-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: rgba(255,153,0,0.06);
+    pointer-events: none;
+    animation: scanline 8s linear infinite;
+    z-index: 999;
+  }
+
+  /* ── WATCHER STATUS PANEL ─────────────────────────────── */
+  .watcher-panel {
+    background: var(--panel-bg);
+    border: 1px solid #222;
+    border-radius: var(--border-sm);
+    padding: 14px;
+  }
+
+  .terminal-line {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+
+  .terminal-line .ts { color: #444; }
+  .terminal-line .evt-start  { color: var(--lcars-amber); }
+  .terminal-line .evt-done   { color: var(--lcars-blue); }
+  .terminal-line .evt-error  { color: var(--lcars-red); }
+  .terminal-line .evt-info   { color: var(--text-dim); }
+
+  .divider-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(to right, var(--lcars-amber), var(--lcars-purple), transparent);
+    margin: 2px 0;
+    opacity: 0.4;
+  }
+</style>
+</head>
+<body>
+
+<div class="scanline-overlay"></div>
+
+<!-- ══ TOP BAR ══════════════════════════════════════════════════════════ -->
+<div class="top-bar">
+  <div class="top-elbow">LCARS<br>STATION OPS</div>
+  <div class="top-title">
+    <h1>The Liberation of Bajor</h1>
+    <div class="stardate">
+      STARDATE 2026.096<br>
+      2026-APR-06 · 17:09 LOCAL
+    </div>
+  </div>
+  <div class="top-pill">SYS<br>NOMINAL</div>
+</div>
+
+<!-- ══ MAIN LAYOUT ═══════════════════════════════════════════════════════ -->
+<div class="main-layout">
+
+  <!-- ── LEFT SIDEBAR ──────────────────────────────────────────────── -->
+  <div class="left-sidebar">
+    <div class="sidebar-elbow">CREW MANIFEST</div>
+
+    <div class="sidebar-block">
+      <div class="section-label">Active Personnel</div>
+
+      <div class="crew-member">
+        <div class="crew-color-bar" style="background:#FFD700"></div>
+        <div>
+          <div class="crew-name">SISKO</div>
+          <div class="crew-role">PROJECT OWNER</div>
+        </div>
+        <div class="crew-indicator ind-active"></div>
+      </div>
+
+      <div class="crew-member">
+        <div class="crew-color-bar" style="background:#FF9900"></div>
+        <div>
+          <div class="crew-name">KIRA</div>
+          <div class="crew-role">DELIVERY COORD</div>
+        </div>
+        <div class="crew-indicator ind-active"></div>
+      </div>
+
+      <div class="crew-member">
+        <div class="crew-color-bar" style="background:#CC6600"></div>
+        <div>
+          <div class="crew-name">O'BRIEN</div>
+          <div class="crew-role">IMPLEMENTOR</div>
+        </div>
+        <div class="crew-indicator ind-standby"></div>
+      </div>
+
+      <div class="crew-member">
+        <div class="crew-color-bar" style="background:#CC99FF"></div>
+        <div>
+          <div class="crew-name">DAX</div>
+          <div class="crew-role">ARCHITECT</div>
+        </div>
+        <div class="crew-indicator ind-standby"></div>
+      </div>
+
+      <div class="crew-member">
+        <div class="crew-color-bar" style="background:#66FF99"></div>
+        <div>
+          <div class="crew-name">BASHIR</div>
+          <div class="crew-role">QA / TESTING</div>
+        </div>
+        <div class="crew-indicator ind-offline"></div>
+      </div>
+
+      <div class="crew-member">
+        <div class="crew-color-bar" style="background:#9999FF"></div>
+        <div>
+          <div class="crew-name">NOG</div>
+          <div class="crew-role">CODE REVIEW</div>
+        </div>
+        <div class="crew-indicator ind-offline"></div>
+      </div>
+
+      <div class="crew-member">
+        <div class="crew-color-bar" style="background:#666699"></div>
+        <div>
+          <div class="crew-name">WORF</div>
+          <div class="crew-role">DEVOPS</div>
+        </div>
+        <div class="crew-indicator ind-offline"></div>
+      </div>
+
+      <div class="crew-member">
+        <div class="crew-color-bar" style="background:#FF9966"></div>
+        <div>
+          <div class="crew-name">QUARK</div>
+          <div class="crew-role">ECONOMICS</div>
+        </div>
+        <div class="crew-indicator ind-offline"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-block">
+      <div class="section-label">Watcher Process</div>
+      <div class="econ-metric">
+        <div class="econ-label">Status</div>
+        <div id="watcher-status-text" style="font-size:16px;color:var(--lcars-green);font-weight:700;letter-spacing:2px;" class="blink">● ACTIVE</div>
+      </div>
+      <div class="econ-metric">
+        <div class="econ-label">Poll Interval</div>
+        <div class="econ-value" style="font-size:18px">5s</div>
+      </div>
+      <div class="econ-metric">
+        <div class="econ-label">Timeout Policy</div>
+        <div class="econ-sub">ACTIVITY-BASED<br>15 MIN IDLE KILL</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CENTER TOP: QUEUE STATS ─────────────────────────────────── -->
+  <div class="center-top">
+    <div class="stat-card waiting">
+      <div class="stat-label">Waiting</div>
+      <div class="stat-value">0</div>
+    </div>
+    <div class="stat-card active">
+      <div class="stat-label">In Progress</div>
+      <div class="stat-value">0</div>
+    </div>
+    <div class="stat-card done">
+      <div class="stat-label">Complete</div>
+      <div class="stat-value">11</div>
+    </div>
+    <div class="stat-card error">
+      <div class="stat-label">Failed</div>
+      <div class="stat-value">1</div>
+    </div>
+    <div class="stat-card review">
+      <div class="stat-label">For Review</div>
+      <div class="stat-value">0</div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT PANEL ────────────────────────────────────────────── -->
+  <div class="right-panel">
+    <div class="right-elbow">ECONOMICS</div>
+
+    <div class="right-block">
+      <div class="section-label">Session Costs</div>
+      <div class="econ-metric">
+        <div class="econ-label">O'Brien Token Cost</div>
+        <div class="econ-value">—</div>
+        <div class="econ-sub">TRACKING LIVE</div>
+      </div>
+      <div class="econ-metric">
+        <div class="econ-label">Kira Planning Cost</div>
+        <div class="econ-value">—</div>
+        <div class="econ-sub">COWORK TOKENS</div>
+      </div>
+      <div class="econ-metric">
+        <div class="econ-label">Session Total</div>
+        <div class="econ-value" style="color:var(--lcars-peach)">—</div>
+      </div>
+    </div>
+
+    <div class="right-block">
+      <div class="section-label">Human-Equivalent Hours</div>
+
+      <div class="phase-row">
+        <div class="phase-name">PLANNING</div>
+        <div class="phase-hours">2.0h</div>
+      </div>
+      <div class="phase-row">
+        <div class="phase-name">EXECUTION</div>
+        <div class="phase-hours">3.5h</div>
+      </div>
+      <div class="phase-row">
+        <div class="phase-name">REVIEW</div>
+        <div class="phase-hours">0.5h</div>
+      </div>
+      <div class="phase-row">
+        <div class="phase-name">CORRECTION</div>
+        <div class="phase-hours">0.5h</div>
+      </div>
+      <div class="phase-row" style="border-top:1px solid #333;margin-top:4px;padding-top:8px">
+        <div class="phase-name" style="color:var(--lcars-amber)">TOTAL</div>
+        <div class="phase-hours" style="color:var(--lcars-amber)">6.5h</div>
+      </div>
+
+      <div class="progress-bar-bg" style="margin-top:12px">
+        <div class="progress-bar-fill" style="width:65%"></div>
+      </div>
+      <div style="font-size:8px;color:var(--text-dim);letter-spacing:1px;margin-top:4px">VS ESTIMATED 10h HUMAN EFFORT</div>
+    </div>
+
+    <div class="right-block">
+      <div class="section-label">ROI Signal</div>
+      <div class="econ-metric">
+        <div class="econ-label">Human Rate</div>
+        <div class="econ-value" style="font-size:20px">€100/hr</div>
+      </div>
+      <div class="econ-metric">
+        <div class="econ-label">Human Cost Equiv.</div>
+        <div class="econ-value" style="font-size:20px;color:var(--lcars-red)">€650</div>
+      </div>
+      <div class="econ-metric">
+        <div class="econ-label">AI Cost (est.)</div>
+        <div class="econ-value" style="font-size:20px;color:var(--lcars-green)">~€5</div>
+      </div>
+      <div style="height:1px;background:#222;margin:8px 0"></div>
+      <div class="econ-label">Efficiency Multiplier</div>
+      <div style="font-size:32px;font-weight:700;color:var(--lcars-amber)">130×</div>
+    </div>
+  </div>
+
+  <!-- ── CENTER BOTTOM: COMMISSION LOG ──────────────────────────── -->
+  <div class="center-bottom">
+    <div class="section-label">Commission History — Slice Activity Log</div>
+    <table class="commission-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Description</th>
+          <th>Type</th>
+          <th>Slice</th>
+          <th>Status</th>
+          <th>Duration</th>
+          <th>O'Brien Cost</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color:var(--lcars-peach)">011</td>
+          <td>Merge slice/5-watcher-terminal → main</td>
+          <td><span class="tag tag-merge">MERGE</span></td>
+          <td style="color:var(--text-dim)">5</td>
+          <td><span class="tag tag-done">DONE</span></td>
+          <td class="time-cell">00:45</td>
+          <td class="cost-cell">—</td>
+        </tr>
+        <tr>
+          <td style="color:var(--lcars-peach)">010</td>
+          <td>Slice 5: Stakeholder terminal output</td>
+          <td><span class="tag tag-done">SLICE</span></td>
+          <td style="color:var(--text-dim)">5</td>
+          <td><span class="tag tag-done">DONE</span></td>
+          <td class="time-cell">18:22</td>
+          <td class="cost-cell">—</td>
+        </tr>
+        <tr style="opacity:0.5">
+          <td style="color:var(--lcars-red)">010</td>
+          <td>Slice 5: Stakeholder terminal output</td>
+          <td><span class="tag tag-done">SLICE</span></td>
+          <td style="color:var(--text-dim)">5</td>
+          <td><span class="tag tag-error">CRASHED</span></td>
+          <td class="time-cell">15:00</td>
+          <td class="cost-cell">—</td>
+        </tr>
+        <tr>
+          <td style="color:var(--lcars-peach)">009</td>
+          <td>Merge slice/4-robustness → main</td>
+          <td><span class="tag tag-merge">MERGE</span></td>
+          <td style="color:var(--text-dim)">4</td>
+          <td><span class="tag tag-done">DONE</span></td>
+          <td class="time-cell">00:52</td>
+          <td class="cost-cell">—</td>
+        </tr>
+        <tr>
+          <td style="color:var(--lcars-peach)">008</td>
+          <td>Slice 4: Crash recovery + validation</td>
+          <td><span class="tag tag-done">SLICE</span></td>
+          <td style="color:var(--text-dim)">4</td>
+          <td><span class="tag tag-done">DONE</span></td>
+          <td class="time-cell">14:08</td>
+          <td class="cost-cell">—</td>
+        </tr>
+        <tr>
+          <td style="color:var(--lcars-peach)">007</td>
+          <td>Merge all outstanding branches</td>
+          <td><span class="tag tag-merge">MERGE</span></td>
+          <td style="color:var(--text-dim)">—</td>
+          <td><span class="tag tag-done">DONE</span></td>
+          <td class="time-cell">01:10</td>
+          <td class="cost-cell">—</td>
+        </tr>
+        <tr>
+          <td style="color:var(--lcars-peach)">006</td>
+          <td>Slice 3: Kira's half — MARA.md + commission template</td>
+          <td><span class="tag tag-done">SLICE</span></td>
+          <td style="color:var(--text-dim)">3</td>
+          <td><span class="tag tag-done">DONE</span></td>
+          <td class="time-cell">09:44</td>
+          <td class="cost-cell">—</td>
+        </tr>
+        <tr>
+          <td style="color:var(--lcars-peach)">005</td>
+          <td>Slice 2: Production watcher (polling)</td>
+          <td><span class="tag tag-done">SLICE</span></td>
+          <td style="color:var(--text-dim)">2</td>
+          <td><span class="tag tag-done">DONE</span></td>
+          <td class="time-cell">12:34</td>
+          <td class="cost-cell">—</td>
+        </tr>
+        <tr>
+          <td style="color:var(--lcars-peach)">003</td>
+          <td>Slice 1: Contracts + file format</td>
+          <td><span class="tag tag-done">SLICE</span></td>
+          <td style="color:var(--text-dim)">1</td>
+          <td><span class="tag tag-done">DONE</span></td>
+          <td class="time-cell">08:12</td>
+          <td class="cost-cell">—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- ══ BOTTOM STATUS BAR ════════════════════════════════════════════════ -->
+<div class="bottom-bar">
+  <div class="bottom-pill amber">SLICES COMPLETE · 5</div>
+  <div class="bottom-pill blue">BRANCH · MAIN</div>
+  <div id="watcher-pill" class="bottom-pill green">WATCHER · ACTIVE</div>
+
+  <div class="bottom-stretch">
+    <div class="status-item">
+      <div class="status-dot" style="background:var(--lcars-blue)"></div>
+      GITHUB · liberation-of-bajor
+    </div>
+    <div class="status-item">
+      <div class="status-dot" style="background:var(--lcars-amber)"></div>
+      QA PIPELINE · NOT YET ACTIVE
+    </div>
+    <div class="status-item">
+      <div class="status-dot" style="background:var(--lcars-lavender)"></div>
+      SMART TIMEOUT · PENDING COMMISSION
+    </div>
+    <div class="status-item">
+      <div class="status-dot" style="background:var(--text-dim)"></div>
+      DASHBOARD · MOCKUP v0.1
+    </div>
+  </div>
+
+  <div class="bottom-pill" style="background:var(--lcars-purple)">LCARS 47</div>
+</div>
+
+<script>
+  // Live clock
+  function updateClock() {
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '-').toUpperCase();
+    const year = now.getFullYear();
+    const doy = Math.floor((now - new Date(year, 0, 0)) / 86400000);
+    const frac = (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400;
+    const stardate = `${year}.${String(doy).padStart(3,'0')}`;
+    document.querySelector('.stardate').innerHTML =
+      `STARDATE ${stardate}<br>${dateStr} · ${timeStr} LOCAL`;
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+</script>
+
+
+<script>
+  // ── Bridge data wiring ──────────────────────────────────────────────────────
+  async function fetchBridge() {
+    let data;
+    try {
+      const res = await fetch('/api/bridge');
+      if (!res.ok) return;
+      data = await res.json();
+    } catch (_) { return; }
+
+    // Queue stat cards
+    const cardMap = { waiting: 'waiting', active: 'active', done: 'done', error: 'error' };
+    for (const [key, cls] of Object.entries(cardMap)) {
+      const card = document.querySelector('.stat-card.' + cls);
+      if (card) card.querySelector('.stat-value').textContent = data.queue[key];
+    }
+    const reviewCard = document.querySelector('.stat-card.review');
+    if (reviewCard) reviewCard.querySelector('.stat-value').textContent = '0';
+
+    // Watcher status element
+    const statusEl = document.getElementById('watcher-status-text');
+    if (statusEl) {
+      const s = data.heartbeat.status;
+      statusEl.classList.remove('blink');
+      if (s === 'active') {
+        statusEl.textContent = '● ACTIVE';
+        statusEl.style.color = 'var(--lcars-green)';
+        statusEl.classList.add('blink');
+      } else if (s === 'idle') {
+        statusEl.textContent = '● IDLE';
+        statusEl.style.color = 'var(--lcars-amber)';
+      } else {
+        statusEl.textContent = '● DOWN';
+        statusEl.style.color = 'var(--lcars-red)';
+      }
+    }
+
+    // Commission log table
+    const tbody = document.querySelector('.commission-table tbody');
+    if (tbody) {
+      const rows = data.commissions.slice(0, 15);
+      tbody.innerHTML = rows.map(c => {
+        const stateToClass = { DONE: 'tag-done', ERROR: 'tag-error',
+                               PENDING: 'tag-pending', IN_PROGRESS: 'tag-progress' };
+        const isMerge = /merge/i.test(c.title);
+        const tagCls = isMerge ? 'tag-merge' : (stateToClass[c.state] ?? 'tag-pending');
+        const typeLabel = isMerge ? 'MERGE' : (c.state === 'IN_PROGRESS' ? 'IN PROG' : c.state);
+        const statusCls = stateToClass[c.state] ?? 'tag-pending';
+        const statusLabel = c.state === 'IN_PROGRESS' ? 'IN PROG' : c.state;
+        return `<tr>
+          <td style="color:var(--lcars-peach)">${escHtml(c.id)}</td>
+          <td>${escHtml(c.title)}</td>
+          <td><span class="tag ${tagCls}">${escHtml(typeLabel)}</span></td>
+          <td style="color:var(--text-dim)">—</td>
+          <td><span class="tag ${statusCls}">${escHtml(statusLabel)}</span></td>
+          <td class="time-cell">—</td>
+          <td class="cost-cell">—</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Bottom bar watcher pill
+    const pill = document.getElementById('watcher-pill');
+    if (pill) {
+      const s = data.heartbeat.status;
+      pill.classList.remove('green', 'amber', 'red');
+      if (s === 'active') {
+        pill.textContent = 'WATCHER · ACTIVE';
+        pill.classList.add('green');
+      } else if (s === 'idle') {
+        pill.textContent = 'WATCHER · IDLE';
+        pill.classList.add('amber');
+      } else {
+        pill.textContent = 'WATCHER · DOWN';
+        pill.classList.add('red');
+      }
+    }
+  }
+
+  function escHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  fetchBridge();
+  setInterval(fetchBridge, 5000);
+</script>
+
+</body>
+</html>
