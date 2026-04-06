@@ -26,7 +26,7 @@ function loadConfig() {
   let fileConfig = {};
   try {
     fileConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  } catch (err) {
+  } catch (_) {
     // Config file absent or unreadable — proceed with defaults.
     // This is intentional: the watcher must work with zero configuration.
   }
@@ -48,12 +48,13 @@ const PROJECT_DIR    = path.resolve(__dirname, config.projectDir);
 fs.mkdirSync(QUEUE_DIR, { recursive: true });
 
 // ---------------------------------------------------------------------------
-// Color / box-drawing support
+// Terminal presentation
 // ---------------------------------------------------------------------------
 
 // Honor NO_COLOR env var: checked once at startup.
 const USE_COLOR = !process.env.NO_COLOR;
 
+// ANSI color codes — empty strings when color is disabled.
 const C = {
   green:  USE_COLOR ? '\x1b[32m' : '',
   red:    USE_COLOR ? '\x1b[31m' : '',
@@ -63,151 +64,45 @@ const C = {
   reset:  USE_COLOR ? '\x1b[0m'  : '',
 };
 
-// Box-drawing characters (degraded to ASCII when NO_COLOR is set).
-const WIDTH = 67;
-const BOX = USE_COLOR ? {
-  doubleRow: '═'.repeat(WIDTH),
-  singleRow: '─'.repeat(WIDTH),
-  top:       '┌' + '─'.repeat(WIDTH - 1),
-  bottom:    '└' + '─'.repeat(WIDTH - 1),
-  side:      '│',
-} : {
-  doubleRow: '='.repeat(WIDTH),
-  singleRow: '-'.repeat(WIDTH),
-  top:       '+' + '-'.repeat(WIDTH - 1),
-  bottom:    '+' + '-'.repeat(WIDTH - 1),
-  side:      '|',
+// Box-drawing characters: Unicode when colors are on, ASCII fallback for NO_COLOR.
+const B = {
+  dbl:  USE_COLOR ? '\u2550' : '=',  // ═
+  sng:  USE_COLOR ? '\u2500' : '-',  // ─
+  vert: USE_COLOR ? '\u2502' : '|',  // │
+  tl:   USE_COLOR ? '\u250C' : '+',  // ┌
+  bl:   USE_COLOR ? '\u2514' : '+',  // └
 };
 
-// ---------------------------------------------------------------------------
-// Session state
-// ---------------------------------------------------------------------------
-
-const SESSION = {
-  startTime: Date.now(),
-  completed: 0,
-  failed: 0,
-  tokensIn: 0,
-  tokensOut: 0,
-  costUsd: 0,
+// Symbols: Unicode or ASCII equivalents.
+const SYM = {
+  check: USE_COLOR ? '\u2713'  : 'OK',   // ✓
+  cross: USE_COLOR ? '\u2717'  : 'X',    // ✗
+  clock: USE_COLOR ? '\u23F3'  : '...',  // ⏳
+  right: USE_COLOR ? '\u25BA'  : '>',    // ►
+  back:  USE_COLOR ? '\u21A9'  : '<-',   // ↩
+  clip:  USE_COLOR ? '\uD83D\uDCCB ' : '',  // 📋 (with trailing space)
+  sep:   USE_COLOR ? ' \u00B7 ' : ' - ', // ' · '
+  dash:  USE_COLOR ? ' \u2014 ' : ' - ', // ' — '
+  arrow: USE_COLOR ? ' \u2192 ' : ' -> ', // ' → '
+  dots:  USE_COLOR ? '\u2026'  : '...',  // …
 };
 
-// Cost rates per 1M tokens (hardcoded; make configurable in a future commission).
-const COST_PER_1M_INPUT  = 15.00;
-const COST_PER_1M_OUTPUT = 75.00;
+const W = 65; // Box width
 
-function calcCost(tokensIn, tokensOut) {
-  return (tokensIn  / 1_000_000) * COST_PER_1M_INPUT
-       + (tokensOut / 1_000_000) * COST_PER_1M_OUTPUT;
-}
+function hLine(char) { return char.repeat(W); }
+
+function print(s) { process.stdout.write(s + '\n'); }
 
 // ---------------------------------------------------------------------------
-// Queue snapshot
+// Timestamps and formatting
 // ---------------------------------------------------------------------------
 
-/**
- * getQueueSnapshot(queueDir)
- * Returns counts of queue files in each state.
- */
-function getQueueSnapshot(queueDir) {
-  let files;
-  try {
-    files = fs.readdirSync(queueDir);
-  } catch (_) {
-    return { waiting: 0, in_progress: 0, completed: 0, failed: 0, awaiting_review: 0 };
-  }
-  const snap = { waiting: 0, in_progress: 0, completed: 0, failed: 0, awaiting_review: 0 };
-  for (const f of files) {
-    if      (f.endsWith('-PENDING.md'))     snap.waiting++;
-    else if (f.endsWith('-IN_PROGRESS.md')) snap.in_progress++;
-    else if (f.endsWith('-DONE.md'))        { snap.completed++; snap.awaiting_review++; }
-    else if (f.endsWith('-ERROR.md'))       snap.failed++;
-  }
-  return snap;
-}
-
-// ---------------------------------------------------------------------------
-// Token extraction
-// ---------------------------------------------------------------------------
-
-/**
- * extractTokens(stdout)
- * Parses Claude Code JSON output to find token usage.
- * Falls back gracefully if parsing fails or output format differs.
- */
-function extractTokens(stdout) {
-  if (!stdout) return { tokensIn: 0, tokensOut: 0, known: false };
-
-  // Claude Code --output-format json may emit multiple JSON lines (JSONL).
-  // Scan from the end to find the last entry with usage data.
-  const lines = stdout.trim().split('\n');
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    try {
-      const data = JSON.parse(line);
-      if (data && data.usage && data.usage.input_tokens != null) {
-        return {
-          tokensIn:  Number(data.usage.input_tokens)  || 0,
-          tokensOut: Number(data.usage.output_tokens) || 0,
-          known: true,
-        };
-      }
-      if (data && data.input_tokens != null) {
-        return {
-          tokensIn:  Number(data.input_tokens)  || 0,
-          tokensOut: Number(data.output_tokens) || 0,
-          known: true,
-        };
-      }
-    } catch (_) {
-      // Not valid JSON on this line — continue scanning.
-    }
-  }
-  return { tokensIn: 0, tokensOut: 0, known: false };
-}
-
-// ---------------------------------------------------------------------------
-// Stdout output (stakeholder-facing — no technical jargon)
-// ---------------------------------------------------------------------------
-
-function printStdout(line) {
-  process.stdout.write(line + '\n');
-}
-
-// ---------------------------------------------------------------------------
-// Structured logging (bridge.log only — no stdout)
-// ---------------------------------------------------------------------------
-
-/**
- * timestampNow()
- * Returns HH:MM:SS string for the current local time.
- */
 function timestampNow() {
   const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  const ss = String(now.getSeconds()).padStart(2, '0');
-  return `${hh}:${mm}:${ss}`;
+  return [now.getHours(), now.getMinutes(), now.getSeconds()]
+    .map(n => String(n).padStart(2, '0'))
+    .join(':');
 }
-
-/**
- * log(level, event, fields)
- * Writes one JSON line to bridge.log. Does NOT write to stdout.
- */
-function log(level, event, fields) {
-  const line = JSON.stringify(Object.assign({ ts: new Date().toISOString(), level, event }, fields));
-  try {
-    fs.appendFileSync(LOG_FILE, line + '\n');
-  } catch (err) {
-    // Log write failure must not crash the watcher.
-    process.stdout.write('[log-write-error] ' + err.message + '\n');
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Display helpers
-// ---------------------------------------------------------------------------
 
 function formatDuration(ms) {
   const totalSec = Math.floor(ms / 1000);
@@ -216,58 +111,222 @@ function formatDuration(ms) {
   return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 }
 
-function formatTokenCount(n) {
-  return n.toLocaleString('en-US');
+// ---------------------------------------------------------------------------
+// Token / cost tracking (Task 2)
+// ---------------------------------------------------------------------------
+
+const INPUT_COST_PER_M  = 15.00; // $ per 1M input tokens
+const OUTPUT_COST_PER_M = 75.00; // $ per 1M output tokens
+
+/**
+ * extractTokenUsage(stdout)
+ *
+ * Parses Claude Code's --output-format json output and extracts token counts.
+ * Falls back gracefully to nulls if the output is not valid JSON or the
+ * expected fields are absent (e.g. older Claude Code version).
+ */
+function extractTokenUsage(stdout) {
+  try {
+    const data = JSON.parse(stdout.trim());
+    const usage = data.usage || {};
+    const tokensIn  = typeof usage.input_tokens  === 'number' ? usage.input_tokens  : null;
+    const tokensOut = typeof usage.output_tokens === 'number' ? usage.output_tokens : null;
+    return { tokensIn, tokensOut };
+  } catch (_) {
+    return { tokensIn: null, tokensOut: null };
+  }
 }
 
-function formatCost(usd) {
-  return '$' + usd.toFixed(2);
+function computeCost(tokensIn, tokensOut) {
+  if (tokensIn == null || tokensOut == null) return null;
+  return (tokensIn  * INPUT_COST_PER_M  / 1_000_000)
+       + (tokensOut * OUTPUT_COST_PER_M / 1_000_000);
+}
+
+function formatTokens(tokensIn, tokensOut) {
+  if (tokensIn == null || tokensOut == null) return 'tokens: unknown';
+  return `${(tokensIn + tokensOut).toLocaleString()} tokens`;
+}
+
+function formatCost(costUsd) {
+  if (costUsd == null) return '';
+  return `$${costUsd.toFixed(2)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Session state (Task 5)
+// ---------------------------------------------------------------------------
+
+const session = {
+  startTime:  Date.now(),
+  completed:  0,
+  failed:     0,
+  tokensIn:   0,
+  tokensOut:  0,
+  costUsd:    0,
+  hasTokens:  false, // true once we've seen at least one real token count
+};
+
+function recordSessionResult(success, tokensIn, tokensOut, costUsd) {
+  if (success) session.completed += 1; else session.failed += 1;
+  if (tokensIn  != null) { session.tokensIn  += tokensIn;  session.hasTokens = true; }
+  if (tokensOut != null) { session.tokensOut += tokensOut; session.hasTokens = true; }
+  if (costUsd   != null) { session.costUsd   += costUsd; }
 }
 
 function printSessionSummary() {
-  const uptimeMins = Math.floor((Date.now() - SESSION.startTime) / 60000);
+  const uptimeMins = Math.floor((Date.now() - session.startTime) / 60000);
   const uptimeStr  = uptimeMins > 0 ? `${uptimeMins}m` : '<1m';
-  const totalTok   = SESSION.tokensIn + SESSION.tokensOut;
-  const tokStr     = totalTok > 0
-    ? `${formatTokenCount(totalTok)} tokens · ${formatCost(SESSION.costUsd)}`
+  const tokenStr   = session.hasTokens
+    ? `${(session.tokensIn + session.tokensOut).toLocaleString()} tokens`
     : 'tokens: unknown';
-  printStdout('');
-  printStdout(`  Session: ${SESSION.completed} completed · ${SESSION.failed} failed · ${tokStr} · uptime ${uptimeStr}`);
+  const costStr    = session.hasTokens ? `${SYM.sep}${formatCost(session.costUsd)}` : '';
+  print(`  Session: ${session.completed} completed${SYM.sep}${session.failed} failed${SYM.sep}${tokenStr}${costStr}${SYM.sep}uptime ${uptimeStr}`);
+  print('');
 }
 
 // ---------------------------------------------------------------------------
-// Startup block
+// Queue snapshot (Task 4)
 // ---------------------------------------------------------------------------
 
-function printStartupBlock(recoveryMessages) {
+/**
+ * getQueueSnapshot(queueDir)
+ *
+ * Scans the queue directory and returns counts by file state suffix.
+ * awaiting_review == completed (all DONE files) in v1 — no ACCEPTED state yet.
+ */
+function getQueueSnapshot(queueDir) {
+  let files;
+  try {
+    files = fs.readdirSync(queueDir);
+  } catch (_) {
+    return { waiting: 0, in_progress: 0, completed: 0, failed: 0, awaiting_review: 0 };
+  }
+  const waiting     = files.filter(f => f.endsWith('-PENDING.md')).length;
+  const in_progress = files.filter(f => f.endsWith('-IN_PROGRESS.md')).length;
+  const completed   = files.filter(f => f.endsWith('-DONE.md')).length;
+  const failed      = files.filter(f => f.endsWith('-ERROR.md')).length;
+  return { waiting, in_progress, completed, failed, awaiting_review: completed };
+}
+
+// ---------------------------------------------------------------------------
+// Startup block (Task 3)
+// ---------------------------------------------------------------------------
+
+/**
+ * printStartupBlock(recoveryActions)
+ *
+ * Prints the full startup UI block — header, recovery section (if any),
+ * and queue snapshot. Called once on launch after crashRecovery() runs.
+ */
+function printStartupBlock(recoveryActions) {
   const ts         = timestampNow();
   const pollSec    = Math.round(config.pollIntervalMs / 1000);
   const timeoutMin = Math.round(config.timeoutMs / 60000);
 
-  printStdout(BOX.doubleRow);
-  printStdout(`  Bridge of Hormuz · Watcher`);
-  printStdout(`  Started: ${ts} · Polling every ${pollSec}s · Timeout: ${timeoutMin}min`);
-  printStdout(BOX.doubleRow);
+  print('');
+  print(hLine(B.dbl));
+  print(`  Bridge of Hormuz${SYM.sep}Watcher`);
+  print(`  Started: ${ts}${SYM.sep}Polling every ${pollSec}s${SYM.sep}Timeout: ${timeoutMin}min`);
+  print(hLine(B.dbl));
 
-  if (recoveryMessages.length > 0) {
-    printStdout('');
-    printStdout('  Recovered on startup:');
-    for (const msg of recoveryMessages) {
-      printStdout(msg);
+  if (recoveryActions.length > 0) {
+    print('');
+    print('  Recovered on startup:');
+    for (const action of recoveryActions) {
+      if (action.type === 'cleared') {
+        print(`    ${C.green}${SYM.check}${C.reset} Commission ${action.id}${SYM.dash}cleared stale work-in-progress (already completed)`);
+      } else if (action.type === 'cleared_error') {
+        print(`    ${C.yellow}${SYM.check}${C.reset} Commission ${action.id}${SYM.dash}cleared stale work-in-progress (already failed)`);
+      } else if (action.type === 'requeued') {
+        print(`    ${C.yellow}${SYM.back}${C.reset} Commission ${action.id}${SYM.dash}re-queued interrupted commission`);
+      }
     }
   }
 
-  const snap = getQueueSnapshot(QUEUE_DIR);
-  printStdout('');
-
-  if (snap.waiting === 0 && snap.in_progress === 0 && snap.completed === 0 && snap.failed === 0) {
-    printStdout('  Queue is empty — watching for new commissions.');
+  const snapshot = getQueueSnapshot(QUEUE_DIR);
+  print('');
+  print('  Queue snapshot:');
+  const isEmpty = snapshot.waiting === 0 && snapshot.in_progress === 0
+               && snapshot.completed === 0 && snapshot.failed === 0;
+  if (isEmpty) {
+    print(`    Queue is empty${SYM.dash}watching for new commissions.`);
   } else {
-    printStdout('  Queue snapshot:');
-    printStdout(`    📋 ${snap.waiting} waiting · ${snap.in_progress} in progress · ${snap.completed} completed · ${snap.failed} failed`);
+    print(`    ${SYM.clip}${snapshot.waiting} waiting${SYM.sep}${snapshot.in_progress} in progress${SYM.sep}${snapshot.completed} completed${SYM.sep}${snapshot.failed} failed`);
   }
+  print(hLine(B.sng));
+  print('');
+}
 
-  printStdout(BOX.singleRow);
+// ---------------------------------------------------------------------------
+// Commission lifecycle blocks (Task 3)
+// ---------------------------------------------------------------------------
+
+/**
+ * openCommissionBlock(id, title)
+ *
+ * Prints the opening of a commission lifecycle block. Called at pickup.
+ */
+function openCommissionBlock(id, title) {
+  const titleStr = title ? `${SYM.sep}"${title}"` : '';
+  print(`${B.tl}${B.sng.repeat(W - 1)}`);
+  print(`${B.vert}  ${SYM.right} Commission ${id}${titleStr}`);
+  print(`${B.vert}    Queued${SYM.arrow}Handed off to Rook`);
+  print(`${B.vert}`);
+}
+
+/**
+ * printProgressTick(elapsedMs)
+ *
+ * Appends a progress line inside the open commission block. Called every 60s.
+ */
+function printProgressTick(elapsedMs) {
+  const elapsed = formatDuration(elapsedMs);
+  print(`${B.vert}    ${C.yellow}${SYM.clock}${C.reset} Working${SYM.dots} ${elapsed}`);
+}
+
+/**
+ * closeCommissionBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason)
+ *
+ * Prints the completion or failure lines and closes the commission block.
+ */
+function closeCommissionBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason) {
+  const duration  = formatDuration(durationMs);
+  const tokenStr  = formatTokens(tokensIn, tokensOut);
+  const costStr   = formatCost(costUsd);
+
+  if (success) {
+    const parts = [duration, tokenStr];
+    if (costStr) parts.push(costStr);
+    print(`${B.vert}    ${C.green}${SYM.check}${C.reset} Complete${SYM.sep}${parts.join(SYM.sep)}`);
+    print(`${B.vert}    Status: Done${SYM.arrow}Waiting for Mara's review`);
+  } else {
+    const reasonStr = reason || 'Unknown error';
+    print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} Failed${SYM.sep}${duration}${SYM.sep}Reason: ${reasonStr}`);
+    print(`${B.vert}    Status: Needs attention`);
+  }
+  print(`${B.bl}${B.sng.repeat(W - 1)}`);
+  print('');
+}
+
+// ---------------------------------------------------------------------------
+// Structured logging (bridge.log only — stdout handled by presentation layer)
+// ---------------------------------------------------------------------------
+
+/**
+ * log(level, event, fields)
+ *
+ * Writes one JSON line to bridge.log. Does NOT write to stdout — all terminal
+ * output is handled by the presentation functions above.
+ */
+function log(level, event, fields) {
+  const line = JSON.stringify(Object.assign({ ts: new Date().toISOString(), level, event }, fields));
+  try {
+    fs.appendFileSync(LOG_FILE, line + '\n');
+  } catch (err) {
+    // Log file write failure must not crash the watcher.
+    process.stdout.write('[log-write-error] ' + err.message + '\n');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -337,15 +396,15 @@ let processing = false;
 // ---------------------------------------------------------------------------
 
 /**
- * invokeRook(commissionContent, donePath, inProgressPath, errorPath, id, title, effectiveTimeoutMs)
+ * invokeRook(commissionContent, donePath, inProgressPath, errorPath, id, effectiveTimeoutMs)
  *
  * Pipes commission content + report path instruction to `claude -p`.
- * Prints commission lifecycle block to stdout.
  * On success: checks donePath exists; if not, writes a fallback ERROR report.
  * On failure: writes an ERROR report.
- * Always cleans up IN_PROGRESS file on completion (gracefully if already gone).
+ * Always cleans up the IN_PROGRESS file on completion (existence-checked to
+ * avoid ENOENT when Rook's crash recovery already handled it).
  */
-function invokeRook(commissionContent, donePath, inProgressPath, errorPath, id, title, effectiveTimeoutMs) {
+function invokeRook(commissionContent, donePath, inProgressPath, errorPath, id, effectiveTimeoutMs) {
   const prompt = commissionContent + '\n\nWrite your report to: ' + donePath;
 
   const pickupTime = Date.now();
@@ -363,21 +422,9 @@ function invokeRook(commissionContent, donePath, inProgressPath, errorPath, id, 
     timeoutMs: effectiveTimeoutMs,
   });
 
-  // Commission lifecycle block — header
-  const timeoutMin   = Math.round(effectiveTimeoutMs / 60000);
-  const titleDisplay = title ? `"${title}"` : '(no title)';
-  const B            = BOX.side;
-
-  printStdout('');
-  printStdout(BOX.top);
-  printStdout(`${B}  ${C.cyan}► Commission ${id} · ${titleDisplay}${C.reset}`);
-  printStdout(`${B}    Queued → Handed off to Rook · ${timeoutMin}min limit`);
-  printStdout(`${B}`);
-
   // Progress tick: every 60s while Rook is running — stdout only, not bridge.log.
   const tickInterval = setInterval(() => {
-    const elapsed = formatDuration(Date.now() - pickupTime);
-    printStdout(`${B}    ${C.yellow}⏳ Working… ${elapsed}${C.reset}`);
+    printProgressTick(Date.now() - pickupTime);
   }, 60000);
 
   const child = execFile(
@@ -392,37 +439,23 @@ function invokeRook(commissionContent, donePath, inProgressPath, errorPath, id, 
     (err, stdout, stderr) => {
       clearInterval(tickInterval);
 
-      const durationMs  = Date.now() - pickupTime;
-      const durationStr = formatDuration(durationMs);
-      const isTimeout   = err && err.killed && err.signal === 'SIGTERM';
+      const durationMs = Date.now() - pickupTime;
+      const isTimeout  = err && err.killed && err.signal === 'SIGTERM';
 
-      // Extract token usage from JSON output.
-      const { tokensIn, tokensOut, known } = extractTokens(stdout || '');
-      const costUsd = known ? calcCost(tokensIn, tokensOut) : 0;
+      // Extract token usage from JSON output (Task 2).
+      // Falls back gracefully to nulls if output is not parseable JSON.
+      const { tokensIn, tokensOut } = extractTokenUsage(stdout || '');
+      const costUsd = computeCost(tokensIn, tokensOut);
 
       if (!err) {
         // Success path: check Rook wrote his DONE file.
         if (fs.existsSync(donePath)) {
-          const tokenStr = known
-            ? `${formatTokenCount(tokensIn + tokensOut)} tokens · ${formatCost(costUsd)}`
-            : 'tokens: unknown';
-          printStdout(`${B}`);
-          printStdout(`${B}    ${C.green}✓ Complete · ${durationStr} · ${tokenStr}${C.reset}`);
-          printStdout(`${B}    Status: Done → Waiting for Mara's review`);
-          printStdout(BOX.bottom);
-
-          log('info', 'complete', { id, msg: 'Rook finished — DONE file present', durationMs, tokensIn, tokensOut, costUsd });
+          log('info', 'complete', { id, msg: 'Rook finished — DONE file present', durationMs, tokensIn, tokensOut });
           log('info', 'state', { id, from: 'IN_PROGRESS', to: 'DONE' });
-
-          SESSION.completed++;
-          if (known) { SESSION.tokensIn += tokensIn; SESSION.tokensOut += tokensOut; SESSION.costUsd += costUsd; }
+          closeCommissionBlock(true, durationMs, tokensIn, tokensOut, costUsd, null);
+          recordSessionResult(true, tokensIn, tokensOut, costUsd);
         } else {
-          // Rook exited 0 but wrote no DONE file — write an ERROR report.
-          printStdout(`${B}`);
-          printStdout(`${B}    ${C.red}✗ Failed · ${durationStr} · Reason: No report written${C.reset}`);
-          printStdout(`${B}    Status: Needs attention`);
-          printStdout(BOX.bottom);
-
+          // Rook exited 0 but wrote no DONE file — write an ERROR report with reason "no_report".
           log('warn', 'complete', {
             id,
             msg: 'Rook exited cleanly but wrote no DONE file — writing ERROR (no_report)',
@@ -431,22 +464,12 @@ function invokeRook(commissionContent, donePath, inProgressPath, errorPath, id, 
           });
           writeErrorFile(errorPath, id, 'no_report', null, stdout, stderr);
           log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason: 'no_report' });
-
-          SESSION.failed++;
+          closeCommissionBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'No report written');
+          recordSessionResult(false, tokensIn, tokensOut, costUsd);
         }
       } else {
-        // Failure path: invocation failure → ERROR file.
-        const reason        = isTimeout ? 'timeout' : 'crash';
-        const reasonDisplay = isTimeout ? 'Timed out' : 'Process error';
-        const tokenPart     = known
-          ? ` · ${formatTokenCount(tokensIn + tokensOut)} tokens · ${formatCost(costUsd)}`
-          : '';
-
-        printStdout(`${B}`);
-        printStdout(`${B}    ${C.red}✗ Failed · ${durationStr} · Reason: ${reasonDisplay}${tokenPart}${C.reset}`);
-        printStdout(`${B}    Status: Needs attention`);
-        printStdout(BOX.bottom);
-
+        // Failure path: distinguish timeout vs non-zero exit.
+        const reason = isTimeout ? 'timeout' : 'crash';
         log('error', isTimeout ? 'timeout' : 'error', {
           id,
           msg: isTimeout ? 'Commission timed out' : 'claude -p failed',
@@ -454,27 +477,23 @@ function invokeRook(commissionContent, donePath, inProgressPath, errorPath, id, 
           exitCode: err.code,
           signal: err.signal || null,
           durationMs,
-          tokensIn:  known ? tokensIn  : null,
-          tokensOut: known ? tokensOut : null,
-          costUsd:   known ? costUsd   : null,
         });
         writeErrorFile(errorPath, id, reason, err, stdout, stderr);
         log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason });
-
-        SESSION.failed++;
-        if (known) { SESSION.tokensIn += tokensIn; SESSION.tokensOut += tokensOut; SESSION.costUsd += costUsd; }
+        const reasonDisplay = isTimeout ? 'Timed out' : 'Process failed';
+        closeCommissionBlock(false, durationMs, tokensIn, tokensOut, costUsd, reasonDisplay);
+        recordSessionResult(false, tokensIn, tokensOut, costUsd);
       }
 
-      // Session summary after each commission completes.
       printSessionSummary();
 
-      // Clean up IN_PROGRESS file.
-      // Rook's crash recovery may have already renamed or deleted it — that's fine.
+      // Task 1: ENOENT fix — check existence before unlinking.
+      // Rook's crash recovery may have already renamed or deleted this file.
       if (fs.existsSync(inProgressPath)) {
         try {
           fs.unlinkSync(inProgressPath);
-        } catch (_) {
-          // Disappeared between the existence check and the delete — ignore.
+        } catch (unlinkErr) {
+          log('warn', 'error', { id, msg: 'Failed to delete IN_PROGRESS file', error: unlinkErr.message });
         }
       }
 
@@ -502,9 +521,9 @@ function invokeRook(commissionContent, donePath, inProgressPath, errorPath, id, 
  *
  * Writes a structured ERROR report. The frontmatter always includes `reason`
  * so bridge.log and Mara's tooling can distinguish failure modes:
- *   "timeout"             — claude -p was killed after exceeding the timeout
- *   "crash"               — claude -p exited non-zero; exit_code included
- *   "no_report"           — claude -p exited 0 but wrote no DONE file
+ *   "timeout"             — process was killed after exceeding the timeout
+ *   "crash"               — process exited non-zero; exit_code included
+ *   "no_report"           — process exited 0 but wrote no DONE file
  *   "invalid_commission"  — PENDING file failed frontmatter validation
  *
  * @param {string}      errorPath  Absolute path for the ERROR file.
@@ -520,7 +539,6 @@ function writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra) {
   const exitCode  = err && err.code != null ? String(err.code) : null;
   const signal    = err && err.signal ? err.signal : null;
 
-  // Frontmatter lines — always present.
   const frontmatter = [
     '---',
     `id: "${id}"`,
@@ -533,24 +551,21 @@ function writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra) {
     `reason: "${reason}"`,
   ];
 
-  // exit_code is only meaningful for crash failures.
   if (reason === 'crash' && exitCode !== null) {
     frontmatter.push(`exit_code: ${exitCode}`);
   }
-
   frontmatter.push('---');
 
-  // Truncate stdout/stderr to last 500 chars for no_report — avoids enormous files.
   const truncate = (s, n) => (s && s.length > n ? '…' + s.slice(-n) : s || '(empty)');
   const stdoutBody = reason === 'no_report' ? truncate(stdout, 500) : (stdout || '(empty)');
   const stderrBody = reason === 'no_report' ? truncate(stderr, 500) : (stderr || '(empty)');
 
   const detail = reason === 'timeout'
-    ? 'The `claude -p` process was killed after exceeding the configured timeout.'
+    ? 'The process was killed after exceeding the configured timeout.'
     : reason === 'crash'
-      ? `The \`claude -p\` process exited with a non-zero status (exit code ${exitCode ?? 'unknown'}).`
+      ? `The process exited with a non-zero status (exit code ${exitCode ?? 'unknown'}).`
       : reason === 'no_report'
-        ? 'The `claude -p` process exited cleanly (exit 0) but wrote no DONE file.'
+        ? 'The process exited cleanly but wrote no DONE file.'
         : `Commission frontmatter validation failed. Missing fields: ${(extra && extra.missingFields || []).join(', ')}.`;
 
   const content = [
@@ -640,7 +655,7 @@ function poll() {
   const errorPath      = path.join(QUEUE_DIR, `${id}-ERROR.md`);
 
   // ---------------------------------------------------------------------------
-  // 3.4 — Validation on intake
+  // Validation on intake
   //
   // Before renaming to IN_PROGRESS, check that all required frontmatter fields
   // are present and non-empty. Required: id, title, from, to, priority, created.
@@ -658,15 +673,8 @@ function poll() {
   );
 
   if (missingFields.length > 0) {
-    // Use "unknown-{timestamp}" as fallback error path if id is indeterminate.
     const errId   = (meta && meta.id) || id;
     const errPath = path.join(QUEUE_DIR, `${errId}-ERROR.md`);
-
-    printStdout('');
-    printStdout(BOX.top);
-    printStdout(`${BOX.side}  ${C.red}✗ Commission ${errId} · Rejected${C.reset}`);
-    printStdout(`${BOX.side}    Missing required fields: ${missingFields.join(', ')}`);
-    printStdout(BOX.bottom);
 
     log('error', 'error', {
       id: errId,
@@ -675,6 +683,10 @@ function poll() {
       missing_fields: missingFields,
       file: pendingFile,
     });
+
+    // Stakeholder-friendly terminal output for rejected commissions.
+    print(`  ${C.red}${SYM.cross}${C.reset} Commission ${errId} rejected${SYM.dash}Missing required fields: ${missingFields.join(', ')}`);
+
     writeErrorFile(errPath, errId, 'invalid_commission', null, '', '', { missingFields });
     log('info', 'state', { id: errId, from: 'PENDING', to: 'ERROR', reason: 'invalid_commission' });
 
@@ -695,10 +707,12 @@ function poll() {
   log('info', 'pickup', { id, title, msg: 'Commission picked up', file: pendingFile });
   log('info', 'state', { id, from: 'PENDING', to: 'IN_PROGRESS' });
 
+  openCommissionBlock(id, title);
+
   processing = true;
 
   // Invoke Rook asynchronously — event loop stays live.
-  invokeRook(commissionContent, donePath, inProgressPath, errorPath, id, title, effectiveTimeoutMs);
+  invokeRook(commissionContent, donePath, inProgressPath, errorPath, id, effectiveTimeoutMs);
 }
 
 // ---------------------------------------------------------------------------
@@ -715,22 +729,20 @@ function poll() {
  *   {id}-IN_PROGRESS + DONE exists   → delete IN_PROGRESS (already complete)
  *   {id}-IN_PROGRESS + ERROR exists  → delete IN_PROGRESS (already failed)
  *
- * Returns an array of human-readable recovery messages for the startup block.
- * Logs technical details to bridge.log only.
+ * Returns an array of action records for display in the startup block.
  */
 function crashRecovery() {
+  const actions = [];
   let files;
   try {
     files = fs.readdirSync(QUEUE_DIR);
   } catch (err) {
     log('warn', 'startup_recovery', { msg: 'Cannot read queue dir for crash recovery', error: err.message });
-    return [];
+    return actions;
   }
 
   const inProgressFiles = files.filter(f => f.endsWith('-IN_PROGRESS.md'));
-  if (inProgressFiles.length === 0) return [];
-
-  const messages = [];
+  if (inProgressFiles.length === 0) return actions;
 
   for (const file of inProgressFiles) {
     const id             = file.replace('-IN_PROGRESS.md', '');
@@ -749,9 +761,7 @@ function crashRecovery() {
           action: 'deleted',
           resolved_as: resolvedAs,
         });
-        messages.push(
-          `    ${C.green}✓${C.reset} Commission ${id} — cleared stale work-in-progress (already ${hasDone ? 'completed' : 'failed'})`
-        );
+        actions.push({ id, type: hasDone ? 'cleared' : 'cleared_error' });
       } catch (err) {
         log('warn', 'startup_recovery', { id, msg: 'Failed to delete orphaned IN_PROGRESS', error: err.message });
       }
@@ -765,16 +775,14 @@ function crashRecovery() {
           msg: 'Orphaned IN_PROGRESS renamed to PENDING (re-queued)',
           action: 're-queued',
         });
-        messages.push(
-          `    ${C.yellow}↩${C.reset} Commission ${id} — re-queued interrupted commission`
-        );
+        actions.push({ id, type: 'requeued' });
       } catch (err) {
         log('warn', 'startup_recovery', { id, msg: 'Failed to rename orphaned IN_PROGRESS to PENDING', error: err.message });
       }
     }
   }
 
-  return messages;
+  return actions;
 }
 
 // ---------------------------------------------------------------------------
@@ -815,9 +823,11 @@ function shutdown(signal) {
   log('info', 'shutdown', { msg: `Received ${signal} — shutting down` });
   if (processing) {
     log('warn', 'shutdown', {
-      msg: 'A commission is in flight at shutdown. The IN_PROGRESS file will be recovered on next startup.',
+      msg: 'A commission is in flight at shutdown. The IN_PROGRESS file will be recovered by crash recovery (Layer 3) on next startup.',
       current_commission: heartbeatState.current_commission,
     });
+    print('');
+    print(`  Watcher shutting down${SYM.dash}commission in progress will be recovered on next start.`);
   }
   process.exit(0);
 }
@@ -846,8 +856,8 @@ if (require.main === module) {
     },
   });
 
-  const recoveryMessages = crashRecovery();
-  printStartupBlock(recoveryMessages);
+  const recoveryActions = crashRecovery();
+  printStartupBlock(recoveryActions);
 
   // Initial heartbeat write so the file exists immediately on startup.
   writeHeartbeat();
