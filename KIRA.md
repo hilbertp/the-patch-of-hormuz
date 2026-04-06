@@ -164,6 +164,8 @@ There is no hard limit on commission length or complexity for v1. However: if a 
 | 1: Contracts | 002 | `slice/1-contracts` | ACCEPTED, merged to main |
 | 2: Production watcher | 003 | `slice/2-production-watcher` | ACCEPTED, merged to main |
 | 3: Kira's half | 004 | `slice/3-kiras-half` | ACCEPTED, merged to main |
+| 4: Robustness | 008–009 | `slice/4-robustness` | ACCEPTED, merged to main |
+| 5: launchd auto-start | 010–011 | `slice/5-launchd` | ACCEPTED, merged to main |
 
 ### Fix commissions
 
@@ -173,28 +175,39 @@ There is no hard limit on commission length or complexity for v1. However: if a 
 | 006 | Richer stdout (colors, title, progress) | `fix/readable-stdout-v2` | ACCEPTED, merged to main |
 | 007 | Merge all pending branches | (on main) | ACCEPTED |
 
+### Housekeeping commissions
+
+| ID | Title | Notes |
+|---|---|---|
+| 012 | DS9 rename sweep (watcher banner + full repo) | Committed directly by Kira, no O'Brien commission |
+
 ### Next up
 
-**Slice 4: Robustness** — Crash recovery (3.1), ID management (3.2), hardened error handling (3.3), validation on intake (3.4). These harden what exists — no new functionality.
+**Slice 6** — candidates (pick one with Sisko):
+- **Smart timeout** — activity-based monitoring instead of flat 15-min kill
+- **Dashboard wiring** — connect LCARS dashboard to live `.bridge/` data files
+- **QA pipeline** — commission Nog and Bashir roles into the review cycle
+- **Token/cost phase tracking** — granular cost by phase (planning/execution/correction)
+
+Next commission ID: **013**
 
 ### Open flags
 
-- **Watcher must be restarted after code changes** — the running watcher uses the code loaded at startup. After merging watcher.js changes, Sisko must restart the terminal process.
-- **launchd auto-start deferred to Slice 5** — until then, the watcher requires a persistent terminal session.
-- **CLAUDE.md absolute path stash** — the stashed path fix on `slice/1-contracts` may not have been applied. Minor: O'Brien gets `cwd` from the watcher and doesn't need the absolute path.
+- **Watcher must be restarted after code changes** — the running watcher uses the code loaded at startup. After merging watcher.js changes, Sisko must restart the watcher process.
+- **LCARS dashboard not yet in repo** — `lcars-dashboard.html` is in the old Spiderverse/Hormuz parent. Pending move to `repo/dashboard/` and wiring to live data.
+- **DEBRIEF.md has 18+ untriaged items** — schedule a triage session with Sisko when convenient.
+- **Old planning docs still named "Bridge of Hormuz"** — files in the old parent folder (Architecture, Capability Map, PRD). Decision needed: rename, move, or leave as historical.
 
-### Key project references (outside the repo)
+### Key project references
 
-These files live in the parent Liberation of Bajor directory, not in this repo:
-
-| Item | Path (relative to parent Liberation of Bajor folder) |
+| Item | Path |
 |---|---|
-| PRD | `PRD — Liberation of Bajor v2.md` |
-| Capability Map | `Capability Map — Liberation of Bajor.md` |
-| Architecture | `Architecture — Liberation of Bajor v1.md` |
-| Kira role definition | `.claude/roles/kira/ROLE.md` |
-| Kira learning (cross-project) | `.claude/roles/kira/LEARNING.md` |
-| All roles | `.claude/roles/` |
+| PRD | `../PRD — Liberation of Bajor v2.md` (parent folder) |
+| Capability Map | `../Capability Map — Liberation of Bajor.md` (parent folder) |
+| Architecture | `../Architecture — Liberation of Bajor v1.md` (parent folder) |
+| Kira role definition | `.claude/roles/kira/ROLE.md` (in repo) |
+| Kira learning (cross-project) | `.claude/roles/kira/LEARNING.md` (in repo) |
+| All roles | `.claude/roles/` (in repo) |
 
 ---
 
@@ -204,9 +217,9 @@ Kira uses a two-layer memory system:
 
 **Layer 1 — Project memory** (this section, K). Lives in the project repo. Tracks what's been done, what's next, open flags, decisions. Updated by Kira when significant state changes occur. A fresh Kira session on this project reads KIRA.md and knows where things stand.
 
-**Layer 2 — Cross-project learning** (`.claude/roles/kira/LEARNING.md`). Lives alongside the role definition. Contains behavioral patterns Sisko has taught — communication style, delivery discipline, things to avoid. A fresh Kira session on any project reads ROLE.md + LEARNING.md and inherits all calibration.
+**Layer 2 — Cross-project learning** (`repo/.claude/roles/kira/LEARNING.md`). Lives in the repo alongside the role definition. Contains behavioral patterns Sisko has taught — communication style, delivery discipline, things to avoid. A fresh Kira session on any project reads ROLE.md + LEARNING.md and inherits all calibration.
 
-When starting a new session on this project: read KIRA.md sections A–J for operations, section K for current state, then LEARNING.md for behavioral calibration.
+When starting a new session on this project: read KIRA.md sections A–J for operations, section K for current state, then `repo/.claude/roles/kira/LEARNING.md` for behavioral calibration.
 
 ---
 
