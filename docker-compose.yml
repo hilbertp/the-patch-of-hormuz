@@ -1,0 +1,17 @@
+services:
+  bajor:
+    build: .
+    ports:
+      - "4747:4747"
+    volumes:
+      # Queue files are the source of truth — keep them on the host.
+      - ./bridge:/app/bridge
+      # Claude roles, skills, and config — needed by watcher and claude CLI.
+      - ./.claude:/app/.claude
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      DASHBOARD_HOST: "0.0.0.0"
+      DASHBOARD_PORT: "4747"
+    restart: unless-stopped
+
+# Dashboard: http://localhost:4747
