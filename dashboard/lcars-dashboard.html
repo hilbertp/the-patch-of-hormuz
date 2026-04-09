@@ -724,18 +724,25 @@
     background: var(--panel-bg);
     border: 1px solid #222;
     border-radius: var(--border-sm);
-    padding: 14px 16px 12px;
+    padding: 16px 20px 14px;
     margin-bottom: 8px;
+    font-family: system-ui, -apple-system, sans-serif;
   }
 
   .staged-panel .section-label {
-    margin-bottom: 10px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
   }
 
   .staged-empty {
     color: var(--text-dim);
-    font-size: 13px;
-    letter-spacing: 1px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
     padding: 12px 0;
   }
 
@@ -743,31 +750,33 @@
     background: #0c0c0c;
     border: 1px solid #2a2a2a;
     border-left: 3px solid var(--lcars-amber);
-    border-radius: 0 var(--border-sm) var(--border-sm) 0;
-    padding: 14px 16px;
-    margin-bottom: 8px;
+    border-radius: 0 6px 6px 0;
+    padding: 20px 24px;
+    margin-bottom: 16px;
   }
 
   .staged-card-header {
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 1px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: normal;
     color: var(--lcars-peach);
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   }
 
   .staged-card-header .staged-id {
     color: var(--lcars-amber);
-    margin-right: 10px;
+    margin-right: 8px;
   }
 
   .staged-card-summary {
-    font-size: 13px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    font-weight: 400;
     color: var(--text);
-    line-height: 1.5;
-    margin-bottom: 12px;
-    font-family: 'Antonio', sans-serif;
-    letter-spacing: 0.5px;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    letter-spacing: normal;
   }
 
   .staged-card-actions {
@@ -778,43 +787,47 @@
   }
 
   .staged-btn {
+    font-family: system-ui, -apple-system, sans-serif;
+    height: 36px;
     border: none;
-    border-radius: 4px;
-    padding: 6px 16px;
-    font-family: 'Antonio', sans-serif;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
+    border-radius: 6px;
+    padding: 0 16px;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: normal;
+    text-transform: none;
     cursor: pointer;
     transition: opacity 0.2s;
   }
 
-  .staged-btn:hover { opacity: 0.8; }
+  .staged-btn:hover { opacity: 0.85; }
 
   .staged-btn-commission {
-    background: var(--lcars-green);
-    color: #000;
+    background: #2563eb;
+    color: #fff;
   }
 
   .staged-btn-amend {
-    background: var(--lcars-amber);
-    color: #000;
+    background: transparent;
+    border: 1px solid #555;
+    color: var(--text);
   }
 
   .staged-btn-reject {
-    background: var(--lcars-red);
-    color: #000;
+    background: transparent;
+    border: 1px solid #dc2626;
+    color: #dc2626;
   }
 
   .staged-btn-cancel {
-    background: #333;
+    background: transparent;
+    border: 1px solid #555;
     color: var(--text);
   }
 
   .staged-btn-confirm-reject {
-    background: var(--lcars-red);
-    color: #000;
+    background: #dc2626;
+    color: #fff;
   }
 
   .staged-inline-form {
@@ -828,18 +841,19 @@
   .staged-inline-form input[type="text"] {
     background: #111;
     border: 1px solid #444;
-    border-radius: 4px;
-    padding: 6px 10px;
+    border-radius: 6px;
+    padding: 0 12px;
+    height: 36px;
     color: var(--text);
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 12px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
     flex: 1;
     min-width: 200px;
   }
 
   .staged-inline-form input[type="text"]:focus {
     outline: none;
-    border-color: var(--lcars-amber);
+    border-color: #2563eb;
   }
 
   .staged-amendment-note {
@@ -848,15 +862,18 @@
     background: #1a1000;
     border: 1px solid #443300;
     border-radius: 4px;
-    font-size: 11px;
-    color: var(--lcars-amber);
-    font-family: 'Share Tech Mono', monospace;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    font-style: italic;
+    color: #b0956a;
   }
 
   .staged-amendment-note .note-label {
-    font-family: 'Antonio', sans-serif;
-    letter-spacing: 2px;
-    font-size: 9px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-style: normal;
+    letter-spacing: 0.08em;
+    font-size: 11px;
+    font-weight: 600;
     color: var(--lcars-dark);
     margin-bottom: 4px;
     text-transform: uppercase;
@@ -865,14 +882,14 @@
   .staged-details-toggle {
     background: none;
     border: none;
-    color: var(--lcars-lavender);
-    font-family: 'Antonio', sans-serif;
-    font-size: 11px;
-    letter-spacing: 2px;
+    color: #888;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    letter-spacing: normal;
     cursor: pointer;
     padding: 4px 0;
-    margin-top: 8px;
-    text-transform: uppercase;
+    margin-top: 4px;
+    text-transform: none;
   }
 
   .staged-details-toggle:hover { color: var(--text); }
@@ -880,14 +897,14 @@
   .staged-details-body {
     display: none;
     margin-top: 8px;
-    padding: 10px 12px;
-    background: #060606;
-    border: 1px solid #1a1a1a;
+    padding: 12px;
+    background: #141414;
+    border: 1px solid #2a2a2a;
     border-radius: 4px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 11px;
-    color: var(--text-dim);
-    line-height: 1.6;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    color: #bbb;
+    line-height: 1.5;
     white-space: pre-wrap;
     max-height: 300px;
     overflow-y: auto;
@@ -936,7 +953,7 @@
 
 <!-- ══ STAGED COMMISSIONS PANEL ══════════════════════════════════════════ -->
 <div class="staged-panel" id="staged-panel">
-  <div class="section-label">Commissions Awaiting Your Review</div>
+  <div class="section-label">Awaiting Your Review</div>
   <div id="staged-cards">
     <div class="staged-empty">No commissions awaiting review.</div>
   </div>
@@ -1505,7 +1522,7 @@
           </div>
           <div class="staged-card-summary">${summary}</div>
           ${actionsHtml}
-          <button class="staged-details-toggle" onclick="stagedToggleDetails('${escHtml(item.id)}')">&#9656; Details</button>
+          <button class="staged-details-toggle" onclick="stagedToggleDetails('${escHtml(item.id)}')" id="staged-details-btn-${escHtml(item.id)}">&#9656; Details</button>
           <div class="staged-details-body" id="staged-details-${escHtml(item.id)}">${escHtml(item.body || '')}</div>
         </div>`;
     }).join('');
@@ -1513,7 +1530,11 @@
 
   function stagedToggleDetails(id) {
     const el = document.getElementById('staged-details-' + id);
-    if (el) el.classList.toggle('open');
+    const btn = document.getElementById('staged-details-btn-' + id);
+    if (el) {
+      el.classList.toggle('open');
+      if (btn) btn.innerHTML = el.classList.contains('open') ? '&#9662; Details' : '&#9656; Details';
+    }
   }
 
   async function stagedCommission(id) {
