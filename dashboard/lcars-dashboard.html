@@ -1292,18 +1292,16 @@
     container.innerHTML = html;
   }
 
-  // Elapsed time: smooth local increment between server polls
-  let elapsedServerSecs = null;
-  let elapsedFetchedAt  = null;
+  // Elapsed time: computed from a fixed start timestamp, no re-anchoring
+  let commissionStartTime = null;
 
   function startElapsedTick() {
     setInterval(() => {
-      if (elapsedServerSecs == null) return;
-      const localDelta = (Date.now() - elapsedFetchedAt) / 1000;
-      const total = Math.floor(elapsedServerSecs + localDelta);
+      if (commissionStartTime == null) return;
+      const elapsed = Math.floor((Date.now() - commissionStartTime) / 1000);
       const el = document.getElementById('mission-elapsed');
-      if (el && el.style.display !== 'none') el.textContent = fmtElapsed(total);
-    }, 1000);
+      if (el && el.style.display !== 'none') el.textContent = fmtElapsed(elapsed);
+    }, 500);
   }
 
   function fmtElapsed(secs) {
@@ -1355,9 +1353,12 @@
       idleEl.style.display = 'none';
 
       if (heartbeat.commission_elapsed_seconds != null) {
-        elapsedServerSecs = heartbeat.commission_elapsed_seconds;
-        elapsedFetchedAt  = Date.now();
-        elapsedEl.textContent  = fmtElapsed(Math.floor(elapsedServerSecs));
+        // Derive start time once; don't re-anchor on subsequent polls
+        if (commissionStartTime == null) {
+          commissionStartTime = Date.now() - (heartbeat.commission_elapsed_seconds * 1000);
+        }
+        const elapsed = Math.floor((Date.now() - commissionStartTime) / 1000);
+        elapsedEl.textContent  = fmtElapsed(elapsed);
         elapsedEl.style.display = '';
       } else {
         elapsedEl.style.display = 'none';
@@ -1367,7 +1368,7 @@
       textEl.style.display    = 'none';
       idleEl.style.display    = '';
       elapsedEl.style.display = 'none';
-      elapsedServerSecs = null;
+      commissionStartTime = null;
     }
   }
 
