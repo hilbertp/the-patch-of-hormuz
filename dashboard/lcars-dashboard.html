@@ -3,24 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LCARS — Liberation of Bajor // Station Operations</title>
+<title>Liberation of Bajor — Dashboard</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Share+Tech+Mono&display=swap');
-
+  /* ── CSS variables (kept for JS compatibility, remapped to clean palette) ── */
   :root {
-    --lcars-amber:   #FF9900;
-    --lcars-peach:   #FFCC99;
-    --lcars-lavender:#CC99FF;
-    --lcars-blue:    #9999FF;
-    --lcars-red:     #FF6666;
-    --lcars-green:   #66FF99;
-    --lcars-dark:    #CC6600;
-    --lcars-purple:  #9966CC;
-    --bg:            #000000;
-    --panel-bg:      #080808;
-    --text:          #FFCC99;
-    --text-dim:      #886644;
-    --border-r:      18px;
+    --lcars-amber:   #f59e0b;
+    --lcars-peach:   #6b7280;
+    --lcars-lavender:#8b5cf6;
+    --lcars-blue:    #2563eb;
+    --lcars-red:     #dc2626;
+    --lcars-green:   #16a34a;
+    --lcars-dark:    #92400e;
+    --lcars-purple:  #7c3aed;
+    --bg:            #f9fafb;
+    --panel-bg:      #ffffff;
+    --text:          #111827;
+    --text-dim:      #6b7280;
+    --border-r:      8px;
     --border-sm:     8px;
   }
 
@@ -29,507 +28,237 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: 'Antonio', 'Trebuchet MS', sans-serif;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
     min-height: 100vh;
-    padding: 12px;
-    overflow-x: hidden;
   }
 
-  /* ── TOP BAR ─────────────────────────────────────────── */
-  .top-bar {
-    display: flex;
-    align-items: stretch;
-    min-height: 60px;
-    gap: 8px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
+  .dashboard-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 32px 24px;
   }
 
-  .top-elbow {
-    width: 180px;
-    flex-shrink: 0;
-    background: var(--lcars-amber);
-    border-radius: var(--border-r) var(--border-sm) var(--border-sm) var(--border-r);
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding-right: 14px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: #000;
-    text-align: right;
-    line-height: 1.3;
-  }
-
-  .top-title {
-    flex: 1;
-    min-width: 200px;
-    background: var(--lcars-amber);
-    border-radius: var(--border-sm);
+  /* ── HEADER ────────────────────────────────────────────── */
+  .header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 24px;
-    gap: 12px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 24px;
   }
 
-  .top-title h1 {
-    font-size: clamp(16px, 3vw, 28px);
+  .header-title {
+    font-size: 20px;
     font-weight: 700;
-    letter-spacing: 4px;
-    color: #000;
-    text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
+    color: #111827;
   }
 
-  .top-title .stardate {
-    font-family: 'Share Tech Mono', monospace;
+  .header-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 12px;
-    color: #000;
-    text-align: right;
-    line-height: 1.6;
-    white-space: nowrap;
-    flex-shrink: 0;
+    font-weight: 500;
+    color: #6b7280;
   }
 
-  .top-pill {
-    width: 120px;
-    flex-shrink: 0;
-    background: var(--lcars-lavender);
-    border-radius: var(--border-sm) var(--border-r) var(--border-r) var(--border-sm);
+  .header-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #16a34a;
+  }
+
+  .header-status-dot.offline { background: #dc2626; }
+  .header-status-dot.idle { background: #f59e0b; }
+
+  /* ── ACTIVE COMMISSION ─────────────────────────────────── */
+  .active-commission {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .active-commission-header {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    letter-spacing: 2px;
-    color: #000;
-    font-weight: 700;
-    text-align: center;
-    line-height: 1.3;
-  }
-
-  @media (max-width: 700px) {
-    .top-elbow { width: 90px; font-size: 9px; padding-right: 8px; }
-    .top-pill  { display: none; }
-    .top-title .stardate { display: none; }
-  }
-
-  /* ── MISSION LIFECYCLE PIPELINE ───────────────────────── */
-  .mission-pipeline {
-    background: var(--panel-bg);
-    border: 1px solid #222;
-    border-radius: var(--border-sm);
-    padding: 14px 16px 12px;
-    margin-bottom: 8px;
-    position: relative;
-  }
-
-  .pipeline-section-label {
-    font-size: 9px;
-    letter-spacing: 3px;
-    color: var(--lcars-lavender);
-    text-transform: uppercase;
-    margin-bottom: 10px;
-    border-bottom: 1px solid #1a0033;
-    padding-bottom: 4px;
-  }
-
-  .pipeline-header {
-    display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 14px;
-    min-height: 46px;
-    flex-wrap: wrap;
+    margin-bottom: 16px;
   }
 
-  .mission-info-block {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-
-  .mission-id-badge {
-    display: inline-block;
-    background: #110022;
-    border: 1px solid var(--lcars-lavender);
-    border-radius: 3px;
-    padding: 4px 12px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: var(--lcars-lavender);
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .mission-text {
+  .active-commission-info {
     flex: 1;
     min-width: 0;
   }
 
-  .mission-title-display {
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .active-commission-id {
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7280;
+    margin-bottom: 4px;
   }
 
-  .mission-stage-display {
-    font-size: 9px;
-    letter-spacing: 2px;
-    color: var(--lcars-lavender);
-    text-transform: uppercase;
-    margin-top: 3px;
+  .active-commission-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
   }
 
-  .mission-elapsed {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--lcars-green);
-    letter-spacing: 2px;
-    white-space: nowrap;
-    flex-shrink: 0;
-    animation: elapsed-pulse 1s ease-in-out infinite;
-  }
-
-  @keyframes elapsed-pulse {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.7; }
-  }
-
-  .mission-idle-text {
+  .active-commission-stage {
     font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 4px;
-    color: #2a2a2a;
+    color: #6b7280;
+    margin-top: 2px;
   }
 
-  /* Pipeline stages row */
+  .active-commission-elapsed {
+    font-variant-numeric: tabular-nums;
+    font-size: 20px;
+    font-weight: 600;
+    color: #6b7280;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .active-commission-idle {
+    font-size: 14px;
+    color: #9ca3af;
+  }
+
+  /* Pipeline stages */
   .pipeline-stages {
     display: flex;
     align-items: center;
     gap: 0;
     overflow-x: auto;
     padding-bottom: 4px;
-    scrollbar-width: thin;
-    scrollbar-color: #222 transparent;
   }
 
   .pipeline-stages::-webkit-scrollbar { height: 3px; }
   .pipeline-stages::-webkit-scrollbar-track { background: transparent; }
-  .pipeline-stages::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  .pipeline-stages::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
 
   .stage-node {
     flex-shrink: 0;
-    padding: 5px 9px;
-    font-size: 8px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    border: 1px solid #111;
-    border-radius: 3px;
-    color: #1e1e1e;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 4px;
+    color: #d1d5db;
     background: transparent;
-    transition: color 0.3s, border-color 0.3s, background 0.3s;
+    transition: color 0.2s, background 0.2s;
     white-space: nowrap;
   }
 
   .stage-node.done {
-    color: #3a2a10;
-    border-color: #221500;
-    background: #050200;
+    color: #9ca3af;
   }
 
   .stage-node.active {
-    color: var(--lcars-green);
-    border-color: var(--lcars-green);
-    background: #001a0d;
-    animation: stage-glow-green 2s ease-in-out infinite;
+    color: #2563eb;
+    background: #eff6ff;
+    font-weight: 600;
   }
 
   .stage-node.upcoming {
-    color: #1e1e1e;
-    border-color: #111;
-    background: transparent;
+    color: #d1d5db;
   }
 
   .stage-connector {
     flex-shrink: 0;
     font-size: 10px;
-    padding: 0 4px;
+    padding: 0 2px;
     user-select: none;
-    color: #151515;
-    transition: color 0.3s;
+    color: #e5e7eb;
+    transition: color 0.2s;
   }
 
-  .stage-connector.done { color: #2a1a05; }
+  .stage-connector.done { color: #9ca3af; }
 
-  @keyframes stage-glow-green {
-    0%, 100% { box-shadow: 0 0 4px var(--lcars-green); }
-    50%       { box-shadow: 0 0 14px var(--lcars-green), 0 0 0 1px var(--lcars-green); }
-  }
-
-  /* ── MAIN LAYOUT ─────────────────────────────────────── */
-  .main-layout {
+  /* ── QUEUE STATS ───────────────────────────────────────── */
+  .queue-stats {
     display: flex;
-    gap: 8px;
-    align-items: flex-start;
-  }
-
-  /* Left sidebar: fixed width at desktop */
-  .left-sidebar {
-    width: 220px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  /* Center + right together */
-  .main-content {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-  }
-
-  /* Center column */
-  .content-primary {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  /* Right economics panel */
-  .right-panel {
-    width: 260px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  /* ~1100px: right panel drops below center */
-  @media (max-width: 1100px) {
-    .main-content {
-      flex-direction: column;
-    }
-    .right-panel {
-      width: 100%;
-    }
-    .right-elbow {
-      border-radius: var(--border-sm);
-      justify-content: flex-start;
-      padding-left: 16px;
-    }
-    .right-blocks-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 8px;
-    }
-  }
-
-  /* ~850px: sidebar stacks too */
-  @media (max-width: 850px) {
-    .main-layout {
-      flex-direction: column;
-    }
-    .left-sidebar {
-      width: 100%;
-    }
-    .sidebar-elbow {
-      border-radius: var(--border-sm);
-    }
-    .crew-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0;
-    }
-    .right-blocks-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-  }
-
-  /* ── LEFT SIDEBAR ─────────────────────────────────────── */
-  .sidebar-elbow {
-    background: var(--lcars-amber);
-    height: 40px;
-    border-radius: var(--border-r) var(--border-sm) var(--border-sm) var(--border-r);
-    display: flex;
-    align-items: center;
-    padding-left: 16px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: #000;
-  }
-
-  .sidebar-block {
-    background: var(--panel-bg);
-    border: 1px solid #222;
-    border-radius: var(--border-sm);
-    padding: 14px;
-  }
-
-  .section-label {
-    font-size: 9px;
-    letter-spacing: 3px;
-    color: var(--lcars-amber);
-    text-transform: uppercase;
-    margin-bottom: 12px;
-    border-bottom: 1px solid var(--lcars-amber);
-    padding-bottom: 4px;
-  }
-
-  .crew-member {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid #111;
-  }
-  .crew-member:last-child { border-bottom: none; }
-
-  .crew-name {
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    color: var(--text);
-  }
-
-  .crew-role {
-    font-size: 9px;
-    letter-spacing: 1px;
-    color: var(--text-dim);
-    margin-top: 1px;
-  }
-
-  .crew-indicator {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .ind-active  { background: var(--lcars-green); box-shadow: 0 0 6px var(--lcars-green); }
-  .ind-standby { background: var(--lcars-amber); box-shadow: 0 0 6px var(--lcars-amber); }
-  .ind-offline { background: #333; }
-
-  .crew-color-bar {
-    width: 3px;
-    height: 28px;
-    border-radius: 2px;
-    margin-right: 8px;
-    flex-shrink: 0;
-  }
-
-  /* ── STAT CARDS ───────────────────────────────────────── */
-  .center-top {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    gap: 12px;
+    margin-bottom: 24px;
   }
 
   .stat-card {
-    flex: 1 1 calc(20% - 6px);
-    min-width: 70px;
-    background: var(--panel-bg);
-    border: 1px solid #222;
-    border-radius: var(--border-sm);
-    padding: 14px 12px;
+    flex: 1;
     text-align: center;
-    position: relative;
-    overflow: hidden;
+    padding: 16px 8px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   }
-
-  .stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-  }
-
-  .stat-card.waiting::before { background: var(--lcars-amber); }
-  .stat-card.active::before  { background: var(--lcars-green); }
-  .stat-card.done::before    { background: var(--lcars-blue); }
-  .stat-card.error::before   { background: var(--lcars-red); }
-  .stat-card.review::before  { background: var(--lcars-lavender); }
 
   .stat-label {
-    font-size: 8px;
-    letter-spacing: 2px;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    margin-bottom: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #6b7280;
+    margin-bottom: 4px;
   }
 
   .stat-value {
-    font-size: 36px;
+    font-size: 28px;
     font-weight: 700;
     line-height: 1;
+    color: #111827;
   }
 
-  .stat-card.waiting .stat-value { color: var(--lcars-amber); }
-  .stat-card.active  .stat-value { color: var(--lcars-green); }
-  .stat-card.done    .stat-value { color: var(--lcars-blue); }
-  .stat-card.error   .stat-value { color: var(--lcars-red); }
-  .stat-card.review  .stat-value { color: var(--lcars-lavender); }
+  .stat-card.error .stat-value { color: #dc2626; }
+  .stat-card.active .stat-value { color: #2563eb; }
 
-  /* ── MISSION LOG ──────────────────────────────────────── */
-  .center-bottom {
-    background: var(--panel-bg);
-    border: 1px solid #222;
-    border-radius: var(--border-sm);
-    padding: 14px;
-    overflow: hidden;
+  /* ── COMMISSION HISTORY ────────────────────────────────── */
+  .commission-history {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 16px;
   }
 
   .table-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    scrollbar-color: #222 transparent;
   }
 
   .commission-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: 13px;
     min-width: 480px;
   }
 
   .commission-table th {
-    font-size: 8px;
-    letter-spacing: 2px;
-    color: var(--lcars-amber);
+    font-size: 11px;
+    font-weight: 500;
+    color: #6b7280;
     text-align: left;
-    padding: 4px 8px;
-    border-bottom: 1px solid #222;
-    text-transform: uppercase;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e5e7eb;
     white-space: nowrap;
   }
 
   .commission-table td {
-    padding: 7px 8px;
-    border-bottom: 1px solid #111;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 11px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 13px;
+    color: #374151;
   }
 
   .commission-table tr:last-child td { border-bottom: none; }
@@ -537,201 +266,82 @@
   .tag {
     display: inline-block;
     padding: 2px 8px;
-    border-radius: 3px;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    font-family: 'Antonio', sans-serif;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
     white-space: nowrap;
   }
-  .tag-done     { background: #001133; color: var(--lcars-blue);     border: 1px solid var(--lcars-blue); }
-  .tag-error    { background: #220000; color: var(--lcars-red);      border: 1px solid var(--lcars-red); }
-  .tag-pending  { background: #221100; color: var(--lcars-amber);    border: 1px solid var(--lcars-amber); }
-  .tag-progress { background: #002211; color: var(--lcars-green);    border: 1px solid var(--lcars-green); }
-  .tag-merge    { background: #110022; color: var(--lcars-lavender); border: 1px solid var(--lcars-lavender); }
 
-  .cost-cell { color: var(--lcars-peach); }
-  .time-cell { color: var(--text-dim); }
+  .tag-done     { background: #dcfce7; color: #166534; }
+  .tag-error    { background: #fef2f2; color: #991b1b; }
+  .tag-pending  { background: #fef9c3; color: #854d0e; }
+  .tag-progress { background: #dbeafe; color: #1e40af; }
+  .tag-merge    { background: #ede9fe; color: #5b21b6; }
 
-  /* ── RIGHT PANEL ──────────────────────────────────────── */
-  .right-elbow {
-    background: var(--lcars-lavender);
-    height: 40px;
-    border-radius: var(--border-sm) var(--border-r) var(--border-r) var(--border-sm);
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding-right: 16px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: #000;
+  .cost-cell { color: #6b7280; }
+  .time-cell { color: #6b7280; }
+
+  /* ── CREW MANIFEST ─────────────────────────────────────── */
+  .crew-manifest {
+    margin-bottom: 24px;
   }
 
-  .right-blocks-grid {
+  .crew-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .crew-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .crew-card-info {
     display: flex;
     flex-direction: column;
-    gap: 6px;
   }
 
-  .right-block {
-    background: var(--panel-bg);
-    border: 1px solid #222;
-    border-radius: var(--border-sm);
-    padding: 14px;
+  .crew-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
   }
 
-  .econ-metric { margin-bottom: 16px; }
-  .econ-metric:last-child { margin-bottom: 0; }
-
-  .econ-label {
-    font-size: 8px;
-    letter-spacing: 2px;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    margin-bottom: 4px;
+  .crew-role {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 1px;
   }
 
-  .econ-value {
-    font-size: 26px;
-    font-weight: 700;
-    color: var(--lcars-amber);
-  }
-
-  .econ-sub {
-    font-size: 10px;
-    color: var(--text-dim);
-    letter-spacing: 1px;
-  }
-
-  .progress-bar-bg {
-    background: #1a1a1a;
-    border-radius: 3px;
-    height: 6px;
-    margin-top: 6px;
-  }
-
-  .progress-bar-fill {
-    height: 6px;
-    border-radius: 3px;
-    background: var(--lcars-amber);
-    box-shadow: 0 0 8px var(--lcars-amber);
-  }
-
-  .phase-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 5px 0;
-    border-bottom: 1px solid #111;
-  }
-  .phase-row:last-child { border-bottom: none; }
-
-  .phase-name  { color: var(--text-dim); font-size: 9px; letter-spacing: 1px; }
-  .phase-hours { color: var(--lcars-peach); font-family: 'Share Tech Mono', monospace; font-size: 11px; }
-
-  /* ── BOTTOM STATUS BAR ────────────────────────────────── */
-  .bottom-bar {
-    display: flex;
-    min-height: 36px;
-    gap: 6px;
-    margin-top: 8px;
-    flex-wrap: wrap;
-    align-items: stretch;
-  }
-
-  .bottom-pill {
-    background: var(--lcars-purple);
-    border-radius: var(--border-r);
-    display: flex;
-    align-items: center;
-    padding: 6px 20px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: #000;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  .bottom-pill.amber { background: var(--lcars-amber); }
-  .bottom-pill.blue  { background: var(--lcars-blue); }
-  .bottom-pill.green { background: var(--lcars-green); }
-  .bottom-pill.red   { background: var(--lcars-red); }
-
-  .bottom-stretch {
-    flex: 1;
-    min-width: 180px;
-    background: var(--panel-bg);
-    border: 1px solid #222;
-    border-radius: var(--border-sm);
-    display: flex;
-    align-items: center;
-    padding: 6px 16px;
-    gap: 24px;
-    flex-wrap: wrap;
-    row-gap: 6px;
-  }
-
-  .status-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 10px;
-    letter-spacing: 1px;
-    color: var(--text-dim);
-    white-space: nowrap;
-  }
-
-  .status-dot {
-    width: 7px;
-    height: 7px;
+  .crew-indicator {
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     flex-shrink: 0;
   }
 
-  /* ── ANIMATIONS ────────────────────────────────────────── */
-  @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.3; }
-  }
+  .ind-active  { background: #16a34a; }
+  .ind-standby { background: #f59e0b; }
+  .ind-offline { background: #d1d5db; }
 
-  @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 6px var(--lcars-green); }
-    50%       { box-shadow: 0 0 14px var(--lcars-green); }
-  }
-
-  .blink      { animation: blink 2s ease-in-out infinite; }
-  .ind-active { animation: pulse-glow 2s ease-in-out infinite; }
-
-  @keyframes scanline {
-    0%   { transform: translateY(-100%); }
-    100% { transform: translateY(100vh); }
-  }
-
-  .scanline-overlay {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: rgba(255,153,0,0.06);
-    pointer-events: none;
-    animation: scanline 8s linear infinite;
-    z-index: 999;
-  }
-
-  /* ── STAGED PANEL (isolated — no inherited dashboard styles) ─── */
+  /* ── STAGED PANEL (preserved from commission 047 — do not modify) ─── */
   .staged-panel {
-    padding: 20px 0 8px;
-    margin-bottom: 8px;
+    padding: 0 0 8px;
+    margin-bottom: 24px;
   }
 
   .staged-panel .staged-section-label {
     font-family: system-ui, -apple-system, sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: #9ca3af;
+    font-size: 13px;
+    font-weight: 600;
+    color: #111827;
     margin-bottom: 16px;
   }
 
@@ -916,347 +526,172 @@
   }
 
   .staged-details-body.open { display: block; }
+
+  /* ── RESPONSIVE ────────────────────────────────────────── */
+  @media (max-width: 600px) {
+    .queue-stats { flex-wrap: wrap; }
+    .stat-card { flex: 1 1 calc(50% - 8px); min-width: 0; }
+    .crew-grid { grid-template-columns: 1fr; }
+    .dashboard-container { padding: 20px 16px; }
+  }
+
+  /* ── UTILITY (referenced by JS) ────────────────────────── */
+  .blink { }
+  .section-label { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 16px; }
 </style>
 </head>
 <body>
 
-<div class="scanline-overlay"></div>
+<div class="dashboard-container">
 
-<!-- ══ TOP BAR ══════════════════════════════════════════════════════════ -->
-<div class="top-bar">
-  <div class="top-elbow">LCARS<br>STATION OPS</div>
-  <div class="top-title">
-    <h1>The Liberation of Bajor</h1>
-    <div class="stardate">
-      STARDATE 2026.096<br>
-      2026-APR-06 · 17:09 LOCAL
+  <!-- ── HEADER ──────────────────────────────────────────────────────── -->
+  <div class="header">
+    <div class="header-title">Liberation of Bajor</div>
+    <div class="header-status">
+      <div class="header-status-dot" id="header-status-dot"></div>
+      <span id="watcher-status-text">ONLINE</span>
     </div>
   </div>
-  <div class="top-pill">SYS<br>NOMINAL</div>
+
+  <!-- ── ACTIVE COMMISSION ───────────────────────────────────────────── -->
+  <div class="active-commission">
+    <div class="active-commission-header">
+      <div class="active-commission-info">
+        <div id="mission-id-badge" class="active-commission-id" style="display:none"></div>
+        <div id="mission-text" style="display:none">
+          <div id="pipeline-mission-title" class="active-commission-title"></div>
+          <div id="pipeline-mission-stage" class="active-commission-stage"></div>
+        </div>
+        <div id="mission-idle-text" class="active-commission-idle">No active commission.</div>
+      </div>
+      <div id="mission-elapsed" class="active-commission-elapsed" style="display:none">00:00</div>
+    </div>
+    <div class="pipeline-stages" id="pipeline-stages"></div>
+  </div>
+
+  <!-- ── STAGED COMMISSIONS (preserved from 047) ─────────────────────── -->
+  <div class="staged-panel" id="staged-panel">
+    <div class="staged-section-label">Awaiting Your Review</div>
+    <div id="staged-cards">
+      <div class="staged-empty">No commissions pending review.</div>
+    </div>
+  </div>
+
+  <!-- ── QUEUE STATS ─────────────────────────────────────────────────── -->
+  <div class="queue-stats">
+    <div class="stat-card">
+      <div class="stat-label">Waiting</div>
+      <div class="stat-value" id="stat-waiting">0</div>
+    </div>
+    <div class="stat-card active">
+      <div class="stat-label">In Progress</div>
+      <div class="stat-value" id="stat-active">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Complete</div>
+      <div class="stat-value" id="stat-done">0</div>
+    </div>
+    <div class="stat-card error">
+      <div class="stat-label">Failed</div>
+      <div class="stat-value" id="stat-error">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">For Review</div>
+      <div class="stat-value" id="stat-review">0</div>
+    </div>
+  </div>
+
+  <!-- ── COMMISSION HISTORY ──────────────────────────────────────────── -->
+  <div class="commission-history">
+    <div class="section-title">Commission History</div>
+    <div class="table-scroll">
+      <table class="commission-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Description</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody id="commission-tbody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── CREW MANIFEST ───────────────────────────────────────────────── -->
+  <div class="crew-manifest">
+    <div class="section-title">Crew Manifest</div>
+    <div class="crew-grid">
+      <div class="crew-card">
+        <div class="crew-card-info">
+          <div class="crew-name">Sisko</div>
+          <div class="crew-role">Product Manager</div>
+        </div>
+        <div class="crew-indicator ind-active"></div>
+      </div>
+
+      <div class="crew-card">
+        <div class="crew-card-info">
+          <div class="crew-name">Kira</div>
+          <div class="crew-role">Delivery Coordinator</div>
+        </div>
+        <div class="crew-indicator ind-active"></div>
+      </div>
+
+      <div class="crew-card">
+        <div class="crew-card-info">
+          <div class="crew-name">O'Brien</div>
+          <div class="crew-role">Implementor</div>
+        </div>
+        <div class="crew-indicator ind-standby"></div>
+      </div>
+
+      <div class="crew-card">
+        <div class="crew-card-info">
+          <div class="crew-name">Dax</div>
+          <div class="crew-role">Architect</div>
+        </div>
+        <div class="crew-indicator ind-standby"></div>
+      </div>
+
+      <div class="crew-card">
+        <div class="crew-card-info">
+          <div class="crew-name">Bashir</div>
+          <div class="crew-role">QA / Testing</div>
+        </div>
+        <div class="crew-indicator ind-offline"></div>
+      </div>
+
+      <div class="crew-card">
+        <div class="crew-card-info">
+          <div class="crew-name">Nog</div>
+          <div class="crew-role">Code Review</div>
+        </div>
+        <div class="crew-indicator ind-offline"></div>
+      </div>
+
+      <div class="crew-card">
+        <div class="crew-card-info">
+          <div class="crew-name">Worf</div>
+          <div class="crew-role">DevOps</div>
+        </div>
+        <div class="crew-indicator ind-offline"></div>
+      </div>
+
+      <div class="crew-card">
+        <div class="crew-card-info">
+          <div class="crew-name">Quark</div>
+          <div class="crew-role">Economics</div>
+        </div>
+        <div class="crew-indicator ind-offline"></div>
+      </div>
+    </div>
+  </div>
+
 </div>
-
-<!-- ══ MISSION LIFECYCLE PIPELINE ════════════════════════════════════════ -->
-<div class="mission-pipeline">
-  <div class="pipeline-section-label">Mission Lifecycle</div>
-
-  <div class="pipeline-header">
-    <div id="mission-info-block" class="mission-info-block">
-      <div id="mission-id-badge" class="mission-id-badge" style="display:none">MISSION —</div>
-      <div id="mission-text" class="mission-text" style="display:none">
-        <div id="pipeline-mission-title" class="mission-title-display">—</div>
-        <div id="pipeline-mission-stage" class="mission-stage-display">—</div>
-      </div>
-      <div id="mission-idle-text" class="mission-idle-text">NO ACTIVE MISSION</div>
-    </div>
-    <div id="mission-elapsed" class="mission-elapsed" style="display:none">00:00</div>
-  </div>
-
-  <div class="pipeline-stages" id="pipeline-stages">
-    <!-- Rendered by JS -->
-  </div>
-</div>
-
-<!-- ══ STAGED COMMISSIONS PANEL ══════════════════════════════════════════ -->
-<div class="staged-panel" id="staged-panel">
-  <div class="staged-section-label">Awaiting Your Review</div>
-  <div id="staged-cards">
-    <div class="staged-empty">No commissions pending review.</div>
-  </div>
-</div>
-
-<!-- ══ MAIN LAYOUT ═══════════════════════════════════════════════════════ -->
-<div class="main-layout">
-
-  <!-- ── LEFT SIDEBAR ──────────────────────────────────────────────── -->
-  <div class="left-sidebar">
-    <div class="sidebar-elbow">CREW MANIFEST</div>
-
-    <div class="sidebar-block">
-      <div class="section-label">Active Personnel</div>
-      <div class="crew-grid">
-        <div class="crew-member">
-          <div class="crew-color-bar" style="background:#FFD700"></div>
-          <div>
-            <div class="crew-name">SISKO</div>
-            <div class="crew-role">PRODUCT MANAGER</div>
-          </div>
-          <div class="crew-indicator ind-active"></div>
-        </div>
-
-        <div class="crew-member">
-          <div class="crew-color-bar" style="background:#FF9900"></div>
-          <div>
-            <div class="crew-name">KIRA</div>
-            <div class="crew-role">DELIVERY COORD</div>
-          </div>
-          <div class="crew-indicator ind-active"></div>
-        </div>
-
-        <div class="crew-member">
-          <div class="crew-color-bar" style="background:#CC6600"></div>
-          <div>
-            <div class="crew-name">O'BRIEN</div>
-            <div class="crew-role">IMPLEMENTOR</div>
-          </div>
-          <div class="crew-indicator ind-standby"></div>
-        </div>
-
-        <div class="crew-member">
-          <div class="crew-color-bar" style="background:#CC99FF"></div>
-          <div>
-            <div class="crew-name">DAX</div>
-            <div class="crew-role">ARCHITECT</div>
-          </div>
-          <div class="crew-indicator ind-standby"></div>
-        </div>
-
-        <div class="crew-member">
-          <div class="crew-color-bar" style="background:#66FF99"></div>
-          <div>
-            <div class="crew-name">BASHIR</div>
-            <div class="crew-role">QA / TESTING</div>
-          </div>
-          <div class="crew-indicator ind-offline"></div>
-        </div>
-
-        <div class="crew-member">
-          <div class="crew-color-bar" style="background:#9999FF"></div>
-          <div>
-            <div class="crew-name">NOG</div>
-            <div class="crew-role">CODE REVIEW</div>
-          </div>
-          <div class="crew-indicator ind-offline"></div>
-        </div>
-
-        <div class="crew-member">
-          <div class="crew-color-bar" style="background:#666699"></div>
-          <div>
-            <div class="crew-name">WORF</div>
-            <div class="crew-role">DEVOPS</div>
-          </div>
-          <div class="crew-indicator ind-offline"></div>
-        </div>
-
-        <div class="crew-member">
-          <div class="crew-color-bar" style="background:#FF9966"></div>
-          <div>
-            <div class="crew-name">QUARK</div>
-            <div class="crew-role">ECONOMICS</div>
-          </div>
-          <div class="crew-indicator ind-offline"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sidebar-block">
-      <div class="section-label">Watcher Process</div>
-      <div class="econ-metric">
-        <div class="econ-label">Status</div>
-        <div id="watcher-status-text" style="font-size:16px;color:var(--lcars-green);font-weight:700;letter-spacing:2px;" class="blink">● ACTIVE</div>
-      </div>
-      <div class="econ-metric">
-        <div class="econ-label">Poll Interval</div>
-        <div class="econ-value" style="font-size:18px">5s</div>
-      </div>
-      <div class="econ-metric">
-        <div class="econ-label">Timeout Policy</div>
-        <div class="econ-sub">ACTIVITY-BASED<br>15 MIN IDLE KILL</div>
-      </div>
-      <div class="econ-metric" style="margin-top:12px">
-        <div class="econ-label">Last Heartbeat</div>
-        <div id="last-heartbeat" class="econ-sub" style="font-family:'Share Tech Mono',monospace;font-size:10px">—</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── MAIN CONTENT (center + right) ────────────────────────────── -->
-  <div class="main-content">
-
-    <div class="content-primary">
-      <!-- CENTER TOP: QUEUE STATS -->
-      <div class="center-top">
-        <div class="stat-card waiting">
-          <div class="stat-label">Waiting</div>
-          <div class="stat-value" id="stat-waiting">0</div>
-        </div>
-        <div class="stat-card active">
-          <div class="stat-label">In Progress</div>
-          <div class="stat-value" id="stat-active">0</div>
-        </div>
-        <div class="stat-card done">
-          <div class="stat-label">Complete</div>
-          <div class="stat-value" id="stat-done">0</div>
-        </div>
-        <div class="stat-card error">
-          <div class="stat-label">Failed</div>
-          <div class="stat-value" id="stat-error">0</div>
-        </div>
-        <div class="stat-card review">
-          <div class="stat-label">For Review</div>
-          <div class="stat-value" id="stat-review">0</div>
-        </div>
-      </div>
-
-      <!-- CENTER BOTTOM: MISSION LOG -->
-      <div class="center-bottom">
-        <div class="section-label">Commission History — Mission Activity Log</div>
-        <div class="table-scroll">
-          <table class="commission-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Description</th>
-                <th>Type</th>
-                <th>Mission</th>
-                <th>Status</th>
-                <th>Duration</th>
-                <th>O'Brien Cost</th>
-              </tr>
-            </thead>
-            <tbody id="commission-tbody">
-              <tr>
-                <td style="color:var(--lcars-peach)">011</td>
-                <td>Merge slice/5-watcher-terminal → main</td>
-                <td><span class="tag tag-merge">MERGE</span></td>
-                <td style="color:var(--text-dim)">5</td>
-                <td><span class="tag tag-done">DONE</span></td>
-                <td class="time-cell">00:45</td>
-                <td class="cost-cell">—</td>
-              </tr>
-              <tr>
-                <td style="color:var(--lcars-peach)">010</td>
-                <td>Mission 5: Stakeholder terminal output</td>
-                <td><span class="tag tag-done">MISSION</span></td>
-                <td style="color:var(--text-dim)">5</td>
-                <td><span class="tag tag-done">DONE</span></td>
-                <td class="time-cell">18:22</td>
-                <td class="cost-cell">—</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- RIGHT PANEL: ECONOMICS -->
-    <div class="right-panel">
-      <div class="right-elbow">ECONOMICS</div>
-
-      <div class="right-blocks-grid">
-        <div class="right-block">
-          <div class="section-label">Session Costs</div>
-          <div class="econ-metric">
-            <div class="econ-label">O'Brien Token Cost</div>
-            <div class="econ-value">—</div>
-            <div class="econ-sub">TRACKING LIVE</div>
-          </div>
-          <div class="econ-metric">
-            <div class="econ-label">Kira Planning Cost</div>
-            <div class="econ-value">—</div>
-            <div class="econ-sub">COWORK TOKENS</div>
-          </div>
-          <div class="econ-metric">
-            <div class="econ-label">Session Total</div>
-            <div class="econ-value" style="color:var(--lcars-peach)">—</div>
-          </div>
-        </div>
-
-        <div class="right-block">
-          <div class="section-label">Human-Equivalent Hours</div>
-          <div class="phase-row">
-            <div class="phase-name">PLANNING</div>
-            <div class="phase-hours">2.0h</div>
-          </div>
-          <div class="phase-row">
-            <div class="phase-name">EXECUTION</div>
-            <div class="phase-hours">3.5h</div>
-          </div>
-          <div class="phase-row">
-            <div class="phase-name">REVIEW</div>
-            <div class="phase-hours">0.5h</div>
-          </div>
-          <div class="phase-row">
-            <div class="phase-name">CORRECTION</div>
-            <div class="phase-hours">0.5h</div>
-          </div>
-          <div class="phase-row" style="border-top:1px solid #333;margin-top:4px;padding-top:8px">
-            <div class="phase-name" style="color:var(--lcars-amber)">TOTAL</div>
-            <div class="phase-hours" style="color:var(--lcars-amber)">6.5h</div>
-          </div>
-          <div class="progress-bar-bg" style="margin-top:12px">
-            <div class="progress-bar-fill" style="width:65%"></div>
-          </div>
-          <div style="font-size:8px;color:var(--text-dim);letter-spacing:1px;margin-top:4px">VS ESTIMATED 10h HUMAN EFFORT</div>
-        </div>
-
-        <div class="right-block">
-          <div class="section-label">ROI Signal</div>
-          <div class="econ-metric">
-            <div class="econ-label">Human Rate</div>
-            <div class="econ-value" style="font-size:20px">€100/hr</div>
-          </div>
-          <div class="econ-metric">
-            <div class="econ-label">Human Cost Equiv.</div>
-            <div class="econ-value" style="font-size:20px;color:var(--lcars-red)">€650</div>
-          </div>
-          <div class="econ-metric">
-            <div class="econ-label">AI Cost (est.)</div>
-            <div class="econ-value" style="font-size:20px;color:var(--lcars-green)">~€5</div>
-          </div>
-          <div style="height:1px;background:#222;margin:8px 0"></div>
-          <div class="econ-label">Efficiency Multiplier</div>
-          <div style="font-size:32px;font-weight:700;color:var(--lcars-amber)">130×</div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ══ BOTTOM STATUS BAR ════════════════════════════════════════════════ -->
-<div class="bottom-bar">
-  <div id="missions-complete-pill" class="bottom-pill amber">MISSIONS COMPLETE · 0</div>
-  <div class="bottom-pill blue">BRANCH · MAIN</div>
-  <div id="watcher-pill" class="bottom-pill green">WATCHER · ACTIVE</div>
-
-  <div class="bottom-stretch">
-    <div class="status-item">
-      <div class="status-dot" style="background:var(--lcars-blue)"></div>
-      GITHUB · liberation-of-bajor
-    </div>
-    <div class="status-item">
-      <div class="status-dot" style="background:var(--lcars-amber)"></div>
-      QA PIPELINE · NOT YET ACTIVE
-    </div>
-    <div class="status-item">
-      <div class="status-dot" style="background:var(--lcars-lavender)"></div>
-      SMART TIMEOUT · PENDING MISSION
-    </div>
-    <div class="status-item">
-      <div class="status-dot" style="background:var(--text-dim)"></div>
-      DASHBOARD · v0.2
-    </div>
-  </div>
-
-  <div class="bottom-pill" style="background:var(--lcars-purple)">LCARS 47</div>
-</div>
-
-<script>
-  // ── Live clock ──────────────────────────────────────────────────────────────
-  function updateClock() {
-    const now = new Date();
-    const pad = n => String(n).padStart(2, '0');
-    const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-    const dateStr = now.toISOString().slice(0, 10).toUpperCase();
-    const year = now.getFullYear();
-    const doy = Math.floor((now - new Date(year, 0, 0)) / 86400000);
-    const stardate = `${year}.${String(doy).padStart(3, '0')}`;
-    document.querySelector('.stardate').innerHTML =
-      `STARDATE ${stardate}<br>${dateStr} · ${timeStr} LOCAL`;
-  }
-  setInterval(updateClock, 1000);
-  updateClock();
-</script>
 
 <script>
   // ── Mission lifecycle pipeline ──────────────────────────────────────────────
@@ -1282,7 +717,7 @@
     PIPELINE_STAGES.forEach((stage, idx) => {
       if (idx > 0) {
         const connCls = (activeIdx >= 0 && idx <= activeIdx) ? 'done' : '';
-        html += `<span class="stage-connector ${connCls}">›</span>`;
+        html += `<span class="stage-connector ${connCls}">\u203a</span>`;
       }
 
       let cls = 'upcoming';
@@ -1349,9 +784,9 @@
     const stageEl    = document.getElementById('pipeline-mission-stage');
 
     if (activeStageKey && mission) {
-      badgeEl.textContent  = `MISSION ${escHtml(mission.id)}`;
+      badgeEl.textContent  = `Commission ${escHtml(mission.id)}`;
       badgeEl.style.display = '';
-      titleEl.textContent  = mission.title || '—';
+      titleEl.textContent  = mission.title || '\u2014';
       const stageMeta = PIPELINE_STAGES.find(s => s.key === activeStageKey);
       stageEl.textContent  = stageMeta ? stageMeta.label : activeStageKey;
       textEl.style.display = '';
@@ -1393,25 +828,24 @@
     document.getElementById('stat-error').textContent   = data.queue.error   ?? 0;
     document.getElementById('stat-review').textContent  = '0';
 
-    // Watcher status
+    // Header status
     const statusEl = document.getElementById('watcher-status-text');
+    const dotEl = document.getElementById('header-status-dot');
     if (statusEl) {
       const s = data.heartbeat.status;
-      statusEl.classList.remove('blink');
+      if (dotEl) dotEl.className = 'header-status-dot';
       if (s === 'processing') {
-        statusEl.textContent = '● PROCESSING';
-        statusEl.style.color = 'var(--lcars-green)';
-        statusEl.classList.add('blink');
+        statusEl.textContent = 'PROCESSING';
+        if (dotEl) dotEl.className = 'header-status-dot';
       } else if (s === 'active') {
-        statusEl.textContent = '● ACTIVE';
-        statusEl.style.color = 'var(--lcars-green)';
-        statusEl.classList.add('blink');
+        statusEl.textContent = 'ONLINE';
+        if (dotEl) dotEl.className = 'header-status-dot';
       } else if (s === 'idle') {
-        statusEl.textContent = '● IDLE';
-        statusEl.style.color = 'var(--lcars-amber)';
+        statusEl.textContent = 'IDLE';
+        if (dotEl) dotEl.className = 'header-status-dot idle';
       } else {
-        statusEl.textContent = '● DOWN';
-        statusEl.style.color = 'var(--lcars-red)';
+        statusEl.textContent = 'OFFLINE';
+        if (dotEl) dotEl.className = 'header-status-dot offline';
       }
     }
 
@@ -1423,7 +857,7 @@
       hbEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     }
 
-    // Mission log table
+    // Commission history table
     const tbody = document.getElementById('commission-tbody');
     if (tbody && data.commissions.length > 0) {
       const rows = data.commissions.slice(0, 15);
@@ -1440,41 +874,13 @@
         const statusCls = stateToClass[c.state] ?? 'tag-pending';
         const statusLabel = c.state === 'IN_PROGRESS' ? 'IN PROG' : c.state;
         return `<tr>
-          <td style="color:var(--lcars-peach)">${escHtml(c.id)}</td>
+          <td>${escHtml(c.id)}</td>
           <td>${escHtml(c.title)}</td>
           <td><span class="tag ${tagCls}">${escHtml(typeLabel)}</span></td>
-          <td style="color:var(--text-dim)">—</td>
           <td><span class="tag ${statusCls}">${escHtml(statusLabel)}</span></td>
-          <td class="time-cell">—</td>
-          <td class="cost-cell">—</td>
+          <td class="time-cell">\u2014</td>
         </tr>`;
       }).join('');
-    }
-
-    // Bottom bar: watcher pill
-    const pill = document.getElementById('watcher-pill');
-    if (pill) {
-      const s = data.heartbeat.status;
-      pill.classList.remove('green', 'amber', 'red');
-      if (s === 'processing') {
-        pill.textContent = 'WATCHER · PROCESSING';
-        pill.classList.add('green');
-      } else if (s === 'active') {
-        pill.textContent = 'WATCHER · ACTIVE';
-        pill.classList.add('green');
-      } else if (s === 'idle') {
-        pill.textContent = 'WATCHER · IDLE';
-        pill.classList.add('amber');
-      } else {
-        pill.textContent = 'WATCHER · DOWN';
-        pill.classList.add('red');
-      }
-    }
-
-    // Bottom bar: missions complete pill
-    const completePill = document.getElementById('missions-complete-pill');
-    if (completePill) {
-      completePill.textContent = `MISSIONS COMPLETE · ${data.queue.done ?? 0}`;
     }
 
     // Pipeline
@@ -1565,11 +971,20 @@
         <input type="text" id="staged-amend-input-${id}" placeholder="What should change?">
         <div class="staged-inline-btns">
           <button class="staged-btn staged-btn-commission" onclick="stagedSubmitAmend('${id}')">Submit</button>
-          <button class="staged-btn staged-btn-cancel" onclick="fetchStaged()">Cancel</button>
+          <button class="staged-btn staged-btn-cancel" onclick="stagedCancelAmend('${id}')">Cancel</button>
         </div>
       </div>`;
     const input = document.getElementById('staged-amend-input-' + id);
     if (input) input.focus();
+  }
+
+  function stagedCancelAmend(id) {
+    const actions = document.getElementById('staged-actions-' + id);
+    if (!actions) return;
+    actions.innerHTML = `
+      <button class="staged-btn staged-btn-commission" onclick="stagedCommission('${id}')">Commission</button>
+      <button class="staged-btn staged-btn-amend" onclick="stagedShowAmend('${id}')">Amend</button>
+      <button class="staged-btn staged-btn-reject" onclick="stagedShowReject('${id}')">Reject</button>`;
   }
 
   async function stagedSubmitAmend(id) {
@@ -1593,7 +1008,7 @@
       <div class="staged-inline-reject">
         <span class="staged-inline-reject-prompt">Reject this commission?</span>
         <button class="staged-btn-confirm-reject" onclick="stagedConfirmReject('${id}')">Yes, reject</button>
-        <button class="staged-btn staged-btn-cancel" onclick="fetchStaged()">Cancel</button>
+        <button class="staged-btn staged-btn-cancel" onclick="stagedCancelAmend('${id}')">Cancel</button>
       </div>`;
   }
 
@@ -1612,6 +1027,8 @@
   }
 
   async function fetchStaged() {
+    // Don't re-render if an inline amend input is currently active — it would destroy the input mid-type
+    if (document.querySelector('.staged-inline-amend input:focus, .staged-inline-amend input')) return;
     try {
       const res = await fetch('/api/bridge/staged');
       if (!res.ok) return;
