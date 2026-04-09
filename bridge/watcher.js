@@ -725,6 +725,32 @@ function hasReviewEvent(id) {
 }
 
 /**
+ * extractJSON(text)
+ *
+ * Extracts and parses a JSON object from text that may contain preamble
+ * and/or markdown code block wrapping. Tries in order:
+ * 1. Markdown code block (```json or ```)
+ * 2. First '{' to last '}'
+ * 3. Raw text as JSON
+ */
+function extractJSON(text) {
+  // Try markdown code block with optional json tag.
+  const codeBlockMatch = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  if (codeBlockMatch) {
+    try { return JSON.parse(codeBlockMatch[1]); } catch (_) {}
+  }
+  // Try first '{' to last '}'.
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    try { return JSON.parse(text.slice(start, end + 1)); } catch (_) {}
+  }
+  // Try raw.
+  try { return JSON.parse(text); } catch (_) {}
+  return null;
+}
+
+/**
  * invokeEvaluator(id)
  *
  * Reads the COMMISSION and EVALUATING files for the given commission ID,
@@ -834,15 +860,20 @@ function invokeEvaluator(id) {
       let amendmentInstructions = '';
 
       if (!err) {
-        // Parse the evaluator's JSON response from claude's JSON output wrapper.
+        // Parse the evaluator's JSON response.
+        // Claude may return: (a) JSON output wrapper with result field,
+        // (b) preamble text + markdown code block, or (c) raw JSON.
         try {
-          const claudeOutput = JSON.parse(stdout.trim());
-          // claude -p --output-format json wraps the response in a result field.
-          const rawText = claudeOutput.result || claudeOutput.content || stdout.trim();
-          // Extract JSON from the text (may be wrapped in markdown code fences).
-          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
+          let rawText = stdout.trim();
+          // Try to unwrap claude -p --output-format json envelope first.
+          try {
+            const claudeOutput = JSON.parse(rawText);
+            rawText = claudeOutput.result || claudeOutput.content || rawText;
+          } catch (_) {
+            // Not a JSON envelope — rawText is the direct response.
+          }
+          const parsed = extractJSON(rawText);
+          if (parsed) {
             verdict = parsed.verdict;
             reason = parsed.reason || '';
             failedCriteria = parsed.failed_criteria || [];
