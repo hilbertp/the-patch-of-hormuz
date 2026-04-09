@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFile } = require('child_process');
+const { execFile, execSync } = require('child_process');
 
 // ---------------------------------------------------------------------------
 // Config
@@ -260,6 +260,14 @@ function printStartupBlock(recoveryActions) {
         print(`    ${C.yellow}${SYM.back}${C.reset} Commission ${action.id}${SYM.dash}re-queued interrupted commission`);
       } else if (action.type === 'requeued_eval') {
         print(`    ${C.yellow}${SYM.back}${C.reset} Commission ${action.id}${SYM.dash}re-queued interrupted evaluation`);
+      } else if (action.type === 'recovery_merged') {
+        print(`    ${C.green}${SYM.check}${C.reset} Commission ${action.id}${SYM.dash}recovered merge: ${action.branch}${SYM.arrow}main (${action.sha.slice(0, 7)})`);
+      } else if (action.type === 'recovery_merge_failed') {
+        print(`    ${C.red}${SYM.cross}${C.reset} Commission ${action.id}${SYM.dash}recovery merge failed: ${action.reason}`);
+      } else if (action.type === 'accepted_already_merged') {
+        print(`    ${C.green}${SYM.check}${C.reset} Commission ${action.id}${SYM.dash}branch already on main (no merge needed)`);
+      } else if (action.type === 'accepted_no_branch') {
+        print(`    ${C.yellow}${SYM.cross}${C.reset} Commission ${action.id}${SYM.dash}ACCEPTED but no branch name — manual merge required`);
       }
     }
   }
@@ -931,11 +939,45 @@ function invokeEvaluator(id) {
 }
 
 /**
+ * mergeBranch(id, branchName, title)
+ *
+ * Performs git checkout main && git merge --no-ff {branch} && git push origin main.
+ * Returns { success, sha, error } where sha is the merge commit hash on success.
+ */
+function mergeBranch(id, branchName, title) {
+  const commitMsg = `merge: ${branchName} — ${title || `commission ${id}`} (commission ${id})`;
+  try {
+    execSync('git checkout main', { cwd: PROJECT_DIR, stdio: 'pipe' });
+    execSync(`git merge --no-ff ${branchName} -m "${commitMsg.replace(/"/g, '\\"')}"`, { cwd: PROJECT_DIR, stdio: 'pipe' });
+    const sha = execSync('git rev-parse HEAD', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+    try {
+      execSync('git push origin main', { cwd: PROJECT_DIR, stdio: 'pipe' });
+    } catch (pushErr) {
+      // Push failure is non-fatal — the merge succeeded locally.
+      log('warn', 'merge', { id, msg: 'git push origin main failed (merge succeeded locally)', error: pushErr.message });
+    }
+    return { success: true, sha, error: null };
+  } catch (err) {
+    // Abort any in-progress merge to leave git in a clean state.
+    try { execSync('git merge --abort', { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+    return { success: false, sha: null, error: err.stderr ? err.stderr.toString().trim() : err.message };
+  }
+}
+
+/**
  * handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationMs)
  *
- * ACCEPTED verdict: register event, rename EVALUATING → ACCEPTED, write merge PENDING.
+ * ACCEPTED verdict: register event, rename EVALUATING → ACCEPTED, merge branch to main directly.
  */
 function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationMs) {
+  // Read title from commission file for the merge commit message.
+  const commissionPath = path.join(QUEUE_DIR, `${id}-COMMISSION.md`);
+  let title = null;
+  try {
+    const commMeta = parseFrontmatter(fs.readFileSync(commissionPath, 'utf-8'));
+    if (commMeta) title = commMeta.title || null;
+  } catch (_) {}
+
   registerEvent(id, 'ACCEPTED', { reason, cycle });
   log('info', 'evaluator', { id, verdict: 'ACCEPTED', cycle, durationMs });
 
@@ -947,56 +989,30 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
     log('warn', 'evaluator', { id, msg: 'Failed to rename EVALUATING to ACCEPTED', error: err.message });
   }
 
-  // Write merge commission PENDING.
-  const nextId = nextCommissionId(QUEUE_DIR);
-  const mergeContent = [
-    '---',
-    `id: "${nextId}"`,
-    `title: "Merge ${branchName || `commission ${id} branch`} to main"`,
-    `goal: "Branch ${branchName || `from commission ${id}`} is merged to main and tests pass."`,
-    'from: kira',
-    'to: obrien',
-    'priority: normal',
-    `created: "${new Date().toISOString()}"`,
-    'references: null',
-    'timeout_min: null',
-    'type: merge',
-    `source_commission_id: "${id}"`,
-    `branch: "${branchName || ''}"`,
-    '---',
-    '',
-    `## Objective`,
-    '',
-    `Merge branch \`${branchName || '(see source_commission_id)'}\` to main.`,
-    '',
-    '## Tasks',
-    '',
-    '1. Check out the branch specified in the frontmatter.',
-    '2. Merge it to main (or create a PR merge commit).',
-    '3. Verify tests pass.',
-    '4. Write a DONE report confirming the merge and final commit hash.',
-    '',
-    '## Constraints',
-    '',
-    'Do not squash commits. Preserve branch history.',
-    '',
-    '## Success criteria',
-    '',
-    '1. Branch is merged to main.',
-    '2. DONE report includes final commit hash on main.',
-  ].join('\n');
-
-  const mergePendingPath = path.join(QUEUE_DIR, `${nextId}-PENDING.md`);
-  try {
-    fs.writeFileSync(mergePendingPath, mergeContent);
-    log('info', 'evaluator', { id, msg: `Wrote merge commission ${nextId}-PENDING.md`, nextId, branch: branchName });
-  } catch (err) {
-    log('warn', 'evaluator', { id, msg: 'Failed to write merge commission PENDING', error: err.message });
-  }
-
   callReviewAPI(id, 'ACCEPTED', reason);
 
-  print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}Merge commission ${nextId} queued`);
+  // Merge branch to main directly — no separate merge commission.
+  if (!branchName) {
+    log('warn', 'merge', { id, msg: 'No branch name in DONE report — skipping merge' });
+    print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}No branch in report — merge skipped`);
+    print(`${B.bl}${B.sng.repeat(W - 1)}`);
+    print('');
+    return;
+  }
+
+  const result = mergeBranch(id, branchName, title);
+
+  if (result.success) {
+    const shortSha = result.sha.slice(0, 7);
+    registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, commission_id: id });
+    log('info', 'merge', { id, msg: `Merged ${branchName} to main`, branch: branchName, sha: result.sha });
+    print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}Merged ${branchName}${SYM.arrow}main (${shortSha})`);
+  } else {
+    registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, commission_id: id });
+    log('error', 'merge', { id, msg: `Merge failed for ${branchName}`, branch: branchName, reason: result.error });
+    print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}${C.red}${SYM.cross}${C.reset} Merge failed: ${result.error}`);
+  }
+
   print(`${B.bl}${B.sng.repeat(W - 1)}`);
   print('');
 }
@@ -1236,14 +1252,16 @@ function poll() {
       // Skip if COMMISSION file not present (O'Brien may still be running).
       if (!fs.existsSync(commissionPath)) continue;
 
-      // Check if merge commission — auto-accept without claude -p.
+      // Legacy: merge commissions (type: merge) are auto-accepted without claude -p.
+      // Deprecated: handleAccepted() now merges directly — no new merge commissions
+      // are generated. This block handles any legacy merge commissions still in the queue.
       let commissionMeta = {};
       try {
         commissionMeta = parseFrontmatter(fs.readFileSync(commissionPath, 'utf-8')) || {};
       } catch (_) {}
 
       if (commissionMeta.type === 'merge') {
-        log('info', 'evaluator', { id: doneId, msg: 'Merge commission auto-accepted' });
+        log('info', 'evaluator', { id: doneId, msg: 'Legacy merge commission auto-accepted (deprecated path)' });
         const acceptedPath = path.join(QUEUE_DIR, `${doneId}-ACCEPTED.md`);
         try { fs.renameSync(donePath, acceptedPath); } catch (_) {}
         registerEvent(doneId, 'ACCEPTED', { reason: 'auto-accepted merge', cycle: 0 });
@@ -1421,6 +1439,61 @@ function crashRecovery() {
       actions.push({ id, type: 'requeued_eval' });
     } catch (err) {
       log('warn', 'startup_recovery', { id, msg: 'Failed to rename orphaned EVALUATING to DONE', error: err.message });
+    }
+  }
+
+  // Recover orphaned ACCEPTED files — merge was not completed before crash.
+  // Check if the branch is already on main; if not, re-attempt merge.
+  const acceptedFiles = files.filter(f => f.endsWith('-ACCEPTED.md'));
+  for (const file of acceptedFiles) {
+    const id = file.replace('-ACCEPTED.md', '');
+    const acceptedPath = path.join(QUEUE_DIR, file);
+
+    // Read branch name from the ACCEPTED file (which is the renamed DONE report).
+    let branchName = null;
+    let title = null;
+    try {
+      const content = fs.readFileSync(acceptedPath, 'utf-8');
+      const meta = parseFrontmatter(content);
+      if (meta) branchName = meta.branch || null;
+    } catch (_) {}
+
+    // Read title from COMMISSION file.
+    try {
+      const commContent = fs.readFileSync(path.join(QUEUE_DIR, `${id}-COMMISSION.md`), 'utf-8');
+      const commMeta = parseFrontmatter(commContent);
+      if (commMeta) title = commMeta.title || null;
+    } catch (_) {}
+
+    if (!branchName) {
+      log('warn', 'startup_recovery', { id, msg: 'Orphaned ACCEPTED file has no branch — cannot recover merge' });
+      actions.push({ id, type: 'accepted_no_branch' });
+      continue;
+    }
+
+    // Check if branch is already merged to main.
+    let alreadyMerged = false;
+    try {
+      const merged = execSync('git branch --merged main', { cwd: PROJECT_DIR, encoding: 'utf-8' });
+      alreadyMerged = merged.split('\n').some(line => line.trim() === branchName);
+    } catch (_) {}
+
+    if (alreadyMerged) {
+      log('info', 'startup_recovery', { id, msg: `Branch ${branchName} already on main — no merge needed`, branch: branchName });
+      actions.push({ id, type: 'accepted_already_merged', branch: branchName });
+      continue;
+    }
+
+    // Re-attempt merge.
+    const result = mergeBranch(id, branchName, title);
+    if (result.success) {
+      registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, commission_id: id, recovery: true });
+      log('info', 'startup_recovery', { id, msg: `Recovery merge succeeded for ${branchName}`, branch: branchName, sha: result.sha });
+      actions.push({ id, type: 'recovery_merged', branch: branchName, sha: result.sha });
+    } else {
+      registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, commission_id: id, recovery: true });
+      log('warn', 'startup_recovery', { id, msg: `Recovery merge failed for ${branchName}`, branch: branchName, reason: result.error });
+      actions.push({ id, type: 'recovery_merge_failed', branch: branchName, reason: result.error });
     }
   }
 
