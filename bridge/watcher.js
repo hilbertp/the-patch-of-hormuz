@@ -193,13 +193,11 @@ function recordSessionResult(success, tokensIn, tokensOut, costUsd) {
 }
 
 function printSessionSummary() {
-  const uptimeMins = Math.floor((Date.now() - session.startTime) / 60000);
-  const uptimeStr  = uptimeMins > 0 ? `${uptimeMins}m` : '<1m';
   const tokenStr   = session.hasTokens
     ? `${(session.tokensIn + session.tokensOut).toLocaleString()} tokens`
     : 'tokens: unknown';
   const costStr    = session.hasTokens ? `${SYM.sep}${formatCost(session.costUsd)}` : '';
-  print(`  Session: ${session.completed} completed${SYM.sep}${session.failed} failed${SYM.sep}${tokenStr}${costStr}${SYM.sep}uptime ${uptimeStr}`);
+  print(`  Session: ${session.completed} completed${SYM.sep}${session.failed} failed${SYM.sep}${tokenStr}${costStr}`);
   print('');
 }
 
@@ -812,8 +810,8 @@ function invokeEvaluator(id) {
 
   log('info', 'evaluator', { id, rootId, cycle, branchName, msg: 'Starting evaluation' });
   print(`${B.tl}${B.sng.repeat(W - 1)}`);
-  print(`${B.vert}  ${SYM.right} Evaluator${SYM.sep}Commission ${id} (cycle ${cycle + 1} of 5)`);
-  print(`${B.vert}    Invoking Kira evaluator via claude -p`);
+  print(`${B.vert}  ${SYM.right} Evaluator${SYM.sep}Commission ${id} (${5 - cycle} retries remaining)`);
+  print(`${B.vert}    Evaluating — fresh claude -p session, commission ACs + DONE report injected`);
   print(`${B.vert}`);
 
   const prompt = [
