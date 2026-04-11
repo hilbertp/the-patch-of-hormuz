@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile, execSync } = require('child_process');
+const { appendSliceLog, updateSliceLog } = require('./slicelog');
 
 // ---------------------------------------------------------------------------
 // Config
@@ -186,6 +187,39 @@ function computeCost(tokensIn, tokensOut) {
   if (tokensIn == null || tokensOut == null) return null;
   return (tokensIn  * INPUT_COST_PER_M  / 1_000_000)
        + (tokensOut * OUTPUT_COST_PER_M / 1_000_000);
+}
+
+/**
+ * validateDoneMetrics(meta)
+ *
+ * Validates that the DONE report frontmatter contains all five required
+ * metrics fields with correct types. Returns { ok, invalid }.
+ */
+function validateDoneMetrics(meta) {
+  if (!meta) return { ok: false, invalid: ['tokens_in', 'tokens_out', 'elapsed_ms', 'estimated_human_hours', 'compaction_occurred'] };
+
+  const invalid = [];
+
+  // tokens_in: non-negative integer
+  const ti = parseInt(meta.tokens_in, 10);
+  if (meta.tokens_in == null || isNaN(ti) || ti < 0) invalid.push('tokens_in');
+
+  // tokens_out: non-negative integer
+  const to = parseInt(meta.tokens_out, 10);
+  if (meta.tokens_out == null || isNaN(to) || to < 0) invalid.push('tokens_out');
+
+  // elapsed_ms: positive integer
+  const el = parseInt(meta.elapsed_ms, 10);
+  if (meta.elapsed_ms == null || isNaN(el) || el <= 0) invalid.push('elapsed_ms');
+
+  // estimated_human_hours: positive number
+  const eh = parseFloat(meta.estimated_human_hours);
+  if (meta.estimated_human_hours == null || isNaN(eh) || eh <= 0) invalid.push('estimated_human_hours');
+
+  // compaction_occurred: boolean
+  if (meta.compaction_occurred !== 'true' && meta.compaction_occurred !== 'false') invalid.push('compaction_occurred');
+
+  return { ok: invalid.length === 0, invalid };
 }
 
 function formatTokens(tokensIn, tokensOut) {
@@ -569,11 +603,61 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
       if (!err) {
         // Success path: check O'Brien wrote his DONE file.
         if (fs.existsSync(donePath)) {
-          log('info', 'complete', { id, msg: "O'Brien finished — DONE file present", durationMs, tokensIn, tokensOut });
-          log('info', 'state', { id, from: 'IN_PROGRESS', to: 'DONE' });
-          registerEvent(id, 'DONE', { durationMs, tokensIn, tokensOut, costUsd });
-          closeCommissionBlock(true, durationMs, tokensIn, tokensOut, costUsd, null);
-          recordSessionResult(true, tokensIn, tokensOut, costUsd);
+          // --- Metrics validation gate (Bet 3) ---
+          let doneMeta = null;
+          try {
+            doneMeta = parseFrontmatter(fs.readFileSync(donePath, 'utf-8'));
+          } catch (_) {}
+
+          const metricsValid = validateDoneMetrics(doneMeta);
+          if (!metricsValid.ok) {
+            log('warn', 'complete', {
+              id,
+              msg: "O'Brien DONE file has incomplete metrics — writing ERROR (incomplete_metrics)",
+              reason: 'incomplete_metrics',
+              invalid: metricsValid.invalid,
+              durationMs,
+            });
+            writeErrorFile(errorPath, id, 'incomplete_metrics', null, stdout, '', { missingFields: metricsValid.invalid });
+            log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason: 'incomplete_metrics' });
+            registerEvent(id, 'ERROR', { reason: 'incomplete_metrics', invalid: metricsValid.invalid, durationMs });
+            closeCommissionBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'Incomplete metrics in DONE report');
+            recordSessionResult(false, tokensIn, tokensOut, costUsd);
+          } else {
+            // --- Write Point 1: append slicelog row (Bet 3) ---
+            const commissionMeta = parseFrontmatter(commissionContent) || {};
+            const expectedHours = commissionMeta.expected_human_hours && commissionMeta.expected_human_hours !== 'null'
+              ? parseFloat(commissionMeta.expected_human_hours)
+              : null;
+            const doneTokensIn  = parseInt(doneMeta.tokens_in, 10);
+            const doneTokensOut = parseInt(doneMeta.tokens_out, 10);
+            const slicelogCost  = computeCost(doneTokensIn, doneTokensOut);
+
+            appendSliceLog({
+              id: String(id),
+              title: (commissionMeta.title || title || '').replace(/^["']|["']$/g, ''),
+              runtime: 'legacy',
+              tokens_in: doneTokensIn,
+              tokens_out: doneTokensOut,
+              cost_usd: slicelogCost,
+              elapsed_ms: parseInt(doneMeta.elapsed_ms, 10),
+              estimated_human_hours: parseFloat(doneMeta.estimated_human_hours),
+              compaction_occurred: doneMeta.compaction_occurred === 'true',
+              estimated_by: 'obrien',
+              expected_human_hours: isNaN(expectedHours) ? null : expectedHours,
+              result: null,
+              cycle: null,
+              ts_pickup: new Date(pickupTime).toISOString(),
+              ts_done: new Date().toISOString(),
+              ts_result: null,
+            });
+
+            log('info', 'complete', { id, msg: "O'Brien finished — DONE file present", durationMs, tokensIn, tokensOut });
+            log('info', 'state', { id, from: 'IN_PROGRESS', to: 'DONE' });
+            registerEvent(id, 'DONE', { durationMs, tokensIn, tokensOut, costUsd });
+            closeCommissionBlock(true, durationMs, tokensIn, tokensOut, costUsd, null);
+            recordSessionResult(true, tokensIn, tokensOut, costUsd);
+          }
         } else {
           // O'Brien exited 0 but wrote no DONE file — write an ERROR report with reason "no_report".
           log('warn', 'complete', {
@@ -585,6 +669,8 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
           writeErrorFile(errorPath, id, 'no_report', null, stdout, stderr);
           log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason: 'no_report' });
           registerEvent(id, 'ERROR', { reason: 'no_report', durationMs });
+          // Write Point 2: update slicelog with ERROR result.
+          updateSliceLog(id, { result: 'ERROR', cycle: null, ts_result: new Date().toISOString() });
           closeCommissionBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'No report written');
           recordSessionResult(false, tokensIn, tokensOut, costUsd);
         }
@@ -624,6 +710,8 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
         writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra);
         log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason });
         registerEvent(id, 'ERROR', { reason, exitCode: err.code, durationMs });
+        // Write Point 2: update slicelog with ERROR result.
+        updateSliceLog(id, { result: 'ERROR', cycle: null, ts_result: new Date().toISOString() });
         closeCommissionBlock(false, durationMs, tokensIn, tokensOut, costUsd, reasonDisplay);
         recordSessionResult(false, tokensIn, tokensOut, costUsd);
       }
@@ -1017,6 +1105,9 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
   registerEvent(id, 'ACCEPTED', { reason, cycle });
   log('info', 'evaluator', { id, verdict: 'ACCEPTED', cycle, durationMs });
 
+  // Write Point 2: update slicelog with terminal result.
+  updateSliceLog(id, { result: 'ACCEPTED', cycle, ts_result: new Date().toISOString() });
+
   const acceptedPath = path.join(QUEUE_DIR, `${id}-ACCEPTED.md`);
   try {
     fs.renameSync(evaluatingPath, acceptedPath);
@@ -1142,6 +1233,9 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
 function handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs) {
   registerEvent(id, 'STUCK', { reason: 'amendment cap reached', cycle, branch: branchName });
   log('warn', 'evaluator', { id, verdict: 'STUCK', cycle, durationMs });
+
+  // Write Point 2: update slicelog with terminal result.
+  updateSliceLog(id, { result: 'STUCK', cycle, ts_result: new Date().toISOString() });
 
   const stuckPath = path.join(QUEUE_DIR, `${id}-STUCK.md`);
   try {

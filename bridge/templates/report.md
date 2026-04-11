@@ -11,6 +11,16 @@ status: DONE
 commission_id: ""
 <!-- completed: ISO 8601 timestamp when you finished writing this report. -->
 completed: ""
+<!-- tokens_in: Input tokens consumed this session (non-negative integer). -->
+tokens_in: 0
+<!-- tokens_out: Output tokens generated this session (non-negative integer). -->
+tokens_out: 0
+<!-- elapsed_ms: Wall-clock ms from commission pickup to DONE (positive integer). -->
+elapsed_ms: 0
+<!-- estimated_human_hours: How long a skilled human developer would take (positive float). Weight higher if compaction occurred. -->
+estimated_human_hours: 0.0
+<!-- compaction_occurred: True if context window filled and compacted mid-session. -->
+compaction_occurred: false
 ---
 
 ## What I did

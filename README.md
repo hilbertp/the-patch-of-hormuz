@@ -43,6 +43,8 @@ Kira (delivery coordinator) writes a commission file to `bridge/queue/`. A watch
 ```
 bridge/
   queue/          # Commission and report files (the live state machine)
+  staged/         # Staging area for Philipp's commission review (Rubicon)
+  register.jsonl  # Append-only event log (watcher + evaluator)
   watcher.js      # Detects new commissions, invokes O'Brien
   bridge.config.json
 dashboard/        # Web UI served on port 4747
