@@ -341,7 +341,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const stagedMatch = pathname.match(/^\/api\/bridge\/staged\/(\d+)\/(commission|amend|reject)$/);
+  const stagedMatch = pathname.match(/^\/api\/bridge\/staged\/(\d+)\/(commission|amend|reject|update-body)$/);
   if (stagedMatch) {
     if (req.method !== 'POST') {
       res.writeHead(405, { 'Content-Type': 'text/plain' });
@@ -394,6 +394,37 @@ const server = http.createServer(async (req, res) => {
         const destPath = path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`);
         fs.writeFileSync(destPath, content, 'utf8');
         if (filePath !== destPath) fs.unlinkSync(filePath);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: String(err) }));
+      }
+      return;
+    }
+
+    if (action === 'update-body') {
+      const payload = await readJsonBody(req);
+      if (!payload || typeof payload.body !== 'string') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing required field: body' }));
+        return;
+      }
+      try {
+        const raw = fs.readFileSync(filePath, 'utf8');
+        const lines = raw.split('\n');
+        let dashes = 0, fmEnd = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].trim() === '---') dashes++;
+          if (dashes === 2) { fmEnd = i; break; }
+        }
+        if (fmEnd === -1) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Could not parse frontmatter' }));
+          return;
+        }
+        const updated = lines.slice(0, fmEnd + 1).join('\n') + '\n\n' + payload.body;
+        fs.writeFileSync(filePath, updated, 'utf8');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {

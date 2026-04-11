@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Rubicon</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
   /* ── CSS variables (kept for JS compatibility, remapped to clean palette) ── */
   :root {
@@ -555,22 +556,86 @@
 
   .staged-details-toggle:hover { color: #374151; }
 
+  /* Mode toolbar */
+  .staged-details-toolbar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+    margin-top: 8px;
+  }
+
+  .staged-mode-btn {
+    background: none;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 12px;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 2px 10px;
+  }
+
+  .staged-mode-btn.active {
+    background: #111827;
+    color: #ffffff;
+    border-color: #111827;
+  }
+
+  /* Read: rendered markdown */
   .staged-details-body {
     display: none;
-    margin-top: 8px;
+    margin-top: 0;
     padding: 12px;
-    background: #f3f4f6;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
     border-radius: 4px;
-    font-family: monospace;
+    font-family: system-ui, -apple-system, sans-serif;
     font-size: 13px;
     color: #374151;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    max-height: 300px;
+    line-height: 1.6;
+    max-height: 400px;
     overflow-y: auto;
   }
 
   .staged-details-body.open { display: block; }
+
+  /* Basic markdown styles inside rendered body */
+  .staged-details-body h2 { font-size: 14px; font-weight: 600; margin: 12px 0 4px; }
+  .staged-details-body h3 { font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+  .staged-details-body p  { margin: 4px 0; }
+  .staged-details-body ul, .staged-details-body ol { margin: 4px 0 4px 16px; }
+  .staged-details-body li { margin: 2px 0; }
+  .staged-details-body code { background: #e5e7eb; border-radius: 3px; padding: 1px 4px; font-family: monospace; font-size: 12px; }
+  .staged-details-body pre { background: #e5e7eb; border-radius: 4px; padding: 8px; overflow-x: auto; }
+  .staged-details-body pre code { background: none; padding: 0; }
+  .staged-details-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 8px 0; }
+
+  /* Edit + Kira: raw textarea */
+  .staged-edit-textarea {
+    width: 100%;
+    min-height: 200px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 8px;
+    resize: vertical;
+    background: #f9fafb;
+    box-sizing: border-box;
+    line-height: 1.5;
+  }
+
+  .staged-kira-textarea {
+    font-family: system-ui, -apple-system, sans-serif;
+    min-height: 100px;
+  }
+
+  .staged-edit-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
 
   /* ── QUEUE + HISTORY TWO-COLUMN LAYOUT ───────────────── */
   .queue-history-row {
@@ -1100,18 +1165,129 @@
           <div class="staged-card-title">#${eid} &middot; ${escHtml(item.title || '')}</div>
           <div class="staged-card-summary">${summary}</div>
           ${actionsHtml}
-          <button class="staged-details-toggle" onclick="stagedToggleDetails('${eid}')" id="staged-details-btn-${eid}">&#9656; Details</button>
-          <div class="staged-details-body" id="staged-details-${eid}">${escHtml(item.body || '')}</div>
+          <div class="staged-details-section" id="staged-details-section-${eid}">
+            <button class="staged-details-toggle" onclick="stagedToggleDetails('${eid}')" id="staged-details-btn-${eid}">&#9656; Details</button>
+            <div class="staged-details-toolbar" style="display:none" id="staged-details-toolbar-${eid}">
+              <button class="staged-mode-btn active" id="staged-mode-read-${eid}" onclick="stagedSetMode('${eid}','read')">Read</button>
+              <button class="staged-mode-btn" id="staged-mode-edit-${eid}" onclick="stagedSetMode('${eid}','edit')">Edit</button>
+              <button class="staged-mode-btn" id="staged-mode-kira-${eid}" onclick="stagedSetMode('${eid}','kira')">Ask Kira</button>
+            </div>
+            <div class="staged-details-body" id="staged-details-read-${eid}"></div>
+            <div class="staged-mode-edit-body" id="staged-details-edit-${eid}" style="display:none">
+              <textarea class="staged-edit-textarea" id="staged-edit-ta-${eid}"></textarea>
+              <div class="staged-edit-actions">
+                <button class="staged-btn staged-btn-commission" onclick="stagedSubmitEdit('${eid}')">Save</button>
+                <button class="staged-btn staged-btn-cancel" onclick="stagedSetMode('${eid}','read')">Cancel</button>
+              </div>
+            </div>
+            <div class="staged-mode-kira-body" id="staged-details-kira-${eid}" style="display:none">
+              <textarea class="staged-edit-textarea staged-kira-textarea" id="staged-kira-ta-${eid}" placeholder="Write rough notes — Kira will clean them up before sending to the queue…"></textarea>
+              <div class="staged-edit-actions">
+                <button class="staged-btn staged-btn-amend" onclick="stagedSubmitKira('${eid}')">Send to Kira</button>
+                <button class="staged-btn staged-btn-cancel" onclick="stagedSetMode('${eid}','read')">Cancel</button>
+              </div>
+            </div>
+          </div>
         </div>`;
     }).join('');
+
+    // Populate read views with rendered markdown and cache raw bodies
+    for (const item of items) {
+      const eid = escHtml(item.id);
+      stagedBodyCache[eid] = item.body || '';
+      const readEl = document.getElementById('staged-details-read-' + eid);
+      if (readEl) readEl.innerHTML = marked.parse(item.body || '');
+    }
+  }
+
+  // Store raw body per id so Edit textarea always has the current content
+  const stagedBodyCache = {};
+
+  function stagedSetMode(id, mode) {
+    const readEl  = document.getElementById('staged-details-read-' + id);
+    const editEl  = document.getElementById('staged-details-edit-' + id);
+    const kiraEl  = document.getElementById('staged-details-kira-' + id);
+
+    readEl.style.display = mode === 'read' ? '' : 'none';
+    editEl.style.display = mode === 'edit' ? '' : 'none';
+    kiraEl.style.display = mode === 'kira' ? '' : 'none';
+
+    if (mode === 'read') readEl.classList.add('open');
+
+    ['read','edit','kira'].forEach(m => {
+      const btn = document.getElementById('staged-mode-' + m + '-' + id);
+      if (btn) btn.classList.toggle('active', m === mode);
+    });
+
+    if (mode === 'edit') {
+      const ta = document.getElementById('staged-edit-ta-' + id);
+      if (ta) ta.value = stagedBodyCache[id] || '';
+    }
+    if (mode === 'kira') {
+      const ta = document.getElementById('staged-kira-ta-' + id);
+      if (ta) ta.value = '';
+    }
+  }
+
+  async function stagedSubmitEdit(id) {
+    const ta = document.getElementById('staged-edit-ta-' + id);
+    if (!ta) return;
+    const body = ta.value;
+    try {
+      const res = await fetch('/api/bridge/staged/' + id + '/update-body', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body }),
+      });
+      if (res.ok) {
+        stagedBodyCache[id] = body;
+        const readEl = document.getElementById('staged-details-read-' + id);
+        if (readEl) readEl.innerHTML = marked.parse(body);
+        stagedSetMode(id, 'read');
+      }
+    } catch (_) {}
+  }
+
+  async function stagedSubmitKira(id) {
+    const ta = document.getElementById('staged-kira-ta-' + id);
+    if (!ta || !ta.value.trim()) return;
+    try {
+      const res = await fetch('/api/bridge/staged/' + id + '/amend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: ta.value }),
+      });
+      if (res.ok) stagedSetMode(id, 'read');
+    } catch (_) {}
   }
 
   function stagedToggleDetails(id) {
-    const el = document.getElementById('staged-details-' + id);
-    const btn = document.getElementById('staged-details-btn-' + id);
-    if (el) {
-      el.classList.toggle('open');
-      if (btn) btn.innerHTML = el.classList.contains('open') ? '&#9662; Details' : '&#9656; Details';
+    const toolbar = document.getElementById('staged-details-toolbar-' + id);
+    const readEl  = document.getElementById('staged-details-read-' + id);
+    const btn     = document.getElementById('staged-details-btn-' + id);
+    const isOpen  = readEl.classList.contains('open');
+
+    if (isOpen) {
+      readEl.classList.remove('open');
+      readEl.style.display = 'none';
+      toolbar.style.display = 'none';
+      // collapse edit/kira too
+      const editEl = document.getElementById('staged-details-edit-' + id);
+      const kiraEl = document.getElementById('staged-details-kira-' + id);
+      if (editEl) editEl.style.display = 'none';
+      if (kiraEl) kiraEl.style.display = 'none';
+      // reset mode buttons
+      ['read','edit','kira'].forEach(m => {
+        const mbtn = document.getElementById('staged-mode-' + m + '-' + id);
+        if (mbtn) mbtn.classList.toggle('active', m === 'read');
+      });
+      if (btn) btn.innerHTML = '&#9656; Details';
+    } else {
+      readEl.classList.add('open');
+      readEl.style.display = '';
+      toolbar.style.display = '';
+      stagedSetMode(id, 'read');
+      if (btn) btn.innerHTML = '&#9662; Details';
     }
   }
 
@@ -1194,9 +1370,10 @@
   }
 
   async function fetchStaged() {
-    // Don't re-render if an inline amend input is active or a details panel is open — would destroy user interaction
+    // Don't re-render if an inline amend input is active, a details panel is open, or a textarea is focused — would destroy user interaction
     if (document.querySelector('.staged-inline-amend input:focus, .staged-inline-amend input')) return;
     if (document.querySelector('.staged-details-body.open')) return;
+    if (document.querySelector('.staged-edit-textarea:focus')) return;
     try {
       const res = await fetch('/api/bridge/staged');
       if (!res.ok) return;
