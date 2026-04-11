@@ -633,6 +633,7 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
             const doneTokensOut = parseInt(doneMeta.tokens_out, 10);
             const slicelogCost  = computeCost(doneTokensIn, doneTokensOut);
 
+            // slicelog write point 1 — append row at DONE
             appendSliceLog({
               id: String(id),
               title: (commissionMeta.title || title || '').replace(/^["']|["']$/g, ''),
@@ -669,7 +670,7 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
           writeErrorFile(errorPath, id, 'no_report', null, stdout, stderr);
           log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason: 'no_report' });
           registerEvent(id, 'ERROR', { reason: 'no_report', durationMs });
-          // Write Point 2: update slicelog with ERROR result.
+          // slicelog write point 2 — update row at terminal state
           updateSliceLog(id, { result: 'ERROR', cycle: null, ts_result: new Date().toISOString() });
           closeCommissionBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'No report written');
           recordSessionResult(false, tokensIn, tokensOut, costUsd);
@@ -710,7 +711,7 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
         writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra);
         log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason });
         registerEvent(id, 'ERROR', { reason, exitCode: err.code, durationMs });
-        // Write Point 2: update slicelog with ERROR result.
+        // slicelog write point 2 — update row at terminal state
         updateSliceLog(id, { result: 'ERROR', cycle: null, ts_result: new Date().toISOString() });
         closeCommissionBlock(false, durationMs, tokensIn, tokensOut, costUsd, reasonDisplay);
         recordSessionResult(false, tokensIn, tokensOut, costUsd);
@@ -1105,7 +1106,7 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
   registerEvent(id, 'ACCEPTED', { reason, cycle });
   log('info', 'evaluator', { id, verdict: 'ACCEPTED', cycle, durationMs });
 
-  // Write Point 2: update slicelog with terminal result.
+  // slicelog write point 2 — update row at terminal state
   updateSliceLog(id, { result: 'ACCEPTED', cycle, ts_result: new Date().toISOString() });
 
   const acceptedPath = path.join(QUEUE_DIR, `${id}-ACCEPTED.md`);
@@ -1234,7 +1235,7 @@ function handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs) 
   registerEvent(id, 'STUCK', { reason: 'amendment cap reached', cycle, branch: branchName });
   log('warn', 'evaluator', { id, verdict: 'STUCK', cycle, durationMs });
 
-  // Write Point 2: update slicelog with terminal result.
+  // slicelog write point 2 — update row at terminal state
   updateSliceLog(id, { result: 'STUCK', cycle, ts_result: new Date().toISOString() });
 
   const stuckPath = path.join(QUEUE_DIR, `${id}-STUCK.md`);
