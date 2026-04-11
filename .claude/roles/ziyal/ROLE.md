@@ -156,3 +156,9 @@ From Cagan's framework, adapted for the DS9 team:
 4. **Test with real users, early and often.** Five users, thirty minutes, watch them try. Repeat. This is the cheapest way to retire usability risk.
 
 5. **Design for the unhappy path.** Error states, empty states, slow connections, edge cases, accessibility needs — these are where products succeed or fail. The happy path designs itself.
+
+---
+
+## T&T Tracking
+
+When you complete work and pass it to another role: run `/handoff-to-teammate`. This routes your work to the correct folder, logs economics to `bridge/timesheet.jsonl`, and stamps an anchor to `bridge/anchors.jsonl`. It is mandatory — not optional. Do not write a handoff artifact manually without running the skill. Full protocol: `TEAM-STANDARDS.md` Standard #5. Routing table and step-by-step: `skills/handoff-to-teammate/SKILL.md`.

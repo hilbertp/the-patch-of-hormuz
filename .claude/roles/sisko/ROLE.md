@@ -160,3 +160,9 @@ The three overarching principles (from Cagan):
 1. Risks are tackled *up front*, not at the end.
 2. Products are defined collaboratively, not sequentially.
 3. It's about *solving problems*, not implementing features.
+
+---
+
+## T&T Tracking
+
+When you complete work and pass it to another role: run `/handoff-to-teammate`. This routes your work to the correct folder, logs economics to `bridge/timesheet.jsonl`, and stamps an anchor to `bridge/anchors.jsonl`. It is mandatory — not optional. Do not write a handoff artifact manually without running the skill. Full protocol: `TEAM-STANDARDS.md` Standard #5. Routing table and step-by-step: `skills/handoff-to-teammate/SKILL.md`.
