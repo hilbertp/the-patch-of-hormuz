@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Liberation of Bajor — Dashboard</title>
+<title>The Rubicon</title>
 <style>
   /* ── CSS variables (kept for JS compatibility, remapped to clean palette) ── */
   :root {
@@ -527,12 +527,72 @@
 
   .staged-details-body.open { display: block; }
 
+  /* ── QUEUE + HISTORY TWO-COLUMN LAYOUT ───────────────── */
+  .queue-history-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .queue-panel {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .queue-panel .commission-history {
+    margin-bottom: 0;
+  }
+
+  .queue-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .queue-item:last-child { border-bottom: none; }
+
+  .queue-item-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .queue-item-id {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    flex-shrink: 0;
+  }
+
+  .queue-item-title {
+    font-size: 13px;
+    color: #374151;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .queue-empty {
+    font-size: 14px;
+    color: #9ca3af;
+    text-align: center;
+    padding: 24px 0;
+  }
+
   /* ── RESPONSIVE ────────────────────────────────────────── */
   @media (max-width: 600px) {
     .queue-stats { flex-wrap: wrap; }
     .stat-card { flex: 1 1 calc(50% - 8px); min-width: 0; }
     .crew-grid { grid-template-columns: 1fr; }
     .dashboard-container { padding: 20px 16px; }
+    .queue-history-row { grid-template-columns: 1fr; }
   }
 
   /* ── UTILITY (referenced by JS) ────────────────────────── */
@@ -546,7 +606,7 @@
 
   <!-- ── HEADER ──────────────────────────────────────────────────────── -->
   <div class="header">
-    <div class="header-title">Liberation of Bajor</div>
+    <div class="header-title">The Rubicon</div>
     <div class="header-status">
       <div class="header-status-dot" id="header-status-dot"></div>
       <span id="watcher-status-text">ONLINE</span>
@@ -601,23 +661,31 @@
     </div>
   </div>
 
-  <!-- ── COMMISSION HISTORY ──────────────────────────────────────────── -->
-  <div class="commission-history">
-    <div class="section-title">Commission History</div>
-    <div class="table-scroll">
-      <table class="commission-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Description</th>
-            <th>Type</th>
-            <th>Status</th>
-            <th>Duration</th>
-          </tr>
-        </thead>
-        <tbody id="commission-tbody">
-        </tbody>
-      </table>
+  <!-- ── QUEUE + HISTORY (two-column) ─────────────────────────────────── -->
+  <div class="queue-history-row">
+    <div class="queue-panel">
+      <div class="section-title">Queue</div>
+      <div id="queue-items">
+        <div class="queue-empty">Queue is clear.</div>
+      </div>
+    </div>
+    <div class="commission-history" style="margin-bottom:0">
+      <div class="section-title">History</div>
+      <div class="table-scroll">
+        <table class="commission-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Description</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody id="commission-tbody">
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -697,17 +765,27 @@
   // ── Mission lifecycle pipeline ──────────────────────────────────────────────
 
   const PIPELINE_STAGES = [
-    { key: 'VISUALIZING',     label: 'VISUALIZING' },
-    { key: 'COMMISSIONED',    label: 'COMMISSIONED' },
-    { key: 'PENDING',         label: 'PENDING' },
-    { key: 'IN_PROGRESS',     label: 'IN PROGRESS' },
-    { key: 'AWAITING_REVIEW', label: 'AWAITING REVIEW' },
-    { key: 'IN_REVIEW',       label: 'IN REVIEW' },
-    { key: 'ACCEPTED',        label: 'ACCEPTED' },
-    { key: 'CODE_REVIEW',     label: 'CODE REVIEW' },
-    { key: 'MERGING',         label: 'MERGING' },
-    { key: 'MERGED',          label: 'MERGED' },
+    { key: 'COMMISSIONED',  label: 'Commissioned' },
+    { key: 'DEVELOPMENT',   label: 'Development' },
+    { key: 'PEER_REVIEW',   label: 'Peer Review' },
+    { key: 'QA',            label: 'QA' },
+    { key: 'MERGED',        label: 'Merged' },
   ];
+
+  // Map internal queue states to pipeline stage keys
+  function mapStateToPipelineKey(state) {
+    switch (state) {
+      case 'PENDING':         return 'COMMISSIONED';
+      case 'IN_PROGRESS':     return 'DEVELOPMENT';
+      case 'EVALUATING':
+      case 'AWAITING_REVIEW':
+      case 'IN_REVIEW':       return 'PEER_REVIEW';
+      case 'ACCEPTED':        return 'QA';
+      case 'MERGED':
+      case 'DONE':            return 'MERGED';
+      default:                return null;
+    }
+  }
 
   function renderPipeline(activeKey) {
     const activeIdx = activeKey ? PIPELINE_STAGES.findIndex(s => s.key === activeKey) : -1;
@@ -759,17 +837,17 @@
     let mission = null;
 
     if (heartbeat.status === 'processing' || queue.active > 0) {
-      activeStageKey = 'IN_PROGRESS';
+      activeStageKey = 'DEVELOPMENT';
       const id = heartbeat.current_commission;
       mission = (id ? commissions.find(c => c.id === String(id)) : null)
              ?? commissions.find(c => c.state === 'IN_PROGRESS');
     } else if (queue.waiting > 0) {
-      activeStageKey = 'PENDING';
+      activeStageKey = 'COMMISSIONED';
       mission = commissions.find(c => c.state === 'PENDING');
     } else if (heartbeat.current_commission) {
       const found = commissions.find(c => c.id === String(heartbeat.current_commission));
       if (found && found.state === 'DONE') {
-        activeStageKey = 'AWAITING_REVIEW';
+        activeStageKey = 'PEER_REVIEW';
         mission = found;
       }
     }
@@ -898,6 +976,43 @@
   startElapsedTick();
   fetchBridge();
   setInterval(fetchBridge, 5000);
+
+  // ── Queue panel (live pending / in-progress) ────────────────────────────────
+  async function fetchQueue() {
+    try {
+      const res = await fetch('/api/bridge/queue');
+      if (!res.ok) return;
+      const files = await res.json();
+      renderQueuePanel(files);
+    } catch (_) {}
+  }
+
+  function renderQueuePanel(files) {
+    const container = document.getElementById('queue-items');
+    // Filter to PENDING and IN_PROGRESS items
+    const active = (files || []).filter(f =>
+      f.state === 'PENDING' || f.state === 'IN_PROGRESS'
+    );
+    if (active.length === 0) {
+      container.innerHTML = '<div class="queue-empty">Queue is clear.</div>';
+      return;
+    }
+    container.innerHTML = active.map(item => {
+      const stateToClass = { PENDING: 'tag-pending', IN_PROGRESS: 'tag-progress' };
+      const tagCls = stateToClass[item.state] || 'tag-pending';
+      const label = item.state === 'IN_PROGRESS' ? 'IN PROGRESS' : 'PENDING';
+      return `<div class="queue-item">
+        <div class="queue-item-info">
+          <span class="queue-item-id">#${escHtml(item.id)}</span>
+          <span class="queue-item-title">${escHtml(item.title || '')}</span>
+        </div>
+        <span class="tag ${tagCls}">${label}</span>
+      </div>`;
+    }).join('');
+  }
+
+  fetchQueue();
+  setInterval(fetchQueue, 5000);
 
   // ── Staged commissions panel ────────────────────────────────────────────────
   function renderStagedCards(items) {
