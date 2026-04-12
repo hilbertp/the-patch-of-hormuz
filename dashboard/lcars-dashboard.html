@@ -241,8 +241,24 @@
   .queue-stats {
     display: flex;
     gap: 12px;
-    margin-bottom: 24px;
+    margin-bottom: 12px;
   }
+
+  .economics-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--bg-card, #f9fafb);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 8px;
+    margin-bottom: 24px;
+    font-size: 0.8em;
+  }
+  .econ-item { display: flex; gap: 6px; align-items: baseline; }
+  .econ-label { color: var(--text-dim, #9ca3af); }
+  .econ-value { font-family: monospace; font-weight: 600; color: var(--text, #111); }
+  .econ-sep { color: var(--text-dim, #9ca3af); }
 
   .stat-card {
     flex: 1;
@@ -789,6 +805,17 @@
     </div>
   </div>
 
+  <!-- ── ECONOMICS ────────────────────────────────────────────────────── -->
+  <div class="economics-bar" id="economics-bar">
+    <span class="econ-item"><span class="econ-label">Total spend</span><span class="econ-value" id="econ-cost">—</span></span>
+    <span class="econ-sep">·</span>
+    <span class="econ-item"><span class="econ-label">Tokens in</span><span class="econ-value" id="econ-tin">—</span></span>
+    <span class="econ-sep">·</span>
+    <span class="econ-item"><span class="econ-label">Tokens out</span><span class="econ-value" id="econ-tout">—</span></span>
+    <span class="econ-sep">·</span>
+    <span class="econ-item"><span class="econ-label">Briefs billed</span><span class="econ-value" id="econ-briefs">—</span></span>
+  </div>
+
   <!-- ── QUEUE + HISTORY (two-column) ─────────────────────────────────── -->
   <div class="queue-history-row">
     <div class="queue-panel">
@@ -1041,6 +1068,18 @@
     document.getElementById('stat-done').textContent    = data.queue.done    ?? 0;
     document.getElementById('stat-error').textContent   = data.queue.error   ?? 0;
     document.getElementById('stat-review').textContent  = '0';
+
+    // Economics bar
+    const econ = data.economics ?? {};
+    const fmtK = n => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n);
+    const costEl   = document.getElementById('econ-cost');
+    const tinEl    = document.getElementById('econ-tin');
+    const toutEl   = document.getElementById('econ-tout');
+    const briEcEl  = document.getElementById('econ-briefs');
+    if (costEl)   costEl.textContent   = econ.totalCostUsd   != null ? '$' + econ.totalCostUsd.toFixed(2)   : '—';
+    if (tinEl)    tinEl.textContent    = econ.totalTokensIn   != null ? fmtK(econ.totalTokensIn)             : '—';
+    if (toutEl)   toutEl.textContent   = econ.totalTokensOut  != null ? fmtK(econ.totalTokensOut)            : '—';
+    if (briEcEl)  briEcEl.textContent  = econ.totalBriefs     != null ? econ.totalBriefs                     : '—';
 
     // Header status
     const statusEl = document.getElementById('watcher-status-text');
