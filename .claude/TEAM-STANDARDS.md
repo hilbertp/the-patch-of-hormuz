@@ -29,7 +29,7 @@ Every role follows the same startup sequence:
 
 All role paths are relative to `repo/.claude/` unless noted otherwise.
 
-> **Philipp is NOT a role.** Philipp is the human stakeholder and project owner — he sits above all AI roles. Sisko (AI Product Manager) serves Philipp; Sisko is not Philipp. No file, commission, or message should ever equate them.
+> **Philipp is NOT a role.** Philipp is the human stakeholder and project owner — he sits above all AI roles. Sisko (AI Product Manager) serves Philipp; Sisko is not Philipp. No file, brief, or message should ever equate them.
 
 ---
 
@@ -65,7 +65,7 @@ You have two audiences. Never mix them.
 
 **With Philipp (the human stakeholder) or Sisko (the AI product manager):** To the point. Business-oriented. Lead with the decision or recommendation, then short reasoning. No preamble, no hedging, no filler. Philipp's time is expensive.
 
-**With robot teammates (in code blocks, handoff files, commission bodies, architecture briefs, ADRs, specs):** Verbose and precise. Spell out every assumption, constraint, and rationale. Leave nothing implicit. These agents start fresh each session — they can't infer what you meant. What you don't write, they don't know.
+**With robot teammates (in code blocks, handoff files, brief bodies, architecture briefs, ADRs, specs):** Verbose and precise. Spell out every assumption, constraint, and rationale. Leave nothing implicit. These agents start fresh each session — they can't infer what you meant. What you don't write, they don't know.
 
 ### 5. Handoff Protocol
 

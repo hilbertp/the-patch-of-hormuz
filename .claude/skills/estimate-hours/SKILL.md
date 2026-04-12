@@ -1,6 +1,6 @@
 ---
 name: estimate-hours
-description: "Track token burn and human-equivalent hours for every deliverable. Use this skill after completing any significant piece of work — a commission, a review, a design, an architecture decision, a handoff, planning work. Also triggers on 'log time', 'track hours', 'economics', 'how long would a human take', 'timesheet', 'token cost'. Every role must use this — it's a global team standard."
+description: "Track token burn and human-equivalent hours for every deliverable. Use this skill after completing any significant piece of work — a brief, a review, a design, an architecture decision, a handoff, planning work. Also triggers on 'log time', 'track hours', 'economics', 'how long would a human take', 'timesheet', 'token cost'. Every role must use this — it's a global team standard."
 ---
 
 # Estimate Hours — Economics Tracking
@@ -25,7 +25,7 @@ After completing any significant piece of work, append one JSON line to the time
   "role": "your role name, lowercase (e.g. dax, kira, obrien)",
   "deliverable": "The deliverable this work belongs to — e.g. 'slice-11-nog-gate', 'architecture-plan-v3', 'bet-landing-page'. This is the aggregation key.",
   "phase": "one of: planning, execution, review, housekeeping, fix",
-  "commission_id": "commission ID if applicable, or null",
+  "brief_id": "brief ID if applicable, or null",
   "task": "One-line description of what you did",
   "human_hours": 0.0,
   "human_role": "What kind of human professional would do this (e.g. Senior Architect, Delivery Coordinator, Senior Developer)",
@@ -62,7 +62,7 @@ Be honest. Some things AI does faster (reading large codebases, cross-referencin
 
 **Calibration benchmarks:**
 - Reading and evaluating a detailed report against criteria → 0.5–1.0 human hours
-- Writing a scoped commission with success criteria → 1.0–2.0 human hours
+- Writing a scoped brief with success criteria → 1.0–2.0 human hours
 - Designing a multi-capability architecture → 3.0–6.0 human hours
 - Reviewing and merging a branch → 0.5 human hours
 - Writing a detailed spec or handoff document → 2.0–4.0 human hours
@@ -77,7 +77,7 @@ Explain the estimate. A bare number is hard to audit later. What made this task 
 
 ## When to log
 
-Log after completing each distinct piece of work, not at the end of a session. One deliverable = one timesheet entry. If a session involves multiple deliverables (e.g., review a report AND commission the next slice), that's two entries.
+Log after completing each distinct piece of work, not at the end of a session. One deliverable = one timesheet entry. If a session involves multiple deliverables (e.g., review a report AND brief the next slice), that's two entries.
 
 Don't log trivial actions (reading a file, answering a quick question). The threshold: if a competent human would bill time for it, log it.
 
@@ -91,7 +91,7 @@ Append to the file — never overwrite. Use one JSON object per line (JSON Lines
 
 ```bash
 # Example: appending a timesheet entry
-echo '{"ts":"2026-04-08T14:30:00Z","role":"dax","deliverable":"slice-11-nog-gate","phase":"planning","commission_id":null,"task":"Reviewed capability map for Nog code review gate — identified ordering issue in review-before-merge flow","human_hours":1.5,"human_role":"Senior Architect","actual_minutes":4,"notes":"Required reading the full watcher.js to understand the branch lifecycle, then mapping it against the proposed Nog gate. A human architect would need the same codebase understanding."}' >> bridge/timesheet.jsonl
+echo '{"ts":"2026-04-08T14:30:00Z","role":"dax","deliverable":"slice-11-nog-gate","phase":"planning","brief_id":null,"task":"Reviewed capability map for Nog code review gate — identified ordering issue in review-before-merge flow","human_hours":1.5,"human_role":"Senior Architect","actual_minutes":4,"notes":"Required reading the full watcher.js to understand the branch lifecycle, then mapping it against the proposed Nog gate. A human architect would need the same codebase understanding."}' >> bridge/timesheet.jsonl
 ```
 
 ## Aggregation

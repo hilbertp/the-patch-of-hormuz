@@ -19,8 +19,8 @@ A handoff can go to one role or multiple roles simultaneously. Identify every ro
 |---|---|---|---|
 | **Sisko** (PM) | `roles/sisko/` | Anyone | Product decisions, scope approval, bet packaging, escalations |
 | **Dax** (Architect) | `roles/dax/` | Sisko, Kira | Technical architecture, feasibility reviews, ADRs, system design — **first stop for anything with technical complexity before it reaches Kira** |
-| **Kira** (Delivery Coordinator) | `roles/kira/` | Sisko, Dax, O'Brien, Nog | Slice plans, commission writing, done report evaluation, delivery sequencing — **owns the backend/frontend split: decides which slices go to O'Brien vs Leeta** |
-| **O'Brien** (Implementor) | `roles/obrien/` | **Dax + Kira** | Architecture context from Dax (so he knows the system constraints) and implementation commissions from Kira — receives from both |
+| **Kira** (Delivery Coordinator) | `roles/kira/` | Sisko, Dax, O'Brien, Nog | Slice plans, brief writing, done report evaluation, delivery sequencing — **owns the backend/frontend split: decides which slices go to O'Brien vs Leeta** |
+| **O'Brien** (Implementor) | `roles/obrien/` | **Dax + Kira** | Architecture context from Dax (so he knows the system constraints) and implementation briefs from Kira — receives from both |
 | **Ziyal** (Designer) | `roles/ziyal/` | Sisko, Kira | UI/UX design briefs, visual design, dashboard designs, frontend HTML prototypes |
 | **Leeta** (Landing Page) | `roles/leeta/` | Kira, Ziyal | Frontend/landing page slices Kira routes her way — marketing copy, landing page content |
 | **Nog** (Code Review) | `roles/nog/` | Kira, O'Brien | Code review on completed slices |
@@ -43,10 +43,10 @@ Sisko (scope) → Dax (architecture) → Kira + O'Brien (parallel)
 Sisko (scope) → Ziyal (design) → Kira → O'Brien or Leeta
 ```
 
-**Kira's routing decision when commissioning:**
+**Kira's routing decision when briefing:**
 - Backend (Node.js, watcher, relay, bridge, API) → **O'Brien**
 - Frontend (HTML, CSS, dashboard, landing page) → **Leeta** (public-facing) or **O'Brien** (product UI)
-- Both in one slice → split into two commissions, route separately
+- Both in one slice → split into two briefs, route separately
 
 **Technical work always goes to Dax before Kira.** Kira should never receive raw technical requirements without architectural guidance from Dax.
 
@@ -55,8 +55,8 @@ Sisko (scope) → Ziyal (design) → Kira → O'Brien or Leeta
 - "Should we build this? What's the scope?" → **Sisko**
 - "How should this be built? Any technical complexity?" → **Dax** (before Kira)
 - "Architecture output ready" → **Kira + O'Brien** (always both)
-- "Sequence, commission, backend vs frontend split" → **Kira**
-- "Build the backend / implement" → **O'Brien** (via Kira commission)
+- "Sequence, brief, backend vs frontend split" → **Kira**
+- "Build the backend / implement" → **O'Brien** (via Kira brief)
 - "Build the frontend / landing page" → **Leeta** (via Kira)
 - "Design the UI / write the HTML prototype" → **Ziyal**
 - "Review this code" → **Nog**
