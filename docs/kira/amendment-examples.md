@@ -6,14 +6,14 @@ Two worked examples of the amendment protocol. Reference alongside `KIRA.md §H`
 
 ## Example 1: O'Brien delivered PARTIAL work
 
-**Scenario:** Commission `005` asked O'Brien to create three contract docs and a test harness. O'Brien's report came back with `status: PARTIAL` — the three contract docs exist and are committed, but the test harness was not started due to time constraints. Kira evaluates: three of four success criteria met.
+**Scenario:** Brief `005` asked O'Brien to create three contract docs and a test harness. O'Brien's report came back with `status: PARTIAL` — the three contract docs exist and are committed, but the test harness was not started due to time constraints. Kira evaluates: three of four success criteria met.
 
 **Kira's action:** Issue amendment `006`, referencing `005`, scoped to the remaining work.
 
 ```markdown
 ---
 id: "006"
-title: "Amendment: complete test harness from commission 005"
+title: "Amendment: complete test harness from brief 005"
 from: kira
 to: obrien
 priority: normal
@@ -24,16 +24,16 @@ timeout_min: null
 
 ## Objective
 
-Complete the test harness that was deferred in commission 005 (status: PARTIAL).
+Complete the test harness that was deferred in brief 005 (status: PARTIAL).
 
 ## Context
 
-Commission 005 is at `bridge/queue/005-DONE.md`. The three contract docs were delivered
+Brief 005 is at `bridge/queue/005-DONE.md`. The three contract docs were delivered
 and accepted. The test harness was not started. Pick up on the same branch: `slice/4-contracts`.
 
 ## Tasks
 
-1. Create the test harness as described in commission 005's tasks section (task 4).
+1. Create the test harness as described in brief 005's tasks section (task 4).
 2. Ensure tests pass locally.
 3. Commit on `slice/4-contracts`.
 
@@ -44,7 +44,7 @@ and accepted. The test harness was not started. Pick up on the same branch: `sli
 
 ## Success criteria
 
-1. Test harness exists at the path specified in commission 005.
+1. Test harness exists at the path specified in brief 005.
 2. All tests pass.
 3. Changes committed on `slice/4-contracts`.
 4. Report written to `bridge/queue/006-DONE.md`.
@@ -54,14 +54,14 @@ and accepted. The test harness was not started. Pick up on the same branch: `sli
 
 ## Example 2: O'Brien was BLOCKED on a decision
 
-**Scenario:** Commission `007` asked O'Brien to implement a retry policy for the watcher. O'Brien's report came back with `status: BLOCKED` — O'Brien found two viable retry strategies (exponential backoff vs. fixed interval) and needs Kira to decide before proceeding.
+**Scenario:** Brief `007` asked O'Brien to implement a retry policy for the watcher. O'Brien's report came back with `status: BLOCKED` — O'Brien found two viable retry strategies (exponential backoff vs. fixed interval) and needs Kira to decide before proceeding.
 
 **Kira's action:** Read O'Brien's analysis in the report, make the decision, issue amendment `008` with the answer.
 
 ```markdown
 ---
 id: "008"
-title: "Amendment: retry policy decision for commission 007"
+title: "Amendment: retry policy decision for brief 007"
 from: kira
 to: obrien
 priority: normal
@@ -72,11 +72,11 @@ timeout_min: null
 
 ## Objective
 
-Unblock commission 007: implement the watcher retry policy using the decided strategy.
+Unblock brief 007: implement the watcher retry policy using the decided strategy.
 
 ## Context
 
-Commission 007 is at `bridge/queue/007-DONE.md` (status: BLOCKED). O'Brien presented two
+Brief 007 is at `bridge/queue/007-DONE.md` (status: BLOCKED). O'Brien presented two
 options. Decision: use **fixed interval retry** (3 retries, 10s apart). Rationale: simpler
 to reason about in a local queue; backoff adds complexity without meaningful benefit at
 this scale.
@@ -91,7 +91,7 @@ this scale.
 ## Constraints
 
 - Do not implement exponential backoff.
-- Do not change the commission or report format.
+- Do not change the brief or report format.
 
 ## Success criteria
 

@@ -1,4 +1,4 @@
-# Commission Format — Liberation of Bajor
+# Brief Format — Liberation of Bajor
 
 *Contract version: 1.0*
 *Source: PRD — Liberation of Bajor v2.1, §5.2; Architecture v1.1*
@@ -9,9 +9,9 @@
 
 ## Overview
 
-A commission is a markdown file with YAML frontmatter, written by Kira and dropped into the queue directory. The frontmatter carries structured metadata that the watcher uses to manage the lifecycle. The markdown body contains everything O'Brien needs to execute the commission independently.
+A brief is a markdown file with YAML frontmatter, written by Kira and dropped into the queue directory. The frontmatter carries structured metadata that the watcher uses to manage the lifecycle. The markdown body contains everything O'Brien needs to execute the brief independently.
 
-**The watcher injects nothing into O'Brien's context.** Every commission must be self-contained, or explicitly reference files O'Brien can look up in the project filesystem.
+**The watcher injects nothing into O'Brien's context.** Every brief must be self-contained, or explicitly reference files O'Brien can look up in the project filesystem.
 
 ---
 
@@ -36,18 +36,18 @@ The frontmatter block opens and closes with `---`. All keys are lowercase. Value
 | Field | Type | Description |
 |---|---|---|
 | `id` | string | Zero-padded three-digit ID matching the filename (e.g. `"003"`). Must be quoted. |
-| `title` | string | Short human-readable title for the commission. |
+| `title` | string | Short human-readable title for the brief. |
 | `from` | string | Always `kira`. |
 | `to` | string | Always `obrien`. |
 | `priority` | string | One of: `low`, `normal`, `high`, `spike`. |
-| `created` | string | ISO 8601 timestamp when the commission was written (e.g. `"2026-04-06T14:30:00Z"`). |
+| `created` | string | ISO 8601 timestamp when the brief was written (e.g. `"2026-04-06T14:30:00Z"`). |
 
 ### Optional fields
 
 | Field | Type | Description |
 |---|---|---|
-| `references` | string or null | Direct parent commission ID as a quoted string (e.g. `"003"`), or `null` for original commissions. Used for amendment chains. The watcher ignores this field completely — it is Kira's record-keeping only. O'Brien can reconstruct a full amendment chain by reading the queue directory. |
-| `timeout_min` | integer or null | Per-commission timeout override in minutes. `null` means the watcher's global default (15 minutes) applies. Use sparingly — commissions should be scoped to fit within the default. |
+| `references` | string or null | Direct parent brief ID as a quoted string (e.g. `"003"`), or `null` for original briefs. Used for amendment chains. The watcher ignores this field completely — it is Kira's record-keeping only. O'Brien can reconstruct a full amendment chain by reading the queue directory. |
+| `timeout_min` | integer or null | Per-brief timeout override in minutes. `null` means the watcher's global default (15 minutes) applies. Use sparingly — briefs should be scoped to fit within the default. |
 
 ### Frontmatter example
 
@@ -72,13 +72,13 @@ The body is freeform prose that O'Brien reads. The following sections are requir
 
 ### `## Objective`
 
-What O'Brien should accomplish, in one or two sentences. This is the single source of truth for scope — if O'Brien finishes the objective, the commission is done.
+What O'Brien should accomplish, in one or two sentences. This is the single source of truth for scope — if O'Brien finishes the objective, the brief is done.
 
 ### `## Context`
 
 Background information O'Brien needs. May reference:
 - Project files by path (O'Brien can read them)
-- Prior commissions by ID (O'Brien can read the queue directory)
+- Prior briefs by ID (O'Brien can read the queue directory)
 - Decisions made by Kira, Soren, or Philipp
 - Current system state relevant to the task
 
@@ -94,15 +94,15 @@ Any explicit limits on scope, approach, or files to avoid. If there are no const
 
 ### `## Success criteria`
 
-How Kira will evaluate the commission. Write these as explicit, checkable conditions. O'Brien evaluates his own work against these criteria before writing his report.
+How Kira will evaluate the brief. Write these as explicit, checkable conditions. O'Brien evaluates his own work against these criteria before writing his report.
 
 ---
 
 ## Self-containment requirement
 
-The watcher pipes the commission content to O'Brien and nothing else. No system preamble, no role description, no project history. O'Brien is not stateless (he has `CLAUDE.md`, git history, and the filesystem), but Kira must not rely on O'Brien inferring context that isn't in the commission or reachable from the filesystem.
+The watcher pipes the brief content to O'Brien and nothing else. No system preamble, no role description, no project history. O'Brien is not stateless (he has `CLAUDE.md`, git history, and the filesystem), but Kira must not rely on O'Brien inferring context that isn't in the brief or reachable from the filesystem.
 
-If a commission requires context from a document, either include it inline or explicitly reference the file path. If a commission requires context from a prior decision, state the decision in the Context section — do not assume O'Brien remembers prior conversations.
+If a brief requires context from a document, either include it inline or explicitly reference the file path. If a brief requires context from a prior decision, state the decision in the Context section — do not assume O'Brien remembers prior conversations.
 
 ---
 

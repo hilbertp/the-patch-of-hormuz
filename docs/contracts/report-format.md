@@ -9,7 +9,7 @@
 
 ## Overview
 
-A report is a markdown file with YAML frontmatter, written by O'Brien after executing a commission. O'Brien writes it to `{id}-DONE.md` in the queue directory before his process exits. Kira reads it to evaluate whether the commission is complete.
+A report is a markdown file with YAML frontmatter, written by O'Brien after executing a brief. O'Brien writes it to `{id}-DONE.md` in the queue directory before his process exits. Kira reads it to evaluate whether the brief is complete.
 
 ---
 
@@ -19,10 +19,10 @@ This distinction is critical and must be understood by both Kira and O'Brien.
 
 | File | Written by | Meaning |
 |---|---|---|
-| `{id}-DONE.md` | **O'Brien** | O'Brien executed the commission and produced a report. The report may say `DONE`, `PARTIAL`, or `BLOCKED` — but in all cases, Kira has something to evaluate. |
+| `{id}-DONE.md` | **O'Brien** | O'Brien executed the brief and produced a report. The report may say `DONE`, `PARTIAL`, or `BLOCKED` — but in all cases, Kira has something to evaluate. |
 | `{id}-ERROR.md` | **The watcher** | The `claude -p` invocation itself failed — crash, timeout, non-zero exit with no report written by O'Brien. ERROR means infrastructure broke, not that O'Brien's work failed. |
 
-**O'Brien always writes a DONE file.** Even if the commission cannot be completed (PARTIAL) or is stuck (BLOCKED), O'Brien writes a DONE file explaining the situation. O'Brien never writes an ERROR file — that is the watcher's sole responsibility.
+**O'Brien always writes a DONE file.** Even if the brief cannot be completed (PARTIAL) or is stuck (BLOCKED), O'Brien writes a DONE file explaining the situation. O'Brien never writes an ERROR file — that is the watcher's sole responsibility.
 
 ---
 
@@ -32,7 +32,7 @@ This distinction is critical and must be understood by both Kira and O'Brien.
 {id}-DONE.md
 ```
 
-`{id}` matches the commission ID. **Examples:** `001-DONE.md`, `042-DONE.md`
+`{id}` matches the brief ID. **Examples:** `001-DONE.md`, `042-DONE.md`
 
 ---
 
@@ -42,12 +42,12 @@ This distinction is critical and must be understood by both Kira and O'Brien.
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | string | Zero-padded three-digit ID matching the commission (e.g. `"003"`). Must be quoted. |
-| `title` | string | Commission title, copied from the commission frontmatter. |
+| `id` | string | Zero-padded three-digit ID matching the brief (e.g. `"003"`). Must be quoted. |
+| `title` | string | Brief title, copied from the brief frontmatter. |
 | `from` | string | Always `obrien`. |
 | `to` | string | Always `kira`. |
 | `status` | string | One of: `DONE`, `PARTIAL`, `BLOCKED`. See status semantics below. |
-| `commission_id` | string | ID of the commission this report responds to. Same as `id` for original commissions; may differ for amendment chains if O'Brien files a single report against multiple commission IDs. |
+| `commission_id` | string | ID of the brief this report responds to. Same as `id` for original briefs; may differ for amendment chains if O'Brien files a single report against multiple brief IDs. |
 | `completed` | string | ISO 8601 timestamp when O'Brien finished writing the report (e.g. `"2026-04-06T15:45:00Z"`). |
 
 ### Frontmatter example
@@ -70,14 +70,14 @@ completed: "2026-04-10T11:23:00Z"
 
 ### `DONE`
 
-All success criteria in the commission are met. The work is complete and verifiable.
+All success criteria in the brief are met. The work is complete and verifiable.
 
 ### `PARTIAL`
 
 Some tasks are done, some are not. O'Brien must explain:
 - Which tasks succeeded (with verification notes)
 - Which tasks were not completed and why
-- Whether Kira needs to issue an amendment or if O'Brien can continue on the same commission
+- Whether Kira needs to issue an amendment or if O'Brien can continue on the same brief
 
 Use `PARTIAL` when O'Brien made meaningful progress but could not fully satisfy the success criteria.
 
@@ -114,7 +114,7 @@ Anything that needs Kira's input before work can continue. If the report status 
 
 ### `## Files changed`
 
-A list of files created, modified, or deleted during the commission. Include the full path from the project root and a one-line description of what changed.
+A list of files created, modified, or deleted during the brief. Include the full path from the project root and a one-line description of what changed.
 
 **Format:**
 ```
