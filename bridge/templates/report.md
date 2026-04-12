@@ -1,13 +1,13 @@
 ---
-<!-- id: Zero-padded three-digit string matching the commission ID, e.g. "007". Must be quoted. -->
+<!-- id: Zero-padded three-digit string matching the brief ID, e.g. "007". Must be quoted. -->
 id: ""
-<!-- title: Commission title, copied from the commission frontmatter. -->
+<!-- title: Brief title, copied from the brief frontmatter. -->
 title: ""
 from: obrien
 to: kira
 <!-- status: DONE = all criteria met. PARTIAL = some done, some not. BLOCKED = need Kira's input. -->
 status: DONE
-<!-- commission_id: ID of the commission this report responds to. Usually same as id. -->
+<!-- commission_id: ID of the brief this report responds to. Usually same as id. -->
 commission_id: ""
 <!-- completed: ISO 8601 timestamp when you finished writing this report. -->
 completed: ""
@@ -15,7 +15,7 @@ completed: ""
 tokens_in: 0
 <!-- tokens_out: Output tokens generated this session (non-negative integer). -->
 tokens_out: 0
-<!-- elapsed_ms: Wall-clock ms from commission pickup to DONE (positive integer). -->
+<!-- elapsed_ms: Wall-clock ms from brief pickup to DONE (positive integer). -->
 elapsed_ms: 0
 <!-- estimated_human_hours: How long a skilled human developer would take (positive float). Weight higher if compaction occurred. -->
 estimated_human_hours: 0.0

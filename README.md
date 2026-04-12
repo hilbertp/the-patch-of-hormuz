@@ -1,6 +1,6 @@
 # Liberation of Bajor
 
-A local file queue where AI agents coordinate autonomously — one writes commissions, a watcher picks them up, another executes them, a third reviews the result.
+A local file queue where AI agents coordinate autonomously — one writes briefs, a watcher picks them up, another executes them, a third reviews the result.
 
 ## Quick start
 
@@ -17,21 +17,21 @@ Open `http://localhost:4747`.
 A dashboard showing the pipeline in real time:
 
 - **Roles** — which agents are connected (Kira, O'Brien) and which are coming soon
-- **Active commission** — what's in flight, which role owns it, how long it's been there
-- **Queue** — pending commissions waiting to be picked up
-- **Recent completions** — last few finished commissions with outcomes (DONE / AMENDED / ERROR)
+- **Active brief** — what's in flight, which role owns it, how long it's been there
+- **Queue** — pending briefs waiting to be picked up
+- **Recent completions** — last few finished briefs with outcomes (DONE / AMENDED / ERROR)
 - **System health** — relay status, last heartbeat
 
 ## How it works
 
-Kira (delivery coordinator) writes a commission file to `bridge/queue/`. A watcher process detects the new file and invokes O'Brien (implementor) via `claude -p`. O'Brien executes the commission and writes a structured report back to the queue. An evaluator reviews the output and either accepts it or sends an amendment. The entire loop runs without human intervention. Files on disk are the source of truth — no database, no message broker.
+Kira (delivery coordinator) writes a brief file to `bridge/queue/`. A watcher process detects the new file and invokes O'Brien (implementor) via `claude -p`. O'Brien executes the brief and writes a structured report back to the queue. An evaluator reviews the output and either accepts it or sends an amendment. The entire loop runs without human intervention. Files on disk are the source of truth — no database, no message broker.
 
 ## Roles
 
 | Role | Description | Status |
 |---|---|---|
-| Kira | Delivery coordinator — writes commissions, evaluates reports | Active |
-| O'Brien | Implementor — executes commissions via Claude Code CLI | Active |
+| Kira | Delivery coordinator — writes briefs, evaluates reports | Active |
+| O'Brien | Implementor — executes briefs via Claude Code CLI | Active |
 | Dax | Architect — designs systems, answers hard technical questions | Active |
 | Sisko | Product manager — defines priorities and success criteria | Active |
 | Ziyal | Designer — UI/UX, dashboards, visual specs | Active |
@@ -42,11 +42,11 @@ Kira (delivery coordinator) writes a commission file to `bridge/queue/`. A watch
 
 ```
 bridge/
-  queue/          # Commission and report files (the live state machine)
-  staged/         # Staging area for Philipp's commission review (Rubicon)
+  queue/          # Brief and report files (the live state machine)
+  staged/         # Staging area for Philipp's brief review (Rubicon)
   register.jsonl  # Append-only event log (watcher + evaluator)
   timesheet.jsonl # Append-only T&T log for all roles (human and watcher)
-  watcher.js      # Detects new commissions, invokes O'Brien
+  watcher.js      # Detects new briefs, invokes O'Brien
   bridge.config.json
 dashboard/        # Web UI served on port 4747
 .claude/

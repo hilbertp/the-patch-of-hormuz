@@ -86,9 +86,9 @@
   .header-status-dot.offline { background: #dc2626; }
   .header-status-dot.idle { background: #f59e0b; }
 
-  /* ── ACTIVE COMMISSION ─────────────────────────────────── */
-  /* Active commission row — card left ~50%, black reserved space right */
-  .active-commission-row {
+  /* ── ACTIVE BRIEF ─────────────────────────────────── */
+  /* Active brief row — card left ~50%, black reserved space right */
+  .active-brief-row {
     display: flex;
     align-items: stretch;
     gap: 0;
@@ -97,7 +97,7 @@
     overflow: hidden;
   }
 
-  .active-commission {
+  .active-brief {
     position: relative;
     background: #ffffff;
     border: 1px solid #e5e7eb;
@@ -109,12 +109,12 @@
     overflow: hidden;
   }
 
-  .active-commission-aside {
+  .active-brief-aside {
     flex: 0 0 50%;
     min-width: 0;
   }
 
-  .active-commission-header {
+  .active-brief-header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
@@ -122,31 +122,31 @@
     margin-bottom: 16px;
   }
 
-  .active-commission-info {
+  .active-brief-info {
     flex: 1;
     min-width: 0;
   }
 
-  .active-commission-id {
+  .active-brief-id {
     font-size: 12px;
     font-weight: 500;
     color: #6b7280;
     margin-bottom: 4px;
   }
 
-  .active-commission-title {
+  .active-brief-title {
     font-size: 16px;
     font-weight: 600;
     color: #111827;
   }
 
-  .active-commission-stage {
+  .active-brief-stage {
     font-size: 13px;
     color: #6b7280;
     margin-top: 2px;
   }
 
-  .active-commission-elapsed {
+  .active-brief-elapsed {
     font-variant-numeric: tabular-nums;
     font-size: 20px;
     font-weight: 600;
@@ -155,7 +155,7 @@
     flex-shrink: 0;
   }
 
-  .active-commission-idle {
+  .active-brief-idle {
     font-size: 14px;
     color: #9ca3af;
   }
@@ -271,8 +271,8 @@
   .stat-card.error .stat-value { color: #dc2626; }
   .stat-card.active .stat-value { color: #2563eb; }
 
-  /* ── COMMISSION HISTORY ────────────────────────────────── */
-  .commission-history {
+  /* ── BRIEF HISTORY ────────────────────────────────── */
+  .brief-history {
     background: #ffffff;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
@@ -293,14 +293,14 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  .commission-table {
+  .brief-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
     min-width: 480px;
   }
 
-  .commission-table th {
+  .brief-table th {
     font-size: 11px;
     font-weight: 500;
     color: #6b7280;
@@ -310,14 +310,14 @@
     white-space: nowrap;
   }
 
-  .commission-table td {
+  .brief-table td {
     padding: 10px 12px;
     border-bottom: 1px solid #f3f4f6;
     font-size: 13px;
     color: #374151;
   }
 
-  .commission-table tr:last-child td { border-bottom: none; }
+  .brief-table tr:last-child td { border-bottom: none; }
 
   .tag {
     display: inline-block;
@@ -456,7 +456,7 @@
 
   .staged-btn:hover { opacity: 0.85; }
 
-  .staged-btn-commission {
+  .staged-btn-brief {
     background: #2563eb;
     color: #fff;
   }
@@ -663,7 +663,7 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   }
 
-  .queue-panel .commission-history {
+  .queue-panel .brief-history {
     margin-bottom: 0;
   }
 
@@ -736,31 +736,31 @@
     </div>
   </div>
 
-  <!-- ── ACTIVE COMMISSION ───────────────────────────────────────────── -->
-  <div class="active-commission-row">
-  <div class="active-commission">
+  <!-- ── ACTIVE BRIEF ───────────────────────────────────────────── -->
+  <div class="active-brief-row">
+  <div class="active-brief">
     <div class="active-progress-bar" id="active-progress-bar" style="display:none"></div>
-    <div class="active-commission-header">
-      <div class="active-commission-info">
-        <div id="mission-id-badge" class="active-commission-id" style="display:none"></div>
+    <div class="active-brief-header">
+      <div class="active-brief-info">
+        <div id="mission-id-badge" class="active-brief-id" style="display:none"></div>
         <div id="mission-text" style="display:none">
-          <div id="pipeline-mission-title" class="active-commission-title"></div>
-          <div id="pipeline-mission-stage" class="active-commission-stage"></div>
+          <div id="pipeline-mission-title" class="active-brief-title"></div>
+          <div id="pipeline-mission-stage" class="active-brief-stage"></div>
         </div>
-        <div id="mission-idle-text" class="active-commission-idle">No active commission.</div>
+        <div id="mission-idle-text" class="active-brief-idle">No active brief.</div>
       </div>
-      <div id="mission-elapsed" class="active-commission-elapsed" style="display:none">00:00</div>
+      <div id="mission-elapsed" class="active-brief-elapsed" style="display:none">00:00</div>
     </div>
     <div class="pipeline-stages" id="pipeline-stages"></div>
   </div>
-  <div class="active-commission-aside" id="active-commission-aside"></div>
+  <div class="active-brief-aside" id="active-brief-aside"></div>
   </div>
 
-  <!-- ── STAGED COMMISSIONS (preserved from 047) ─────────────────────── -->
+  <!-- ── STAGED BRIEFS (preserved from 047) ─────────────────────── -->
   <div class="staged-panel" id="staged-panel">
     <div class="staged-section-label">Awaiting Your Review</div>
     <div id="staged-cards">
-      <div class="staged-empty">No commissions pending review.</div>
+      <div class="staged-empty">No briefs pending review.</div>
     </div>
   </div>
 
@@ -796,10 +796,10 @@
         <div class="queue-empty">Queue is clear.</div>
       </div>
     </div>
-    <div class="commission-history" style="margin-bottom:0">
+    <div class="brief-history" style="margin-bottom:0">
       <div class="section-title">History</div>
       <div class="table-scroll">
-        <table class="commission-table">
+        <table class="brief-table">
           <thead>
             <tr>
               <th>ID</th>
@@ -809,7 +809,7 @@
               <th>Duration</th>
             </tr>
           </thead>
-          <tbody id="commission-tbody">
+          <tbody id="brief-tbody">
           </tbody>
         </table>
       </div>
@@ -938,13 +938,13 @@
   }
 
   // Elapsed time: computed from a fixed start timestamp, no re-anchoring
-  let commissionStartTime = null;
-  let lastCommissionId    = null;
+  let briefStartTime = null;
+  let lastBriefId    = null;
 
   function startElapsedTick() {
     setInterval(() => {
-      if (commissionStartTime == null) return;
-      const elapsed = Math.floor((Date.now() - commissionStartTime) / 1000);
+      if (briefStartTime == null) return;
+      const elapsed = Math.floor((Date.now() - briefStartTime) / 1000);
       const el = document.getElementById('mission-elapsed');
       if (el && el.style.display !== 'none') el.textContent = fmtElapsed(elapsed);
     }, 500);
@@ -959,21 +959,21 @@
   }
 
   function updatePipelineUI(data) {
-    const { heartbeat, queue, commissions } = data;
+    const { heartbeat, queue, briefs } = data;
 
     let activeStageKey = null;
     let mission = null;
 
     if (heartbeat.status === 'processing' || queue.active > 0) {
       activeStageKey = 'DEVELOPMENT';
-      const id = heartbeat.current_commission;
-      mission = (id ? commissions.find(c => c.id === String(id)) : null)
-             ?? commissions.find(c => c.state === 'IN_PROGRESS');
+      const id = heartbeat.current_brief;
+      mission = (id ? briefs.find(c => c.id === String(id)) : null)
+             ?? briefs.find(c => c.state === 'IN_PROGRESS');
     } else if (queue.waiting > 0) {
       activeStageKey = 'COMMISSIONED';
-      mission = commissions.find(c => c.state === 'PENDING');
-    } else if (heartbeat.current_commission) {
-      const found = commissions.find(c => c.id === String(heartbeat.current_commission));
+      mission = briefs.find(c => c.state === 'PENDING');
+    } else if (heartbeat.current_brief) {
+      const found = briefs.find(c => c.id === String(heartbeat.current_brief));
       if (found && found.state === 'DONE') {
         activeStageKey = 'PEER_REVIEW';
         mission = found;
@@ -991,7 +991,7 @@
     const progressBar = document.getElementById('active-progress-bar');
 
     if (activeStageKey && mission) {
-      badgeEl.textContent  = `Commission ${escHtml(mission.id)}`;
+      badgeEl.textContent  = `Brief ${escHtml(mission.id)}`;
       badgeEl.style.display = '';
       titleEl.textContent  = mission.title || '\u2014';
       const stageMeta = PIPELINE_STAGES.find(s => s.key === activeStageKey);
@@ -1000,13 +1000,13 @@
       idleEl.style.display = 'none';
       progressBar.style.display = (heartbeat.status === 'processing') ? '' : 'none';
 
-      if (heartbeat.commission_elapsed_seconds != null) {
-        // Re-anchor when commission changes or on first load
-        if (commissionStartTime == null || mission.id !== lastCommissionId) {
-          commissionStartTime = Date.now() - (heartbeat.commission_elapsed_seconds * 1000);
-          lastCommissionId    = mission.id;
+      if (heartbeat.brief_elapsed_seconds != null) {
+        // Re-anchor when brief changes or on first load
+        if (briefStartTime == null || mission.id !== lastBriefId) {
+          briefStartTime = Date.now() - (heartbeat.brief_elapsed_seconds * 1000);
+          lastBriefId    = mission.id;
         }
-        const elapsed = Math.floor((Date.now() - commissionStartTime) / 1000);
+        const elapsed = Math.floor((Date.now() - briefStartTime) / 1000);
         elapsedEl.textContent  = fmtElapsed(elapsed);
         elapsedEl.style.display = '';
       } else {
@@ -1018,8 +1018,8 @@
       idleEl.style.display    = '';
       elapsedEl.style.display = 'none';
       progressBar.style.display = 'none';
-      commissionStartTime = null;
-      lastCommissionId    = null;
+      briefStartTime = null;
+      lastBriefId    = null;
     }
   }
 
@@ -1068,10 +1068,10 @@
       hbEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     }
 
-    // Commission history table
-    const tbody = document.getElementById('commission-tbody');
-    if (tbody && data.commissions.length > 0) {
-      const rows = data.commissions.slice(0, 15);
+    // Brief history table
+    const tbody = document.getElementById('brief-tbody');
+    if (tbody && data.briefs.length > 0) {
+      const rows = data.briefs.slice(0, 15);
       const stateToClass = {
         DONE:        'tag-done',
         ERROR:       'tag-error',
@@ -1147,11 +1147,11 @@
   fetchQueue();
   setInterval(fetchQueue, 5000);
 
-  // ── Staged commissions panel ────────────────────────────────────────────────
+  // ── Staged briefs panel ────────────────────────────────────────────────
   function renderStagedCards(items) {
     const container = document.getElementById('staged-cards');
     if (!items || items.length === 0) {
-      container.innerHTML = '<div class="staged-empty">No commissions pending review.</div>';
+      container.innerHTML = '<div class="staged-empty">No briefs pending review.</div>';
       return;
     }
 
@@ -1170,7 +1170,7 @@
       } else {
         actionsHtml = `
           <div class="staged-card-actions" id="staged-actions-${eid}">
-            <button class="staged-btn staged-btn-commission" onclick="stagedCommission('${eid}')">Commission</button>
+            <button class="staged-btn staged-btn-brief" onclick="stagedBrief('${eid}')">Brief</button>
             <button class="staged-btn staged-btn-amend" onclick="stagedShowAmend('${eid}')">Amend</button>
             <button class="staged-btn staged-btn-reject" onclick="stagedShowReject('${eid}')">Reject</button>
           </div>`;
@@ -1192,7 +1192,7 @@
             <div class="staged-mode-edit-body" id="staged-details-edit-${eid}" style="display:none">
               <textarea class="staged-edit-textarea" id="staged-edit-ta-${eid}"></textarea>
               <div class="staged-edit-actions">
-                <button class="staged-btn staged-btn-commission" onclick="stagedSubmitEdit('${eid}')">Save</button>
+                <button class="staged-btn staged-btn-brief" onclick="stagedSubmitEdit('${eid}')">Save</button>
                 <button class="staged-btn staged-btn-cancel" onclick="stagedSetMode('${eid}','read')">Cancel</button>
               </div>
             </div>
@@ -1307,15 +1307,15 @@
     }
   }
 
-  async function stagedCommission(id) {
+  async function stagedBrief(id) {
     try {
-      const res = await fetch('/api/bridge/staged/' + id + '/commission', { method: 'POST' });
+      const res = await fetch('/api/bridge/staged/' + id + '/brief', { method: 'POST' });
       if (res.ok) {
         const card = document.getElementById('staged-card-' + id);
         if (card) card.remove();
         const container = document.getElementById('staged-cards');
         if (!container.querySelector('.staged-card')) {
-          container.innerHTML = '<div class="staged-empty">No commissions pending review.</div>';
+          container.innerHTML = '<div class="staged-empty">No briefs pending review.</div>';
         }
         fetchBridge();
       }
@@ -1329,7 +1329,7 @@
       <div class="staged-inline-amend">
         <input type="text" id="staged-amend-input-${id}" placeholder="What should change?">
         <div class="staged-inline-btns">
-          <button class="staged-btn staged-btn-commission" onclick="stagedSubmitAmend('${id}')">Submit</button>
+          <button class="staged-btn staged-btn-brief" onclick="stagedSubmitAmend('${id}')">Submit</button>
           <button class="staged-btn staged-btn-cancel" onclick="stagedCancelAmend('${id}')">Cancel</button>
         </div>
       </div>`;
@@ -1341,7 +1341,7 @@
     const actions = document.getElementById('staged-actions-' + id);
     if (!actions) return;
     actions.innerHTML = `
-      <button class="staged-btn staged-btn-commission" onclick="stagedCommission('${id}')">Commission</button>
+      <button class="staged-btn staged-btn-brief" onclick="stagedBrief('${id}')">Brief</button>
       <button class="staged-btn staged-btn-amend" onclick="stagedShowAmend('${id}')">Amend</button>
       <button class="staged-btn staged-btn-reject" onclick="stagedShowReject('${id}')">Reject</button>`;
   }
@@ -1365,7 +1365,7 @@
     if (!actions) return;
     actions.innerHTML = `
       <div class="staged-inline-reject">
-        <span class="staged-inline-reject-prompt">Reject this commission?</span>
+        <span class="staged-inline-reject-prompt">Reject this brief?</span>
         <button class="staged-btn-confirm-reject" onclick="stagedConfirmReject('${id}')">Yes, reject</button>
         <button class="staged-btn staged-btn-cancel" onclick="stagedCancelAmend('${id}')">Cancel</button>
       </div>`;
@@ -1379,7 +1379,7 @@
         if (card) card.remove();
         const container = document.getElementById('staged-cards');
         if (!container.querySelector('.staged-card')) {
-          container.innerHTML = '<div class="staged-empty">No commissions pending review.</div>';
+          container.innerHTML = '<div class="staged-empty">No briefs pending review.</div>';
         }
       }
     } catch (_) {}

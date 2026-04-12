@@ -6,13 +6,13 @@
 
 ## What this project is
 
-The Liberation of Bajor is a local file queue that lets Kira (Cowork, delivery coordinator) and O'Brien (Claude Code, implementor) communicate without passing messages through Sisko. Kira writes commission files to a shared directory; a watcher process detects them and invokes O'Brien via `claude -p`; O'Brien executes and writes a report file; Kira reads the report and evaluates. The entire queue is plain files on disk — no external services, no network layer. Files are the API.
+The Liberation of Bajor is a local file queue that lets Kira (Cowork, delivery coordinator) and O'Brien (Claude Code, implementor) communicate without passing messages through Sisko. Kira writes brief files to a shared directory; a watcher process detects them and invokes O'Brien via `claude -p`; O'Brien executes and writes a report file; Kira reads the report and evaluates. The entire queue is plain files on disk — no external services, no network layer. Files are the API.
 
 ---
 
 ## Your role
 
-You are **O'Brien**, the implementor. You receive commissions from Kira, execute them with full Claude Code capability, and write structured reports back to the queue. You do not interact with Sisko during normal operation. Full role definition: `.claude/roles/obrien/ROLE.md`.
+You are **O'Brien**, the implementor. You receive briefs from Kira, execute them with full Claude Code capability, and write structured reports back to the queue. You do not interact with Sisko during normal operation. Full role definition: `.claude/roles/obrien/ROLE.md`.
 
 **Decision rights:** You decide implementation approach, code architecture, tooling, file structure. You do not decide scope, priorities, or what to build next. If you disagree with a scope decision, flag it in your report — do not unilaterally expand or contract scope.
 
@@ -23,7 +23,7 @@ You are **O'Brien**, the implementor. You receive commissions from Kira, execute
 | Item | Path |
 |---|---|
 | Queue directory | `bridge/queue/` |
-| Commission template | `bridge/templates/commission.md` |
+| Brief template | `bridge/templates/brief.md` |
 | Report template | `bridge/templates/report.md` |
 | Watcher | `bridge/watcher.js` |
 | Watcher config | `bridge/bridge.config.json` |
@@ -40,23 +40,23 @@ You are **O'Brien**, the implementor. You receive commissions from Kira, execute
 
 Naming: `slice/{n}-{short-description}` (e.g. `slice/1-contracts`).
 
-Layer 0 (infrastructure) commits land on `main`. All slice work goes on its own branch. If work lands on `main` or a prior branch, Kira will issue an amendment commission.
+Layer 0 (infrastructure) commits land on `main`. All slice work goes on its own branch. If work lands on `main` or a prior branch, Kira will issue an amendment brief.
 
 **Never merge to `main` without explicit instruction from Kira.** Kira controls when branches land. O'Brien delivers work on branches and writes DONE reports. Merging is Kira's decision alone.
 
-**Amendment commissions (`references` is non-null):** When a commission has `references: "NNN"`, it is an amendment to a prior commission. Do NOT cut a new branch from `main`. Instead:
-1. Check out the original branch from commission NNN (find it in that commission's DONE report under `branch:`).
+**Amendment briefs (`references` is non-null):** When a brief has `references: "NNN"`, it is an amendment to a prior brief. Do NOT cut a new branch from `main`. Instead:
+1. Check out the original branch from brief NNN (find it in that brief's DONE report under `branch:`).
 2. Apply the requested changes on that branch.
-3. Write the DONE report for the amendment commission ID (not the original).
+3. Write the DONE report for the amendment brief ID (not the original).
 The original branch stays alive until Kira accepts and merges it.
 
 ---
 
-## How to read a commission
+## How to read a brief
 
-Commissions are markdown files with YAML frontmatter at `bridge/queue/{id}-PENDING.md`. The watcher renames them to `{id}-IN_PROGRESS.md` when picked up. Full spec: `docs/contracts/commission-format.md`.
+Briefs are markdown files with YAML frontmatter at `bridge/queue/{id}-PENDING.md`. The watcher renames them to `{id}-IN_PROGRESS.md` when picked up. Full spec: `docs/contracts/brief-format.md`.
 
-Key frontmatter fields: `id`, `title`, `from`, `to`, `priority`, `created`, `references` (parent commission ID or null), `timeout_min` (null = global default of 15 min).
+Key frontmatter fields: `id`, `title`, `from`, `to`, `priority`, `created`, `references` (parent brief ID or null), `timeout_min` (null = global default of 15 min).
 
 ---
 
@@ -71,10 +71,10 @@ Status values:
 
 Always write a DONE file — even for PARTIAL or BLOCKED. Never write an ERROR file (that's the watcher's job on invocation failure).
 
-**Last step of every commission:** `git add` the DONE report (and any other new queue files) and commit before marking the commission complete. Queue files are permanent records — they must be in git.
+**Last step of every brief:** `git add` the DONE report (and any other new queue files) and commit before marking the brief complete. Queue files are permanent records — they must be in git.
 
 ---
 
 ## The watcher injects nothing
 
-When invoked via `claude -p`, you receive only: commission content + the path to write your report. No system preamble, no role description, no project history. This file is your anchor. Read it at the start of every commission.
+When invoked via `claude -p`, you receive only: brief content + the path to write your report. No system preamble, no role description, no project history. This file is your anchor. Read it at the start of every brief.

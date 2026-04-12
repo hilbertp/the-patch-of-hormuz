@@ -120,16 +120,16 @@ function writeRegisterEvent(event) {
 // ── Bridge data builder ──────────────────────────────────────────────────────
 function buildBridgeData() {
   // Heartbeat
-  let heartbeat = { ts: null, status: 'down', current_commission: null,
-                    commission_elapsed_seconds: null, processed_total: 0 };
+  let heartbeat = { ts: null, status: 'down', current_brief: null,
+                    brief_elapsed_seconds: null, processed_total: 0 };
   try {
     const raw = JSON.parse(fs.readFileSync(HEARTBEAT, 'utf8'));
     const age = raw.ts ? (Date.now() - new Date(raw.ts).getTime()) / 1000 : Infinity;
     heartbeat = {
       ts:                        raw.ts   ?? null,
       status:                    age < 60 ? (raw.status ?? 'idle') : 'down',
-      current_commission:        raw.current_commission ?? null,
-      commission_elapsed_seconds: raw.commission_elapsed_seconds ?? null,
+      current_brief:             raw.current_brief ?? null,
+      brief_elapsed_seconds:     raw.brief_elapsed_seconds ?? null,
       processed_total:           raw.processed_total ?? 0,
     };
   } catch (_) { /* file missing or malformed → keep defaults */ }
@@ -146,7 +146,7 @@ function buildBridgeData() {
   // Build recent (last 10 completed) and economics from DONE/ERROR events
   const completedMap = {};
   const reviewedMap  = {};
-  const economics = { totalTokensIn: 0, totalTokensOut: 0, totalCostUsd: 0, totalCommissions: 0 };
+  const economics = { totalTokensIn: 0, totalTokensOut: 0, totalCostUsd: 0, totalBriefs: 0 };
   for (const ev of events) {
     if (ev.event === 'DONE' || ev.event === 'ERROR') {
       completedMap[ev.id] = {
@@ -163,7 +163,7 @@ function buildBridgeData() {
         economics.totalTokensIn  += ev.tokensIn  ?? 0;
         economics.totalTokensOut += ev.tokensOut ?? 0;
         economics.totalCostUsd   += ev.costUsd   ?? 0;
-        economics.totalCommissions++;
+        economics.totalBriefs++;
       }
     }
     if (ev.event === 'REVIEWED') {
@@ -192,7 +192,7 @@ function buildBridgeData() {
   catch (_) {}
 
   const queue = { waiting: 0, active: 0, done: 0, error: 0 };
-  const commissions = [];
+  const briefs = [];
 
   for (const filename of files) {
     // Derive state from filename suffix: {id}-{STATE}.md
@@ -217,7 +217,7 @@ function buildBridgeData() {
     const goalFromRegister = commissioned[id]?.goal ?? null;
     const goalFromFm       = fm.goal ?? null;
 
-    commissions.push({
+    briefs.push({
       id,
       title:     fm.title     ?? filename,
       state,
@@ -229,14 +229,14 @@ function buildBridgeData() {
   }
 
   // Sort by numeric ID descending
-  commissions.sort((a, b) => {
+  briefs.sort((a, b) => {
     const na = parseInt(a.id, 10);
     const nb = parseInt(b.id, 10);
     if (!isNaN(na) && !isNaN(nb)) return nb - na;
     return b.id.localeCompare(a.id);
   });
 
-  return { heartbeat, queue, commissions, recent, economics };
+  return { heartbeat, queue, briefs, recent, economics };
 }
 
 // ── HTTP server ──────────────────────────────────────────────────────────────
@@ -312,7 +312,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── Staged commission endpoints ─────────────────────────────────────────
+  // ── Staged brief endpoints ──────────────────────────────────────────────
   if (pathname === '/api/bridge/staged' && req.method === 'GET') {
     let files = [];
     try { files = fs.readdirSync(STAGED_DIR).filter(f => f.endsWith('-STAGED.md') || f.endsWith('-NEEDS_AMENDMENT.md')); }
@@ -341,7 +341,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const stagedMatch = pathname.match(/^\/api\/bridge\/staged\/(\d+)\/(commission|amend|reject|update-body)$/);
+  const stagedMatch = pathname.match(/^\/api\/bridge\/staged\/(\d+)\/(brief|amend|reject|update-body)$/);
   if (stagedMatch) {
     if (req.method !== 'POST') {
       res.writeHead(405, { 'Content-Type': 'text/plain' });
@@ -361,11 +361,11 @@ const server = http.createServer(async (req, res) => {
 
     if (!filePath) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: `Staged commission ${id} not found` }));
+      res.end(JSON.stringify({ error: `Staged brief ${id} not found` }));
       return;
     }
 
-    if (action === 'commission') {
+    if (action === 'brief') {
       try {
         let content = fs.readFileSync(filePath, 'utf8');
         content = updateFrontmatter(content, { status: 'PENDING' });

@@ -29,29 +29,29 @@ When sharing files or results, link them and stop. Sisko can read the output him
 ## Delivery discipline
 
 ### One slice at a time
-Commission one slice. Wait for it to be accepted. Only then commission the next. Never queue two slices concurrently unless Sisko explicitly authorizes it. This keeps delivery controlled and inspectable.
+Brief one slice. Wait for it to be accepted. Only then brief the next. Never queue two slices concurrently unless Sisko explicitly authorizes it. This keeps delivery controlled and inspectable.
 
 ### Branch per slice — non-negotiable
 Every slice must land on a fresh git branch. Work on `main` or on a prior slice's branch is a violation. When evaluating reports, always check. If violated: flag in evaluation, issue amendment, report to Sisko.
 
 ### Commit queue files
-The last step of every commission must include `git add bridge/queue/` and a commit. Queue files are permanent records — they must be in git. This was missing initially and caused untracked DONE reports.
+The last step of every brief must include `git add bridge/queue/` and a commit. Queue files are permanent records — they must be in git. This was missing initially and caused untracked DONE reports.
 
 ### Merge branches promptly
-After accepting a slice, merge the branch to main before commissioning the next slice. Stale unmerged branches cause drift and confusion (e.g., watcher running old code because changes were on an unmerged branch).
+After accepting a slice, merge the branch to main before briefing the next slice. Stale unmerged branches cause drift and confusion (e.g., watcher running old code because changes were on an unmerged branch).
 
 ---
 
-## Commission writing
+## Brief writing
 
-### Self-contained commissions
-Every commission must be self-contained or explicitly reference files O'Brien can look up. The watcher injects nothing — no preamble, no role description, no project history. O'Brien has CLAUDE.md, git history, and the filesystem; Kira decides what he needs to know versus what he can find himself.
+### Self-contained briefs
+Every brief must be self-contained or explicitly reference files O'Brien can look up. The watcher injects nothing — no preamble, no role description, no project history. O'Brien has CLAUDE.md, git history, and the filesystem; Kira decides what he needs to know versus what he can find himself.
 
 ### Point to architecture docs by path
-When a commission depends on design decisions from Architecture or PRD docs, give O'Brien the exact file path and section references. Don't inline large blocks from those docs — reference them.
+When a brief depends on design decisions from Architecture or PRD docs, give O'Brien the exact file path and section references. Don't inline large blocks from those docs — reference them.
 
 ### Include .gitignore and housekeeping early
-Infrastructure files like .gitignore should exist before the first push, not as an afterthought. Include them in the earliest possible commission or create them on main directly.
+Infrastructure files like .gitignore should exist before the first push, not as an afterthought. Include them in the earliest possible brief or create them on main directly.
 
 ---
 
@@ -63,11 +63,11 @@ The trigger mechanism can be `claude -p`, VS Code extension commands, or any ser
 ### Restart watcher after code changes
 The watcher runs from the code on disk at startup time. Code changes to `watcher.js` (on a branch or after a merge) don't take effect until the watcher is restarted. Always remind Sisko to restart after merging watcher changes.
 
-### Check heartbeat before commissioning
-Before writing a commission, check `bridge/heartbeat.json`. If the file is absent or the timestamp is more than 60 seconds stale, the watcher is down. Don't commission into a dead queue.
+### Check heartbeat before briefing
+Before writing a brief, check `bridge/heartbeat.json`. If the file is absent or the timestamp is more than 60 seconds stale, the watcher is down. Don't brief into a dead queue.
 
-### Set up the commission watcher after every commission
-After writing a PENDING file, immediately create a one-shot Cowork scheduled task using the template at `docs/kira/commission-watcher-task.md`. This is step E.5 in KIRA.md. The task fires ~2 minutes later in a new session, detects the DONE/ERROR file, evaluates the report, and presents the result to Sisko — without anyone needing to prompt this session. If the commission is still in progress, the task re-schedules itself. The chain stops when DONE or ERROR lands. Never skip this step — it's what makes the bridge responsive.
+### Set up the brief watcher after every brief
+After writing a PENDING file, immediately create a one-shot Cowork scheduled task using the template at `docs/kira/brief-watcher-task.md`. This is step E.5 in KIRA.md. The task fires ~2 minutes later in a new session, detects the DONE/ERROR file, evaluates the report, and presents the result to Sisko — without anyone needing to prompt this session. If the brief is still in progress, the task re-schedules itself. The chain stops when DONE or ERROR lands. Never skip this step — it's what makes the bridge responsive.
 
 ---
 
