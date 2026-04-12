@@ -545,7 +545,42 @@ let idlePrintCounter = 0;
  * avoid ENOENT when O'Brien's crash recovery already handled it).
  */
 function invokeOBrien(briefContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal) {
-  const prompt = briefContent + '\n\nWrite your report to: ' + donePath;
+  const doneTemplate = [
+    '',
+    '## DONE report template',
+    '',
+    'Write your report to: ' + donePath,
+    '',
+    'Use this exact frontmatter structure (fill in real values):',
+    '',
+    '```',
+    '---',
+    'id: "' + id + '"',
+    'title: "(brief title)"',
+    'from: obrien',
+    'to: kira',
+    'status: DONE',
+    'brief_id: "' + id + '"',
+    'branch: "(your working branch name)"',
+    'completed: "' + new Date().toISOString() + '"',
+    'tokens_in: 0',
+    'tokens_out: 0',
+    'elapsed_ms: 0',
+    'estimated_human_hours: 0.0',
+    'compaction_occurred: false',
+    '---',
+    '```',
+    '',
+    'REQUIRED: All five metrics fields (tokens_in, tokens_out, elapsed_ms, estimated_human_hours, compaction_occurred) must have real, non-zero values. Missing or zero metrics will cause ERROR with reason "incomplete_metrics".',
+    '- tokens_in: integer, total input tokens consumed this session',
+    '- tokens_out: integer, total output tokens generated this session',
+    '- elapsed_ms: integer, wall-clock milliseconds from pickup to DONE',
+    '- estimated_human_hours: float, your judgment of how long a skilled human developer would take',
+    '- compaction_occurred: boolean, true if your context window compacted mid-session',
+    '- completed: must be full ISO 8601 UTC datetime (e.g. "2026-04-12T01:22:40.000Z"), never date-only',
+  ].join('\n');
+
+  const prompt = briefContent + doneTemplate;
 
   const pickupTime = Date.now();
 
