@@ -146,6 +146,7 @@ function buildBridgeData() {
   // Build recent (last 10 completed) and economics from DONE/ERROR events
   const completedMap = {};
   const reviewedMap  = {};
+  const acceptedSet  = new Set();
   const economics = { totalTokensIn: 0, totalTokensOut: 0, totalCostUsd: 0, totalBriefs: 0 };
   for (const ev of events) {
     if (ev.event === 'DONE' || ev.event === 'ERROR') {
@@ -166,8 +167,13 @@ function buildBridgeData() {
         economics.totalBriefs++;
       }
     }
-    if (ev.event === 'REVIEWED') {
+    // REVIEW_RECEIVED carries the verdict; REVIEWED is the legacy name
+    if (ev.event === 'REVIEW_RECEIVED' || ev.event === 'REVIEWED') {
       reviewedMap[ev.id] = ev.verdict;
+    }
+    // ACCEPTED after an ERROR means Philipp overrode the watcher rejection
+    if (ev.event === 'ACCEPTED' || ev.event === 'MERGED') {
+      acceptedSet.add(ev.id);
     }
   }
   const recent = Object.values(completedMap)
@@ -179,11 +185,15 @@ function buildBridgeData() {
     .slice(0, 10)
     .map(entry => {
       const verdict = reviewedMap[entry.id];
+      // If watcher errored but Philipp accepted it, show final outcome as ACCEPTED
+      const finalOutcome = (entry.outcome === 'ERROR' && acceptedSet.has(entry.id))
+        ? 'ACCEPTED' : entry.outcome;
       let reviewStatus;
-      if (verdict === 'ACCEPTED')           reviewStatus = 'accepted';
+      if (verdict === 'ACCEPTED')                reviewStatus = 'accepted';
       else if (verdict === 'AMENDMENT_REQUIRED') reviewStatus = 'amendment_required';
-      else                                  reviewStatus = 'waiting_for_review';
-      return { ...entry, reviewStatus };
+      else if (acceptedSet.has(entry.id))        reviewStatus = 'accepted';
+      else                                       reviewStatus = 'waiting_for_review';
+      return { ...entry, outcome: finalOutcome, reviewStatus };
     });
 
   // Queue files
