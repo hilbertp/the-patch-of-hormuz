@@ -96,6 +96,23 @@ For responses returning work to the original sender:
 4. **What NOT to worry about** — explicit scope boundary
 
 ---
+## Step 1b: Append outbound record to tt-audit.jsonl
+
+After writing all handoff artifacts, append **one line** to `bridge/tt-audit.jsonl` for this handoff using a single shell command:
+
+```bash
+echo '{ "role": "<sending role, lowercase>", "ts": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'", "to": "<receiving role, lowercase>", "ref": "<handoff filename>" }' >> bridge/tt-audit.jsonl
+```
+
+- `role` is the current role performing the handoff (the sender), lowercase.
+- `ts` is the current UTC timestamp in ISO 8601 format.
+- `to` is the primary receiving role, lowercase. For multi-recipient handoffs, use the first receiver.
+- `ref` is the handoff filename (e.g. `HANDOFF-BET3-SLICING-FROM-DAX.md`).
+
+One line per handoff invocation. Newline-terminated.
+
+---
+
 
 ## Step 2: Log economics (once per session)
 
