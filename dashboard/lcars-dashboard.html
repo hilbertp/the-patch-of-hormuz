@@ -939,6 +939,7 @@
 
   // Elapsed time: computed from a fixed start timestamp, no re-anchoring
   let commissionStartTime = null;
+  let lastCommissionId    = null;
 
   function startElapsedTick() {
     setInterval(() => {
@@ -1000,9 +1001,10 @@
       progressBar.style.display = (heartbeat.status === 'processing') ? '' : 'none';
 
       if (heartbeat.commission_elapsed_seconds != null) {
-        // Derive start time once; don't re-anchor on subsequent polls
-        if (commissionStartTime == null) {
+        // Re-anchor when commission changes or on first load
+        if (commissionStartTime == null || mission.id !== lastCommissionId) {
           commissionStartTime = Date.now() - (heartbeat.commission_elapsed_seconds * 1000);
+          lastCommissionId    = mission.id;
         }
         const elapsed = Math.floor((Date.now() - commissionStartTime) / 1000);
         elapsedEl.textContent  = fmtElapsed(elapsed);
@@ -1017,6 +1019,7 @@
       elapsedEl.style.display = 'none';
       progressBar.style.display = 'none';
       commissionStartTime = null;
+      lastCommissionId    = null;
     }
   }
 
