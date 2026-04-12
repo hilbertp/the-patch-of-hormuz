@@ -117,7 +117,7 @@ function printUnmergedAlert(id, title, branchName) {
   const msg = [
     '',
     '⚠️  UNMERGED BRANCH — Philipp action required',
-    `    Commission ${id}: ${title || '(unknown)'}`,
+    `    Brief ${id}: ${title || '(unknown)'}`,
     `    Branch: ${branchName}`,
     '    Status: ACCEPTED but not merged to main',
     `    Fix: git merge --no-ff ${branchName} && git push origin main`,
@@ -130,7 +130,7 @@ function printMergeFailedAlert(id, title, branchName, errorMsg) {
   const msg = [
     '',
     '⚠️  MERGE FAILED — Philipp action required',
-    `    Commission ${id}: ${title || '(unknown)'}`,
+    `    Brief ${id}: ${title || '(unknown)'}`,
     `    Branch: ${branchName}`,
     `    Error: ${errorMsg}`,
     `    Fix: git merge --no-ff ${branchName} && git push origin main`,
@@ -312,21 +312,21 @@ function printStartupBlock(recoveryActions) {
     print('  Recovered on startup:');
     for (const action of recoveryActions) {
       if (action.type === 'cleared') {
-        print(`    ${C.green}${SYM.check}${C.reset} Commission ${action.id}${SYM.dash}cleared stale work-in-progress (already completed)`);
+        print(`    ${C.green}${SYM.check}${C.reset} Brief ${action.id}${SYM.dash}cleared stale work-in-progress (already completed)`);
       } else if (action.type === 'cleared_error') {
-        print(`    ${C.yellow}${SYM.check}${C.reset} Commission ${action.id}${SYM.dash}cleared stale work-in-progress (already failed)`);
+        print(`    ${C.yellow}${SYM.check}${C.reset} Brief ${action.id}${SYM.dash}cleared stale work-in-progress (already failed)`);
       } else if (action.type === 'requeued') {
-        print(`    ${C.yellow}${SYM.back}${C.reset} Commission ${action.id}${SYM.dash}re-queued interrupted commission`);
+        print(`    ${C.yellow}${SYM.back}${C.reset} Brief ${action.id}${SYM.dash}re-queued interrupted brief`);
       } else if (action.type === 'requeued_eval') {
-        print(`    ${C.yellow}${SYM.back}${C.reset} Commission ${action.id}${SYM.dash}re-queued interrupted evaluation`);
+        print(`    ${C.yellow}${SYM.back}${C.reset} Brief ${action.id}${SYM.dash}re-queued interrupted evaluation`);
       } else if (action.type === 'recovery_merged') {
-        print(`    ${C.green}${SYM.check}${C.reset} Commission ${action.id}${SYM.dash}recovered merge: ${action.branch}${SYM.arrow}main (${action.sha.slice(0, 7)})`);
+        print(`    ${C.green}${SYM.check}${C.reset} Brief ${action.id}${SYM.dash}recovered merge: ${action.branch}${SYM.arrow}main (${action.sha.slice(0, 7)})`);
       } else if (action.type === 'recovery_merge_failed') {
-        print(`    ${C.red}${SYM.cross}${C.reset} Commission ${action.id}${SYM.dash}recovery merge failed: ${action.reason}`);
+        print(`    ${C.red}${SYM.cross}${C.reset} Brief ${action.id}${SYM.dash}recovery merge failed: ${action.reason}`);
       } else if (action.type === 'accepted_already_merged') {
-        print(`    ${C.green}${SYM.check}${C.reset} Commission ${action.id}${SYM.dash}branch already on main (no merge needed)`);
+        print(`    ${C.green}${SYM.check}${C.reset} Brief ${action.id}${SYM.dash}branch already on main (no merge needed)`);
       } else if (action.type === 'accepted_no_branch') {
-        print(`    ${C.yellow}${SYM.cross}${C.reset} Commission ${action.id}${SYM.dash}ACCEPTED but no branch name — manual merge required`);
+        print(`    ${C.yellow}${SYM.cross}${C.reset} Brief ${action.id}${SYM.dash}ACCEPTED but no branch name — manual merge required`);
       }
     }
   }
@@ -337,19 +337,19 @@ function printStartupBlock(recoveryActions) {
   const isEmpty = snapshot.waiting === 0 && snapshot.in_progress === 0
                && snapshot.completed === 0 && snapshot.failed === 0;
   if (isEmpty) {
-    print(`    Queue is empty${SYM.dash}watching for new commissions.`);
+    print(`    Queue is empty${SYM.dash}watching for new briefs.`);
   } else {
     print(`    ${SYM.clip}${snapshot.waiting} waiting${SYM.sep}${snapshot.in_progress} in progress${SYM.sep}${snapshot.completed} completed${SYM.sep}${snapshot.failed} failed`);
   }
 
-  // Log staged commissions count
+  // Log staged briefs count
   let stagedCount = 0;
   try {
     const stagedFiles = fs.readdirSync(STAGED_DIR).filter(f => f.endsWith('-STAGED.md') || f.endsWith('-NEEDS_AMENDMENT.md'));
     stagedCount = stagedFiles.length;
   } catch (_) {}
   if (stagedCount > 0) {
-    print(`    ${C.yellow}ℹ${C.reset}  ${stagedCount} commission(s) awaiting your review in bridge/staged/`);
+    print(`    ${C.yellow}ℹ${C.reset}  ${stagedCount} brief(s) awaiting your review in bridge/staged/`);
   }
 
   print(hLine(B.sng));
@@ -357,18 +357,18 @@ function printStartupBlock(recoveryActions) {
 }
 
 // ---------------------------------------------------------------------------
-// Commission lifecycle blocks (Task 3)
+// Brief lifecycle blocks (Task 3)
 // ---------------------------------------------------------------------------
 
 /**
- * openCommissionBlock(id, title, goal)
+ * openBriefBlock(id, title, goal)
  *
- * Prints the opening of a commission lifecycle block. Called at pickup.
+ * Prints the opening of a brief lifecycle block. Called at pickup.
  */
-function openCommissionBlock(id, title, goal) {
+function openBriefBlock(id, title, goal) {
   const titleStr = title ? `${SYM.sep}"${title}"` : '';
   print(`${B.tl}${B.sng.repeat(W - 1)}`);
-  print(`${B.vert}  ${SYM.right} Commission ${id}${titleStr}`);
+  print(`${B.vert}  ${SYM.right} Brief ${id}${titleStr}`);
   if (goal) {
     print(`${B.vert}    Goal: ${goal}`);
   }
@@ -379,7 +379,7 @@ function openCommissionBlock(id, title, goal) {
 /**
  * printProgressTick(elapsedMs)
  *
- * Appends a progress line inside the open commission block. Called every 60s.
+ * Appends a progress line inside the open brief block. Called every 60s.
  */
 function printProgressTick(elapsedMs) {
   const elapsed = formatDuration(elapsedMs);
@@ -387,11 +387,11 @@ function printProgressTick(elapsedMs) {
 }
 
 /**
- * closeCommissionBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason)
+ * closeBriefBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason)
  *
- * Prints the completion or failure lines and closes the commission block.
+ * Prints the completion or failure lines and closes the brief block.
  */
-function closeCommissionBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason) {
+function closeBriefBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason) {
   const duration  = formatDuration(durationMs);
   const tokenStr  = formatTokens(tokensIn, tokensOut);
   const costStr   = formatCost(costUsd);
@@ -433,7 +433,7 @@ function log(level, event, fields) {
 // ---------------------------------------------------------------------------
 // Register — append-only event log (fortlaufende Liste)
 //
-// One JSON line per event. The commission body is embedded in the COMMISSIONED
+// One JSON line per event. The brief body is embedded in the COMMISSIONED
 // event so the original spec (with success criteria) is always recoverable.
 // Kira's evaluation task reads this file instead of hunting for renamed/deleted
 // queue files.
@@ -483,9 +483,9 @@ function parseFrontmatter(content) {
 
 let heartbeatState = {
   status: 'idle',
-  current_commission: null,
-  current_commission_title: null,
-  current_commission_goal: null,
+  current_brief: null,
+  current_brief_title: null,
+  current_brief_goal: null,
   pickupTime: null,   // internal — not written to file
   processed_total: 0,
 };
@@ -508,10 +508,10 @@ function writeHeartbeat() {
   const snapshot = {
     ts: new Date().toISOString(),
     status: heartbeatState.status,
-    current_commission: heartbeatState.current_commission,
-    current_commission_title: heartbeatState.current_commission_title,
-    current_commission_goal: heartbeatState.current_commission_goal,
-    commission_elapsed_seconds: elapsedSeconds,
+    current_brief: heartbeatState.current_brief,
+    current_brief_title: heartbeatState.current_brief_title,
+    current_brief_goal: heartbeatState.current_brief_goal,
+    brief_elapsed_seconds: elapsedSeconds,
     last_activity_ts: currentLastActivityTs ? currentLastActivityTs.toISOString() : null,
     processed_total: heartbeatState.processed_total,
     queue,
@@ -536,16 +536,16 @@ let idlePrintCounter = 0;
 // ---------------------------------------------------------------------------
 
 /**
- * invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id, effectiveTimeoutMs)
+ * invokeOBrien(briefContent, donePath, inProgressPath, errorPath, id, effectiveTimeoutMs)
  *
- * Pipes commission content + report path instruction to `claude -p`.
+ * Pipes brief content + report path instruction to `claude -p`.
  * On success: checks donePath exists; if not, writes a fallback ERROR report.
  * On failure: writes an ERROR report.
  * Always cleans up the IN_PROGRESS file on completion (existence-checked to
  * avoid ENOENT when O'Brien's crash recovery already handled it).
  */
-function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal) {
-  const prompt = commissionContent + '\n\nWrite your report to: ' + donePath;
+function invokeOBrien(briefContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal) {
+  const prompt = briefContent + '\n\nWrite your report to: ' + donePath;
 
   const pickupTime = Date.now();
 
@@ -557,9 +557,9 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
   currentLastActivityTs = new Date();
 
   heartbeatState.status = 'processing';
-  heartbeatState.current_commission = id;
-  heartbeatState.current_commission_title = title || null;
-  heartbeatState.current_commission_goal = goal || null;
+  heartbeatState.current_brief = id;
+  heartbeatState.current_brief_title = title || null;
+  heartbeatState.current_brief_goal = goal || null;
   heartbeatState.pickupTime = pickupTime;
   writeHeartbeat();
 
@@ -621,13 +621,13 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
             writeErrorFile(errorPath, id, 'incomplete_metrics', null, stdout, '', { missingFields: metricsValid.invalid });
             log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason: 'incomplete_metrics' });
             registerEvent(id, 'ERROR', { reason: 'incomplete_metrics', invalid: metricsValid.invalid, durationMs });
-            closeCommissionBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'Incomplete metrics in DONE report');
+            closeBriefBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'Incomplete metrics in DONE report');
             recordSessionResult(false, tokensIn, tokensOut, costUsd);
           } else {
             // --- Write Point 1: append timesheet row (Bet 3) ---
-            const commissionMeta = parseFrontmatter(commissionContent) || {};
-            const expectedHours = commissionMeta.expected_human_hours && commissionMeta.expected_human_hours !== 'null'
-              ? parseFloat(commissionMeta.expected_human_hours)
+            const briefMeta = parseFrontmatter(briefContent) || {};
+            const expectedHours = briefMeta.expected_human_hours && briefMeta.expected_human_hours !== 'null'
+              ? parseFloat(briefMeta.expected_human_hours)
               : null;
             const doneTokensIn  = parseInt(doneMeta.tokens_in, 10);
             const doneTokensOut = parseInt(doneMeta.tokens_out, 10);
@@ -639,7 +639,7 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
               role: 'obrien',
               source: 'watcher',
               commission_id: String(id),
-              title: (commissionMeta.title || title || '').replace(/^["']|["']$/g, ''),
+              title: (briefMeta.title || title || '').replace(/^["']|["']$/g, ''),
               phase: null,
               human_hours: parseFloat(doneMeta.estimated_human_hours),
               human_role: null,
@@ -664,7 +664,7 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
             log('info', 'complete', { id, msg: "O'Brien finished — DONE file present", durationMs, tokensIn, tokensOut });
             log('info', 'state', { id, from: 'IN_PROGRESS', to: 'DONE' });
             registerEvent(id, 'DONE', { durationMs, tokensIn, tokensOut, costUsd });
-            closeCommissionBlock(true, durationMs, tokensIn, tokensOut, costUsd, null);
+            closeBriefBlock(true, durationMs, tokensIn, tokensOut, costUsd, null);
             recordSessionResult(true, tokensIn, tokensOut, costUsd);
           }
         } else {
@@ -680,7 +680,7 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
           registerEvent(id, 'ERROR', { reason: 'no_report', durationMs });
           // timesheet write point 2 — update watcher row at terminal state
           updateTimesheet(id, { result: 'ERROR', cycle: null, ts_result: new Date().toISOString() });
-          closeCommissionBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'No report written');
+          closeBriefBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'No report written');
           recordSessionResult(false, tokensIn, tokensOut, costUsd);
         }
       } else {
@@ -697,7 +697,7 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
           extra = { lastActivitySecondsAgo, inactivityLimitMinutes };
           log('error', 'inactivity_timeout', {
             id,
-            msg: 'Commission killed due to inactivity',
+            msg: 'Brief killed due to inactivity',
             reason,
             lastActivitySecondsAgo,
             inactivityLimitMinutes,
@@ -708,7 +708,7 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
           reasonDisplay = reason === 'timeout' ? 'Timed out' : 'Process failed';
           log('error', reason === 'timeout' ? 'timeout' : 'error', {
             id,
-            msg: reason === 'timeout' ? 'Commission timed out' : 'claude -p failed',
+            msg: reason === 'timeout' ? 'Brief timed out' : 'claude -p failed',
             reason,
             exitCode: err.code,
             signal: err.signal || null,
@@ -721,20 +721,20 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
         registerEvent(id, 'ERROR', { reason, exitCode: err.code, durationMs });
         // timesheet write point 2 — update watcher row at terminal state
         updateTimesheet(id, { result: 'ERROR', cycle: null, ts_result: new Date().toISOString() });
-        closeCommissionBlock(false, durationMs, tokensIn, tokensOut, costUsd, reasonDisplay);
+        closeBriefBlock(false, durationMs, tokensIn, tokensOut, costUsd, reasonDisplay);
         recordSessionResult(false, tokensIn, tokensOut, costUsd);
       }
 
       printSessionSummary();
 
-      // Archive the original commission so Kira's evaluation task can find the
-      // success criteria.  Rename IN_PROGRESS → COMMISSION (permanent archive).
-      // The COMMISSION suffix is inert — the poll loop only looks for PENDING files.
-      const commissionArchivePath = path.join(QUEUE_DIR, `${id}-COMMISSION.md`);
+      // Archive the original brief so Kira's evaluation task can find the
+      // success criteria.  Rename IN_PROGRESS → BRIEF (permanent archive).
+      // The BRIEF suffix is inert — the poll loop only looks for PENDING files.
+      const briefArchivePath = path.join(QUEUE_DIR, `${id}-BRIEF.md`);
       if (fs.existsSync(inProgressPath)) {
         try {
-          fs.renameSync(inProgressPath, commissionArchivePath);
-          log('info', 'state', { id, msg: 'Archived commission', from: 'IN_PROGRESS', to: 'COMMISSION' });
+          fs.renameSync(inProgressPath, briefArchivePath);
+          log('info', 'state', { id, msg: 'Archived brief', from: 'IN_PROGRESS', to: 'BRIEF' });
         } catch (archiveErr) {
           // Fallback: if rename fails, try to delete so the queue doesn't jam.
           log('warn', 'error', { id, msg: 'Failed to archive IN_PROGRESS file, deleting instead', error: archiveErr.message });
@@ -745,9 +745,9 @@ function invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id
       // Reset processing state.
       processing = false;
       heartbeatState.status = 'idle';
-      heartbeatState.current_commission = null;
-      heartbeatState.current_commission_title = null;
-      heartbeatState.current_commission_goal = null;
+      heartbeatState.current_brief = null;
+      heartbeatState.current_brief_title = null;
+      heartbeatState.current_brief_goal = null;
       heartbeatState.pickupTime = null;
       heartbeatState.processed_total += 1;
       writeHeartbeat();
@@ -823,7 +823,7 @@ function callReviewAPI(id, verdict, reason) {
 /**
  * countReviewedCycles(rootId)
  *
- * Reads register.jsonl and counts REVIEWED events for a given root commission ID.
+ * Reads register.jsonl and counts REVIEWED events for a given root brief ID.
  * Returns 0 if the file is unreadable.
  */
 function countReviewedCycles(rootId) {
@@ -848,7 +848,7 @@ function countReviewedCycles(rootId) {
  * hasReviewEvent(id)
  *
  * Returns true if register.jsonl contains a REVIEWED, ACCEPTED, or STUCK event
- * for this commission ID — meaning it has already been evaluated.
+ * for this brief ID — meaning it has already been evaluated.
  */
 function hasReviewEvent(id) {
   try {
@@ -894,26 +894,26 @@ function extractJSON(text) {
 /**
  * invokeEvaluator(id)
  *
- * Reads the COMMISSION and EVALUATING files for the given commission ID,
+ * Reads the BRIEF and EVALUATING files for the given brief ID,
  * constructs an evaluator prompt, calls claude -p, parses the JSON verdict,
  * and handles ACCEPTED / AMENDMENT_NEEDED / STUCK outcomes.
  */
 function invokeEvaluator(id) {
-  const commissionPath  = path.join(QUEUE_DIR, `${id}-COMMISSION.md`);
+  const briefPath  = path.join(QUEUE_DIR, `${id}-BRIEF.md`);
   const evaluatingPath  = path.join(QUEUE_DIR, `${id}-EVALUATING.md`);
 
-  // Read COMMISSION file (original ACs).
-  let commissionContent;
+  // Read BRIEF file (original ACs).
+  let briefContent;
   try {
-    commissionContent = fs.readFileSync(commissionPath, 'utf-8');
+    briefContent = fs.readFileSync(briefPath, 'utf-8');
   } catch (err) {
-    log('warn', 'evaluator', { id, msg: 'COMMISSION file not found — skipping evaluation', error: err.message });
+    log('warn', 'evaluator', { id, msg: 'BRIEF file not found — skipping evaluation', error: err.message });
     // Rename back to DONE so the poll loop can try again later.
     try { fs.renameSync(evaluatingPath, path.join(QUEUE_DIR, `${id}-DONE.md`)); } catch (_) {}
     processing = false;
     heartbeatState.status = 'idle';
-    heartbeatState.current_commission = null;
-    heartbeatState.current_commission_goal = null;
+    heartbeatState.current_brief = null;
+    heartbeatState.current_brief_goal = null;
     heartbeatState.pickupTime = null;
     writeHeartbeat();
     return;
@@ -927,8 +927,8 @@ function invokeEvaluator(id) {
     log('warn', 'evaluator', { id, msg: 'EVALUATING file not found — skipping evaluation', error: err.message });
     processing = false;
     heartbeatState.status = 'idle';
-    heartbeatState.current_commission = null;
-    heartbeatState.current_commission_goal = null;
+    heartbeatState.current_brief = null;
+    heartbeatState.current_brief_goal = null;
     heartbeatState.pickupTime = null;
     writeHeartbeat();
     return;
@@ -938,25 +938,25 @@ function invokeEvaluator(id) {
   const doneMeta = parseFrontmatter(evaluatingContent) || {};
   const branchName = doneMeta.branch || null;
 
-  // Determine root commission ID and amendment cycle.
-  const commissionMeta = parseFrontmatter(commissionContent) || {};
-  const rootId = commissionMeta.root_commission_id || id;
+  // Determine root brief ID and amendment cycle.
+  const briefMeta = parseFrontmatter(briefContent) || {};
+  const rootId = briefMeta.root_commission_id || id;
   const cycle  = countReviewedCycles(rootId);
 
   log('info', 'evaluator', { id, rootId, cycle, branchName, msg: 'Starting evaluation' });
   print(`${B.tl}${B.sng.repeat(W - 1)}`);
-  print(`${B.vert}  ${SYM.right} Evaluator${SYM.sep}Commission ${id} (${5 - cycle} retries remaining)`);
-  print(`${B.vert}    Evaluating — fresh claude -p session, commission ACs + DONE report injected`);
+  print(`${B.vert}  ${SYM.right} Evaluator${SYM.sep}Brief ${id} (${5 - cycle} retries remaining)`);
+  print(`${B.vert}    Evaluating — fresh claude -p session, brief ACs + DONE report injected`);
   print(`${B.vert}`);
 
   const prompt = [
     'You are Kira, Delivery Coordinator for Liberation of Bajor.',
     '',
-    'Your job: evaluate whether O\'Brien\'s DONE report satisfies ALL acceptance criteria in the original commission. Be specific. If even one AC is not met, the verdict is AMENDMENT_NEEDED.',
+    'Your job: evaluate whether O\'Brien\'s DONE report satisfies ALL acceptance criteria in the original brief. Be specific. If even one AC is not met, the verdict is AMENDMENT_NEEDED.',
     '',
-    '## ORIGINAL COMMISSION (contains the acceptance criteria):',
+    '## ORIGINAL BRIEF (contains the acceptance criteria):',
     '',
-    commissionContent,
+    briefContent,
     '',
     '## O\'BRIEN\'S DONE REPORT:',
     '',
@@ -1036,8 +1036,8 @@ function invokeEvaluator(id) {
         print('');
         processing = false;
         heartbeatState.status = 'idle';
-        heartbeatState.current_commission = null;
-        heartbeatState.current_commission_goal = null;
+        heartbeatState.current_brief = null;
+        heartbeatState.current_brief_goal = null;
         heartbeatState.pickupTime = null;
         heartbeatState.processed_total += 1;
         writeHeartbeat();
@@ -1051,7 +1051,7 @@ function invokeEvaluator(id) {
       if (finalVerdict === 'ACCEPTED') {
         handleAccepted(id, reason, cycle + 1, branchName, evaluatingPath, durationMs);
       } else if (finalVerdict === 'AMENDMENT_NEEDED') {
-        handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions, cycle, branchName, evaluatingPath, commissionContent, durationMs);
+        handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions, cycle, branchName, evaluatingPath, briefContent, durationMs);
       } else {
         handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs);
       }
@@ -1059,8 +1059,8 @@ function invokeEvaluator(id) {
       // Reset processing state.
       processing = false;
       heartbeatState.status = 'idle';
-      heartbeatState.current_commission = null;
-      heartbeatState.current_commission_goal = null;
+      heartbeatState.current_brief = null;
+      heartbeatState.current_brief_goal = null;
       heartbeatState.pickupTime = null;
       heartbeatState.processed_total += 1;
       writeHeartbeat();
@@ -1078,7 +1078,7 @@ function invokeEvaluator(id) {
  * Returns { success, sha, error } where sha is the merge commit hash on success.
  */
 function mergeBranch(id, branchName, title) {
-  const commitMsg = `merge: ${branchName} — ${title || `commission ${id}`} (commission ${id})`;
+  const commitMsg = `merge: ${branchName} — ${title || `brief ${id}`} (brief ${id})`;
   try {
     execSync('git checkout main', { cwd: PROJECT_DIR, stdio: 'pipe' });
     execSync(`git merge --no-ff ${branchName} -m "${commitMsg.replace(/"/g, '\\"')}"`, { cwd: PROJECT_DIR, stdio: 'pipe' });
@@ -1103,11 +1103,11 @@ function mergeBranch(id, branchName, title) {
  * ACCEPTED verdict: register event, rename EVALUATING → ACCEPTED, merge branch to main directly.
  */
 function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationMs) {
-  // Read title from commission file for the merge commit message.
-  const commissionPath = path.join(QUEUE_DIR, `${id}-COMMISSION.md`);
+  // Read title from brief file for the merge commit message.
+  const briefPath = path.join(QUEUE_DIR, `${id}-BRIEF.md`);
   let title = null;
   try {
-    const commMeta = parseFrontmatter(fs.readFileSync(commissionPath, 'utf-8'));
+    const commMeta = parseFrontmatter(fs.readFileSync(briefPath, 'utf-8'));
     if (commMeta) title = commMeta.title || null;
   } catch (_) {}
 
@@ -1127,7 +1127,7 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
 
   callReviewAPI(id, 'ACCEPTED', reason);
 
-  // Merge branch to main directly — no separate merge commission.
+  // Merge branch to main directly — no separate merge brief.
   if (!branchName) {
     log('warn', 'merge', { id, msg: 'No branch name in DONE report — skipping merge' });
     print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}No branch in report — merge skipped`);
@@ -1140,11 +1140,11 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
 
   if (result.success) {
     const shortSha = result.sha.slice(0, 7);
-    registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, commission_id: id });
+    registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, brief_id: id });
     log('info', 'merge', { id, msg: `Merged ${branchName} to main`, branch: branchName, sha: result.sha });
     print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}Merged ${branchName}${SYM.arrow}main (${shortSha})`);
   } else {
-    registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, commission_id: id });
+    registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, brief_id: id });
     log('error', 'merge', { id, msg: `Merge failed for ${branchName}`, branch: branchName, reason: result.error });
     print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}${C.red}${SYM.cross}${C.reset} Merge failed: ${result.error}`);
     printMergeFailedAlert(id, title, branchName, result.error);
@@ -1156,11 +1156,11 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
 
 /**
  * handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions,
- *                 cycle, branchName, evaluatingPath, commissionContent, durationMs)
+ *                 cycle, branchName, evaluatingPath, briefContent, durationMs)
  *
  * AMENDMENT_NEEDED verdict: register event, rename EVALUATING → REVIEWED, write amendment PENDING.
  */
-function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions, cycle, branchName, evaluatingPath, commissionContent, durationMs) {
+function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions, cycle, branchName, evaluatingPath, briefContent, durationMs) {
   registerEvent(id, 'REVIEWED', { verdict: 'AMENDMENT_NEEDED', reason, failed_criteria: failedCriteria, cycle: cycle + 1, root_commission_id: rootId });
   log('info', 'evaluator', { id, verdict: 'AMENDMENT_NEEDED', cycle: cycle + 1, rootId, durationMs });
 
@@ -1172,14 +1172,14 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     log('warn', 'evaluator', { id, msg: 'Failed to rename EVALUATING to REVIEWED', error: err.message });
   }
 
-  // Write amendment commission PENDING.
-  const nextId = nextCommissionId(QUEUE_DIR);
+  // Write amendment brief PENDING.
+  const nextId = nextBriefId(QUEUE_DIR);
   const failedList = (failedCriteria || []).map((c, i) => `${i + 1}. ${c}`).join('\n');
   const amendmentContent = [
     '---',
     `id: "${nextId}"`,
-    `title: "Amendment ${cycle + 1} — fix failed criteria for commission ${rootId}"`,
-    `goal: "All acceptance criteria from commission ${rootId} are met on branch ${branchName || '(original branch)'}."`,
+    `title: "Amendment ${cycle + 1} — fix failed criteria for brief ${rootId}"`,
+    `goal: "All acceptance criteria from brief ${rootId} are met on branch ${branchName || '(original branch)'}."`,
     'from: kira',
     'to: obrien',
     'priority: normal',
@@ -1194,7 +1194,7 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     '',
     '## Objective',
     '',
-    `This is an amendment to commission ${rootId} (cycle ${cycle + 1} of 5). Continue working on branch \`${branchName || '(see frontmatter branch field)'}\`. Do NOT create a new branch.`,
+    `This is an amendment to brief ${rootId} (cycle ${cycle + 1} of 5). Continue working on branch \`${branchName || '(see frontmatter branch field)'}\`. Do NOT create a new branch.`,
     '',
     '## Failed criteria',
     '',
@@ -1204,9 +1204,9 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     '',
     amendmentInstructions || '(see failed criteria above)',
     '',
-    '## Original acceptance criteria (from commission ' + rootId + ')',
+    '## Original acceptance criteria (from brief ' + rootId + ')',
     '',
-    commissionContent,
+    briefContent,
     '',
     '## Constraints',
     '',
@@ -1215,16 +1215,16 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     '## Success criteria',
     '',
     '1. All failed criteria listed above are resolved.',
-    '2. All original acceptance criteria from commission ' + rootId + ' are met.',
+    '2. All original acceptance criteria from brief ' + rootId + ' are met.',
     '3. DONE report includes branch name in frontmatter.',
   ].join('\n');
 
   const amendmentPendingPath = path.join(QUEUE_DIR, `${nextId}-PENDING.md`);
   try {
     fs.writeFileSync(amendmentPendingPath, amendmentContent);
-    log('info', 'evaluator', { id, msg: `Wrote amendment commission ${nextId}-PENDING.md`, nextId, cycle: cycle + 1, rootId });
+    log('info', 'evaluator', { id, msg: `Wrote amendment brief ${nextId}-PENDING.md`, nextId, cycle: cycle + 1, rootId });
   } catch (err) {
-    log('warn', 'evaluator', { id, msg: 'Failed to write amendment commission PENDING', error: err.message });
+    log('warn', 'evaluator', { id, msg: 'Failed to write amendment brief PENDING', error: err.message });
   }
 
   callReviewAPI(id, 'AMENDMENT_NEEDED', reason);
@@ -1256,13 +1256,13 @@ function handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs) 
 
   callReviewAPI(id, 'STUCK', reason);
 
-  print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} STUCK${SYM.sep}Commission ${id} hit amendment cap (${cycle} cycles). Manual intervention required.`);
+  print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} STUCK${SYM.sep}Brief ${id} hit amendment cap (${cycle} cycles). Manual intervention required.`);
   print(`${B.bl}${B.sng.repeat(W - 1)}`);
   print('');
 }
 
 // ---------------------------------------------------------------------------
-// ERROR file (written by watcher on invocation failure or invalid commission)
+// ERROR file (written by watcher on invocation failure or invalid brief)
 // ---------------------------------------------------------------------------
 
 /**
@@ -1273,10 +1273,10 @@ function handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs) 
  *   "timeout"             — process was killed after exceeding the timeout
  *   "crash"               — process exited non-zero; exit_code included
  *   "no_report"           — process exited 0 but wrote no DONE file
- *   "invalid_commission"  — PENDING file failed frontmatter validation
+ *   "invalid_brief"  — PENDING file failed frontmatter validation
  *
  * @param {string}      errorPath  Absolute path for the ERROR file.
- * @param {string}      id         Commission ID.
+ * @param {string}      id         Brief ID.
  * @param {string}      reason     One of the four reason strings above.
  * @param {Error|null}  err        The Error object (null for no_report/invalid).
  * @param {string}      stdout     Combined stdout captured from the process.
@@ -1291,11 +1291,11 @@ function writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra) {
   const frontmatter = [
     '---',
     `id: "${id}"`,
-    `title: "Commission ${id} — ${reason}"`,
+    `title: "Brief ${id} — ${reason}"`,
     'from: watcher',
     'to: kira',
     'status: ERROR',
-    `commission_id: "${id}"`,
+    `brief_id: "${id}"`,
     `completed: "${completed}"`,
     `reason: "${reason}"`,
   ];
@@ -1325,7 +1325,7 @@ function writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra) {
         ? `The process exited with a non-zero status (exit code ${exitCode ?? 'unknown'}).`
         : reason === 'no_report'
           ? 'The process exited cleanly but wrote no DONE file.'
-          : `Commission frontmatter validation failed. Missing fields: ${(extra && extra.missingFields || []).join(', ')}.`;
+          : `Brief frontmatter validation failed. Missing fields: ${(extra && extra.missingFields || []).join(', ')}.`;
 
   const content = [
     ...frontmatter,
@@ -1387,26 +1387,26 @@ function poll() {
     for (const doneFile of doneFiles) {
       const doneId = doneFile.replace('-DONE.md', '');
       const donePath = path.join(QUEUE_DIR, doneFile);
-      const commissionPath = path.join(QUEUE_DIR, `${doneId}-COMMISSION.md`);
+      const briefPath = path.join(QUEUE_DIR, `${doneId}-BRIEF.md`);
 
-      // Skip if COMMISSION file not present (O'Brien may still be running).
-      if (!fs.existsSync(commissionPath)) continue;
+      // Skip if BRIEF file not present (O'Brien may still be running).
+      if (!fs.existsSync(briefPath)) continue;
 
-      // Legacy: merge commissions (type: merge) are auto-accepted without claude -p.
-      // Deprecated: handleAccepted() now merges directly — no new merge commissions
-      // are generated. This block handles any legacy merge commissions still in the queue.
-      let commissionMeta = {};
+      // Legacy: merge briefs (type: merge) are auto-accepted without claude -p.
+      // Deprecated: handleAccepted() now merges directly — no new merge briefs
+      // are generated. This block handles any legacy merge briefs still in the queue.
+      let briefMeta = {};
       try {
-        commissionMeta = parseFrontmatter(fs.readFileSync(commissionPath, 'utf-8')) || {};
+        briefMeta = parseFrontmatter(fs.readFileSync(briefPath, 'utf-8')) || {};
       } catch (_) {}
 
-      if (commissionMeta.type === 'merge') {
-        log('info', 'evaluator', { id: doneId, msg: 'Legacy merge commission auto-accepted (deprecated path)' });
+      if (briefMeta.type === 'merge') {
+        log('info', 'evaluator', { id: doneId, msg: 'Legacy merge brief auto-accepted (deprecated path)' });
         const acceptedPath = path.join(QUEUE_DIR, `${doneId}-ACCEPTED.md`);
         try { fs.renameSync(donePath, acceptedPath); } catch (_) {}
         registerEvent(doneId, 'ACCEPTED', { reason: 'auto-accepted merge', cycle: 0 });
         callReviewAPI(doneId, 'ACCEPTED', 'auto-accepted merge');
-        print(`  ${C.green}${SYM.check}${C.reset} Commission ${doneId}${SYM.dash}Merge auto-accepted`);
+        print(`  ${C.green}${SYM.check}${C.reset} Brief ${doneId}${SYM.dash}Merge auto-accepted`);
         continue;
       }
 
@@ -1425,8 +1425,8 @@ function poll() {
 
       processing = true;
       heartbeatState.status = 'evaluating';
-      heartbeatState.current_commission = doneId;
-      heartbeatState.current_commission_goal = commissionMeta.goal || null;
+      heartbeatState.current_brief = doneId;
+      heartbeatState.current_brief_goal = briefMeta.goal || null;
       heartbeatState.pickupTime = Date.now();
       writeHeartbeat();
 
@@ -1447,20 +1447,20 @@ function poll() {
   const pendingFile = pendingFiles[0];
   const pendingPath = path.join(QUEUE_DIR, pendingFile);
 
-  // Derive the commission ID from the filename (e.g. "003-PENDING.md" → "003").
+  // Derive the brief ID from the filename (e.g. "003-PENDING.md" → "003").
   const id = pendingFile.replace('-PENDING.md', '');
 
-  // Read commission content.
-  let commissionContent;
+  // Read brief content.
+  let briefContent;
   try {
-    commissionContent = fs.readFileSync(pendingPath, 'utf-8');
+    briefContent = fs.readFileSync(pendingPath, 'utf-8');
   } catch (err) {
     log('error', 'error', { id, msg: 'Failed to read PENDING file', error: err.message });
     return;
   }
 
   // Parse frontmatter for timeout_min override and title.
-  const meta = parseFrontmatter(commissionContent);
+  const meta = parseFrontmatter(briefContent);
   const timeoutMin = meta && meta.timeout_min && meta.timeout_min !== 'null'
     ? parseInt(meta.timeout_min, 10)
     : null;
@@ -1485,7 +1485,7 @@ function poll() {
   // If validation fails:
   //   - Do NOT rename to IN_PROGRESS (file stays as PENDING for inspection)
   //   - Write an ERROR report immediately
-  //   - Log with reason "invalid_commission"
+  //   - Log with reason "invalid_brief"
   //   - Remove the PENDING file so the poll loop doesn't re-process it forever
   //   - Continue the poll loop (do not crash)
   // ---------------------------------------------------------------------------
@@ -1500,18 +1500,18 @@ function poll() {
 
     log('error', 'error', {
       id: errId,
-      msg: 'Commission rejected — missing required frontmatter fields',
-      reason: 'invalid_commission',
+      msg: 'Brief rejected — missing required frontmatter fields',
+      reason: 'invalid_brief',
       missing_fields: missingFields,
       file: pendingFile,
     });
 
-    // Stakeholder-friendly terminal output for rejected commissions.
-    print(`  ${C.red}${SYM.cross}${C.reset} Commission ${errId} rejected${SYM.dash}Missing required fields: ${missingFields.join(', ')}`);
+    // Stakeholder-friendly terminal output for rejected briefs.
+    print(`  ${C.red}${SYM.cross}${C.reset} Brief ${errId} rejected${SYM.dash}Missing required fields: ${missingFields.join(', ')}`);
 
-    writeErrorFile(errPath, errId, 'invalid_commission', null, '', '', { missingFields });
-    log('info', 'state', { id: errId, from: 'PENDING', to: 'ERROR', reason: 'invalid_commission' });
-    registerEvent(errId, 'ERROR', { reason: 'invalid_commission', missingFields });
+    writeErrorFile(errPath, errId, 'invalid_brief', null, '', '', { missingFields });
+    log('info', 'state', { id: errId, from: 'PENDING', to: 'ERROR', reason: 'invalid_brief' });
+    registerEvent(errId, 'ERROR', { reason: 'invalid_brief', missingFields });
 
     // Remove the invalid PENDING file so it doesn't loop indefinitely.
     try { fs.unlinkSync(pendingPath); } catch (_) {}
@@ -1527,18 +1527,18 @@ function poll() {
     return;
   }
 
-  log('info', 'pickup', { id, title, msg: 'Commission picked up', file: pendingFile });
+  log('info', 'pickup', { id, title, msg: 'Brief picked up', file: pendingFile });
   log('info', 'state', { id, from: 'PENDING', to: 'IN_PROGRESS' });
 
-  // Register: embed full commission body so success criteria are always recoverable.
-  registerEvent(id, 'COMMISSIONED', { title, goal, body: commissionContent });
+  // Register: embed full brief body so success criteria are always recoverable.
+  registerEvent(id, 'COMMISSIONED', { title, goal, body: briefContent });
 
-  openCommissionBlock(id, title, goal);
+  openBriefBlock(id, title, goal);
 
   processing = true;
 
   // Invoke O'Brien asynchronously — event loop stays live.
-  invokeOBrien(commissionContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal);
+  invokeOBrien(briefContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal);
 }
 
 // ---------------------------------------------------------------------------
@@ -1598,9 +1598,9 @@ function crashRecovery() {
       if (meta) branchName = meta.branch || null;
     } catch (_) {}
 
-    // Read title from COMMISSION file.
+    // Read title from BRIEF file.
     try {
-      const commContent = fs.readFileSync(path.join(QUEUE_DIR, `${id}-COMMISSION.md`), 'utf-8');
+      const commContent = fs.readFileSync(path.join(QUEUE_DIR, `${id}-BRIEF.md`), 'utf-8');
       const commMeta = parseFrontmatter(commContent);
       if (commMeta) title = commMeta.title || null;
     } catch (_) {}
@@ -1627,11 +1627,11 @@ function crashRecovery() {
     // Re-attempt merge.
     const result = mergeBranch(id, branchName, title);
     if (result.success) {
-      registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, commission_id: id, recovery: true });
+      registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, brief_id: id, recovery: true });
       log('info', 'startup_recovery', { id, msg: `Recovery merge succeeded for ${branchName}`, branch: branchName, sha: result.sha });
       actions.push({ id, type: 'recovery_merged', branch: branchName, sha: result.sha });
     } else {
-      registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, commission_id: id, recovery: true });
+      registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, brief_id: id, recovery: true });
       log('warn', 'startup_recovery', { id, msg: `Recovery merge failed for ${branchName}`, branch: branchName, reason: result.error });
       actions.push({ id, type: 'recovery_merge_failed', branch: branchName, reason: result.error });
       printUnmergedAlert(id, title, branchName);
@@ -1648,7 +1648,7 @@ function crashRecovery() {
     const hasError       = fs.existsSync(path.join(QUEUE_DIR, `${id}-ERROR.md`));
 
     if (hasDone || hasError) {
-      // Commission already resolved — the IN_PROGRESS file is a stale artifact.
+      // Brief already resolved — the IN_PROGRESS file is a stale artifact.
       const resolvedAs = hasDone ? 'DONE' : 'ERROR';
       try {
         fs.unlinkSync(inProgressPath);
@@ -1663,7 +1663,7 @@ function crashRecovery() {
         log('warn', 'startup_recovery', { id, msg: 'Failed to delete orphaned IN_PROGRESS', error: err.message });
       }
     } else {
-      // No resolution file — commission was interrupted mid-flight. Re-queue it.
+      // No resolution file — brief was interrupted mid-flight. Re-queue it.
       const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
       try {
         fs.renameSync(inProgressPath, pendingPath);  // atomic rename
@@ -1683,11 +1683,11 @@ function crashRecovery() {
 }
 
 // ---------------------------------------------------------------------------
-// Commission ID management (3.2)
+// Brief ID management (3.2)
 // ---------------------------------------------------------------------------
 
 /**
- * nextCommissionId(queueDir)
+ * nextBriefId(queueDir)
  *
  * Reads all filenames in queueDir, extracts their numeric prefix IDs, and
  * returns the next ID as a zero-padded three-digit string (e.g. "009").
@@ -1696,7 +1696,7 @@ function crashRecovery() {
  * This function is purely computational — it does not write any files.
  * Exported so Kira can call it from bridge/next-id.js.
  */
-function nextCommissionId(queueDir) {
+function nextBriefId(queueDir) {
   let files;
   try {
     files = fs.readdirSync(queueDir);
@@ -1720,11 +1720,11 @@ function shutdown(signal) {
   log('info', 'shutdown', { msg: `Received ${signal} — shutting down` });
   if (processing) {
     log('warn', 'shutdown', {
-      msg: 'A commission is in flight at shutdown. The IN_PROGRESS file will be recovered by crash recovery (Layer 3) on next startup.',
-      current_commission: heartbeatState.current_commission,
+      msg: 'A brief is in flight at shutdown. The IN_PROGRESS file will be recovered by crash recovery (Layer 3) on next startup.',
+      current_brief: heartbeatState.current_brief,
     });
     print('');
-    print(`  Watcher shutting down${SYM.dash}commission in progress will be recovered on next start.`);
+    print(`  Watcher shutting down${SYM.dash}brief in progress will be recovered on next start.`);
   }
   process.exit(0);
 }
@@ -1771,4 +1771,4 @@ if (require.main === module) {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextCommissionId, getQueueSnapshot };
+module.exports = { nextBriefId, getQueueSnapshot };
