@@ -745,6 +745,7 @@
         <div id="mission-id-badge" class="active-brief-id" style="display:none"></div>
         <div id="mission-text" style="display:none">
           <div id="pipeline-mission-title" class="active-brief-title"></div>
+          <div id="pipeline-mission-goal" class="active-brief-stage" style="opacity:0.65;font-size:0.82em;margin-top:2px"></div>
           <div id="pipeline-mission-stage" class="active-brief-stage"></div>
         </div>
         <div id="mission-idle-text" class="active-brief-idle">No active brief.</div>
@@ -994,6 +995,8 @@
       badgeEl.textContent  = `Brief ${escHtml(mission.id)}`;
       badgeEl.style.display = '';
       titleEl.textContent  = mission.title || '\u2014';
+      const goalEl = document.getElementById('pipeline-mission-goal');
+      if (goalEl) goalEl.textContent = mission.goal || '';
       const stageMeta = PIPELINE_STAGES.find(s => s.key === activeStageKey);
       stageEl.textContent  = stageMeta ? stageMeta.label : activeStageKey;
       textEl.style.display = '';
