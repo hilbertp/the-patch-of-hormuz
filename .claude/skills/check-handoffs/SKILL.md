@@ -9,7 +9,7 @@ You are checking the project for handoff files addressed to you (the current rol
 
 ## How it works
 
-Handoff files follow the naming convention `HANDOFF-*.md` and live in the role's directory under `repo/.claude/roles/{role-name}/`. They may also appear in the project root or other shared locations.
+Handoff files follow the naming convention `HANDOFF-*.md` and live in the role's **inbox subfolder**: `repo/.claude/roles/{role-name}/inbox/`. This is the only place to look — never the role root, never the sender's folder.
 
 ## T&T Self-Audit (run before inbox scan)
 
@@ -32,26 +32,37 @@ Before checking for handoffs, verify that your previous session's time was logge
 
 ---
 
+## Token Snapshot — Session Open
+
+Run the following command after the T&T self-audit, before the inbox scan:
+
+```bash
+node bridge/usage-snapshot.js --silent --log
+```
+
+This captures a baseline token snapshot for this session. Non-blocking — if it warns about an expired key, tell Philipp, but continue to the inbox scan regardless.
+
+---
+
 ## Steps
 
 1. **Identify your role name.** Check which DS9 role you are currently operating as (e.g., ziyal, sisko, kira, dax, leeta, obrien, bashir, nog, worf, odo).
 
-2. **Search your own role directory first.** Look for any `HANDOFF-*.md` files in:
+2. **Check your inbox.** All incoming handoffs live in your inbox folder:
    ```
-   repo/.claude/roles/{your-role-name}/
+   repo/.claude/roles/{your-role-name}/inbox/
    ```
+   List all files: `ls -lt repo/.claude/roles/{your-role-name}/inbox/`
 
-3. **Search project-wide.** Scan the entire project for handoff files that mention your role name in the filename or content:
-   - Files matching `*HANDOFF*` or `*handoff*` anywhere in the project
-   - Files matching `*{your-role-name}*` in shared locations like the project root or `bridge/` directory
+   This is the **only** place to look. Handoffs are always written to the receiver's inbox by the `/handoff-to-teammate` skill. Never search the sender's folder — handoffs addressed to you won't be there.
 
-4. **Report what you found.** For each handoff file:
+3. **Report what you found.** For each handoff file:
    - File path
    - Who it's from (check the "From:" line if present)
    - Date
    - One-line summary of the task or context
 
-5. **If no handoffs found**, say so clearly: "No handoff files found for {role}. Nothing waiting."
+4. **If no handoffs found**, say so clearly: "No handoff files found for {role}. Nothing waiting."
 
 ## After finding handoffs
 

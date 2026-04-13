@@ -70,10 +70,10 @@ When in doubt: **Dax before Kira** for anything technical.
 
 Write a separate handoff file for each receiver in their own folder. Content can be identical or tailored — Dax sending architecture to Kira may emphasize slicing guidance, while the same artifact to O'Brien emphasizes implementation constraints. Either way, each receiver gets their own file.
 
-**File location:** `roles/{receiver}/HANDOFF-{short-description}.md`
+**File location:** `roles/{receiver}/inbox/HANDOFF-{short-description}.md`
 
 For responses returning work to the original sender:
-`roles/{original-sender}/RESPONSE-{short-description}-FROM-{your-role}.md`
+`roles/{original-sender}/inbox/RESPONSE-{short-description}-FROM-{your-role}.md`
 
 **Required header (each artifact):**
 
@@ -96,7 +96,19 @@ For responses returning work to the original sender:
 4. **What NOT to worry about** — explicit scope boundary
 
 ---
-## Step 1b: Append outbound record to tt-audit.jsonl
+## Step 1b: Token snapshot — session close
+
+Run the following command after writing handoff artifacts (Step 1) and before the tt-audit append (Step 1c):
+
+```bash
+node bridge/usage-snapshot.js --silent --log
+```
+
+This captures the closing token snapshot. The delta between open (check-handoffs) and close (this step) = session cost. Non-blocking — if the script fails silently, the handoff continues.
+
+---
+
+## Step 1c: Append outbound record to tt-audit.jsonl
 
 After writing all handoff artifacts, append **one line** to `bridge/tt-audit.jsonl` for this handoff using a single shell command:
 
@@ -169,8 +181,8 @@ Format:
 Example (Dax handing to Kira + O'Brien):
 
 > **Handed off to Kira (Delivery) and O'Brien (Implementor).**
-> - `roles/kira/HANDOFF-BET2-RELAY-SLICING.md` → Kira
-> - `roles/obrien/HANDOFF-BET2-RELAY-ARCHITECTURE.md` → O'Brien
+> - `roles/kira/inbox/HANDOFF-BET2-RELAY-SLICING.md` → Kira
+> - `roles/obrien/inbox/HANDOFF-BET2-RELAY-ARCHITECTURE.md` → O'Brien
 > Next: open a new context window as **Kira** first — she needs to slice before O'Brien can build.
 
 ---
