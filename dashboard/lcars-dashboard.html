@@ -1083,9 +1083,9 @@
           DONE:  'tag-done',
           ERROR: 'tag-error',
         };
-        tbody.innerHTML = rows.map(c => {
+        tbody.innerHTML = rows.filter(c => !/^merge:/i.test(c.title ?? '')).map(c => {
           const outcome   = c.outcome ?? 'DONE';
-          const tagCls    = /merge/i.test(c.title ?? '') ? 'tag-merge' : (outcomeToClass[outcome] ?? 'tag-done');
+          const tagCls    = outcomeToClass[outcome] ?? 'tag-done';
           const statusCls = outcomeToClass[outcome] ?? 'tag-done';
           const statusLabel = outcome === 'ACCEPTED' ? 'ACCEPTED' : outcome;
           const statusTitle = outcome === 'ERROR' && c.reason ? ` title="${escHtml(c.reason)}"` : '';
