@@ -159,6 +159,7 @@ function buildBridgeData() {
         tokensOut:   ev.tokensOut   ?? null,
         costUsd:     ev.costUsd     ?? null,
         completedAt: ev.ts          ?? null,
+        reason:      ev.reason     ?? null,
       };
       if (ev.event === 'DONE') {
         economics.totalTokensIn  += ev.tokensIn  ?? 0;

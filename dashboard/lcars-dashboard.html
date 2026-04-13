@@ -806,7 +806,6 @@
             <tr>
               <th>ID</th>
               <th>Description</th>
-              <th>Type</th>
               <th>Status</th>
               <th>Duration</th>
               <th>Tokens</th>
@@ -1085,12 +1084,10 @@
           ERROR: 'tag-error',
         };
         tbody.innerHTML = rows.map(c => {
-          const isMerge   = /merge/i.test(c.title ?? '');
           const outcome   = c.outcome ?? 'DONE';
-          const tagCls    = isMerge ? 'tag-merge' : (outcomeToClass[outcome] ?? 'tag-done');
-          const typeLabel = isMerge ? 'MERGE' : 'BRIEF';
           const statusCls = outcomeToClass[outcome] ?? 'tag-done';
           const statusLabel = outcome === 'ACCEPTED' ? 'ACCEPTED' : outcome;
+          const statusTitle = outcome === 'ERROR' && c.reason ? ` title="${escHtml(c.reason)}"` : '';
           const reviewBadge = c.reviewStatus === 'amendment_required'
             ? ' <span class="tag tag-error" style="font-size:0.75em">AMD</span>' : '';
           const dur = c.durationMs != null
@@ -1102,15 +1099,14 @@
           return `<tr>
             <td>${escHtml(c.id)}</td>
             <td>${escHtml(c.title ?? '')}${reviewBadge}</td>
-            <td><span class="tag ${tagCls}">${escHtml(typeLabel)}</span></td>
-            <td><span class="tag ${statusCls}">${escHtml(statusLabel)}</span></td>
+            <td><span class="tag ${statusCls}"${statusTitle}>${escHtml(statusLabel)}</span></td>
             <td class="time-cell">${dur}</td>
             <td class="time-cell">${tokStr}</td>
             <td class="time-cell">${costStr}</td>
           </tr>`;
         }).join('');
       } else {
-        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-dim);text-align:center;padding:12px">No completed briefs yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-dim);text-align:center;padding:12px">No completed briefs yet.</td></tr>';
       }
     }
 
