@@ -333,6 +333,7 @@
   .tag-pending  { background: #fef9c3; color: #854d0e; }
   .tag-progress { background: #dbeafe; color: #1e40af; }
   .tag-merge    { background: #ede9fe; color: #5b21b6; }
+  .tag-accepted { background: #d1fae5; color: #065f46; }
 
   .cost-cell { color: #6b7280; }
   .time-cell { color: #6b7280; }
@@ -1075,11 +1076,15 @@
         const outcomeToClass = {
           DONE:  'tag-done',
           ERROR: 'tag-error',
+          ACCEPTED: 'tag-accepted',
         };
         tbody.innerHTML = rows.filter(c => !/^merge:/i.test(c.title ?? '')).map(c => {
           const outcome   = c.outcome ?? 'DONE';
-          const statusCls = outcomeToClass[outcome] ?? 'tag-done';
-          const statusLabel = outcome === 'ACCEPTED' ? 'ACCEPTED' : outcome;
+          const pillKey = c.reviewStatus === 'accepted' ? 'ACCEPTED'
+                        : c.reviewStatus === 'amendment_required' ? 'ERROR'
+                        : outcome;
+          const statusCls = outcomeToClass[pillKey] ?? 'tag-done';
+          const statusLabel = pillKey;
           const statusTitle = outcome === 'ERROR' && c.reason ? ` title="${escHtml(c.reason)}"` : '';
           const reviewBadge = c.reviewStatus === 'amendment_required'
             ? ' <span class="tag tag-error" style="font-size:0.75em">AMD</span>' : '';
