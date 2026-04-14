@@ -547,6 +547,135 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Queue item content: read raw file ─────────────────────────────────
+  const contentReadMatch = pathname.match(/^\/api\/queue\/(\d+)\/content$/);
+  if (contentReadMatch && req.method === 'GET') {
+    const id = contentReadMatch[1];
+    // Check PENDING (accepted) first, then STAGED
+    const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
+    const stagedPath  = path.join(STAGED_DIR, `${id}-STAGED.md`);
+    const amendPath   = path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`);
+    const filePath = fs.existsSync(pendingPath) ? pendingPath
+                   : fs.existsSync(stagedPath)  ? stagedPath
+                   : fs.existsSync(amendPath)   ? amendPath
+                   : null;
+    if (!filePath) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Slice ${id} not found` }));
+      return;
+    }
+    try {
+      const raw = fs.readFileSync(filePath, 'utf8');
+      const fm  = parseFrontmatter(raw);
+      const body = extractBody(raw);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ id, frontmatter: fm, body, raw }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
+  // ── Queue item content: update (PATCH) ──────────────────────────────────
+  if (contentReadMatch && req.method === 'PATCH') {
+    const id = contentReadMatch[1];
+    const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
+    const stagedPath  = path.join(STAGED_DIR, `${id}-STAGED.md`);
+    const amendPath   = path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`);
+    const filePath = fs.existsSync(pendingPath) ? pendingPath
+                   : fs.existsSync(stagedPath)  ? stagedPath
+                   : fs.existsSync(amendPath)   ? amendPath
+                   : null;
+    if (!filePath) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Slice ${id} not found` }));
+      return;
+    }
+    const payload = await readJsonBody(req);
+    if (!payload || typeof payload.body !== 'string') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing required field: body' }));
+      return;
+    }
+    try {
+      const raw = fs.readFileSync(filePath, 'utf8');
+      const lines = raw.split('\n');
+      let dashes = 0, fmEnd = -1;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim() === '---') dashes++;
+        if (dashes === 2) { fmEnd = i; break; }
+      }
+      if (fmEnd === -1) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Could not parse frontmatter' }));
+        return;
+      }
+      const updated = lines.slice(0, fmEnd + 1).join('\n') + '\n\n' + payload.body;
+      fs.writeFileSync(filePath, updated, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
+  // ── Remove accepted item from queue (trash it) ──────────────────────────
+  const removeMatch = pathname.match(/^\/api\/queue\/(\d+)\/remove$/);
+  if (removeMatch && req.method === 'POST') {
+    const id = removeMatch[1];
+    const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
+    if (!fs.existsSync(pendingPath)) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Pending brief ${id} not found` }));
+      return;
+    }
+    try {
+      let content = fs.readFileSync(pendingPath, 'utf8');
+      content = updateFrontmatter(content, { status: 'REMOVED' });
+      fs.writeFileSync(path.join(TRASH_DIR, `${id}-REMOVED.md`), content, 'utf8');
+      fs.unlinkSync(pendingPath);
+      const order = readQueueOrder().filter(oid => oid !== id);
+      writeQueueOrder(order);
+      writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'removed' });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
+  // ── Send accepted item back to Kira (move PENDING → STAGED) ────────────
+  const sendToKiraMatch = pathname.match(/^\/api\/queue\/(\d+)\/send-to-kira$/);
+  if (sendToKiraMatch && req.method === 'POST') {
+    const id = sendToKiraMatch[1];
+    const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
+    if (!fs.existsSync(pendingPath)) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Pending brief ${id} not found` }));
+      return;
+    }
+    try {
+      let content = fs.readFileSync(pendingPath, 'utf8');
+      content = updateFrontmatter(content, { status: 'NEEDS_AMENDMENT' });
+      fs.writeFileSync(path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`), content, 'utf8');
+      fs.unlinkSync(pendingPath);
+      const order = readQueueOrder().filter(oid => oid !== id);
+      writeQueueOrder(order);
+      writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'sent_to_kira' });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
   // ── Queue order: get/set build order ────────────────────────────────────
   if (pathname === '/api/queue/order') {
     if (req.method === 'GET') {
