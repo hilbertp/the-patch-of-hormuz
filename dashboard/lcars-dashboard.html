@@ -1025,6 +1025,235 @@
     }
   }
 
+  /* ── SLICE DETAIL OVERLAY ─────────────────────────────── */
+  .slice-detail-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 900;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .slice-detail-panel {
+    background: #ffffff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 960px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    overflow: hidden;
+  }
+
+  .slice-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
+  }
+
+  .slice-detail-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .slice-detail-id {
+    font-size: 12px;
+    font-weight: 500;
+    color: #9ca3af;
+    flex-shrink: 0;
+  }
+
+  .slice-detail-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .slice-detail-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  .slice-detail-close:hover {
+    color: #374151;
+    background: #f3f4f6;
+  }
+
+  .slice-detail-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0 24px;
+    flex-shrink: 0;
+  }
+
+  .slice-detail-tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    font-family: system-ui, -apple-system, sans-serif;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .slice-detail-tab:hover {
+    color: #374151;
+  }
+
+  .slice-detail-tab.active {
+    color: #111827;
+    border-bottom-color: #111827;
+  }
+
+  .slice-detail-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+
+  /* Rendered tab content */
+  .slice-rendered-section {
+    margin-bottom: 20px;
+  }
+
+  .slice-rendered-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9ca3af;
+    margin-bottom: 6px;
+  }
+
+  .slice-rendered-section-content {
+    font-size: 14px;
+    color: #374151;
+    line-height: 1.7;
+  }
+
+  .slice-rendered-section-content p { margin: 4px 0; }
+  .slice-rendered-section-content ul,
+  .slice-rendered-section-content ol { margin: 4px 0 4px 20px; }
+  .slice-rendered-section-content li { margin: 3px 0; }
+  .slice-rendered-section-content code { background: #f3f4f6; border-radius: 3px; padding: 1px 5px; font-family: monospace; font-size: 13px; }
+  .slice-rendered-section-content pre { background: #f3f4f6; border-radius: 6px; padding: 12px; overflow-x: auto; margin: 8px 0; }
+  .slice-rendered-section-content pre code { background: none; padding: 0; }
+
+  .slice-rendered-criteria {
+    font-size: 15px;
+    line-height: 1.8;
+    color: #111827;
+  }
+
+  .slice-rendered-criteria li {
+    margin: 6px 0;
+    font-weight: 500;
+  }
+
+  /* Source tab */
+  .slice-source-textarea {
+    width: 100%;
+    min-height: 400px;
+    font-family: monospace;
+    font-size: 13px;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 12px;
+    resize: vertical;
+    background: #f9fafb;
+    box-sizing: border-box;
+    line-height: 1.6;
+  }
+
+  .slice-source-textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+  }
+
+  .slice-source-note {
+    font-size: 12px;
+    color: #9ca3af;
+    margin-top: 8px;
+  }
+
+  /* Actions footer */
+  .slice-detail-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    flex-shrink: 0;
+  }
+
+  .slice-detail-actions-spacer {
+    flex: 1;
+  }
+
+  .slice-action-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: system-ui, -apple-system, sans-serif;
+    transition: opacity 0.15s;
+    border: none;
+  }
+
+  .slice-action-btn:hover { opacity: 0.85; }
+
+  .slice-action-approve {
+    background: #16a34a;
+    color: #ffffff;
+  }
+
+  .slice-action-refine {
+    background: transparent;
+    border: 1px solid #9ca3af;
+    color: #374151;
+  }
+
+  .slice-action-save {
+    background: #2563eb;
+    color: #ffffff;
+  }
+
+  .slice-action-send-kira {
+    background: transparent;
+    border: 1px solid #9ca3af;
+    color: #374151;
+  }
+
+  .slice-action-destructive {
+    background: transparent;
+    border: 1px solid #fca5a5;
+    color: #dc2626;
+  }
+
   /* ── UTILITY (referenced by JS) ────────────────────────── */
   .blink { }
   .section-label { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 16px; }
@@ -1215,6 +1444,25 @@
     </div>
   </div>
 
+</div>
+
+<!-- Slice Detail overlay -->
+<div class="slice-detail-overlay" id="slice-detail-overlay" style="display:none">
+  <div class="slice-detail-panel">
+    <div class="slice-detail-header">
+      <div class="slice-detail-header-left">
+        <span class="slice-detail-id" id="slice-detail-id"></span>
+        <span class="slice-detail-title" id="slice-detail-title"></span>
+      </div>
+      <button class="slice-detail-close" onclick="closeSliceDetail()">&times; close</button>
+    </div>
+    <div class="slice-detail-tabs">
+      <button class="slice-detail-tab active" id="tab-rendered" onclick="switchDetailTab('rendered')">Rendered</button>
+      <button class="slice-detail-tab" id="tab-source" onclick="switchDetailTab('source')">Source</button>
+    </div>
+    <div class="slice-detail-body" id="slice-detail-body"></div>
+    <div class="slice-detail-actions" id="slice-detail-actions"></div>
+  </div>
 </div>
 
 <!-- Stop Build confirmation dialog (outside grid, fixed overlay) -->
@@ -1643,9 +1891,250 @@
     } catch (_) {}
   }
 
-  function queueEdit(id) {
-    // Placeholder — Slice Detail overlay will be wired in slice 100
-    alert('Edit slice #' + id + ' — Slice Detail overlay coming in slice 100.');
+  // ── Slice Detail overlay ──────────────────────────────────────────────────
+  let sliceDetailState = null; // { id, context: 'staged'|'accepted', body, raw, frontmatter }
+  let sliceDetailTab = 'rendered';
+
+  async function queueEdit(id) {
+    // Determine context: accepted (PENDING in queue) vs staged
+    const isAccepted = cachedBridgeBriefs.some(b => b.id === String(id) && b.state === 'PENDING');
+    const context = isAccepted ? 'accepted' : 'staged';
+
+    // Fetch full content from server
+    try {
+      const res = await fetch(`/api/queue/${id}/content`);
+      if (!res.ok) { alert('Could not load slice #' + id); return; }
+      const data = await res.json();
+      sliceDetailState = {
+        id: data.id,
+        context,
+        body: data.body,
+        raw: data.raw,
+        frontmatter: data.frontmatter,
+      };
+    } catch (err) {
+      alert('Error loading slice: ' + err.message);
+      return;
+    }
+
+    sliceDetailTab = 'rendered';
+    renderSliceDetail();
+    document.getElementById('slice-detail-overlay').style.display = '';
+  }
+
+  function closeSliceDetail() {
+    document.getElementById('slice-detail-overlay').style.display = 'none';
+    sliceDetailState = null;
+  }
+
+  // Close on Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sliceDetailState) {
+      closeSliceDetail();
+    }
+  });
+
+  // Close on backdrop click
+  document.getElementById('slice-detail-overlay').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeSliceDetail();
+  });
+
+  function switchDetailTab(tab) {
+    sliceDetailTab = tab;
+    document.getElementById('tab-rendered').classList.toggle('active', tab === 'rendered');
+    document.getElementById('tab-source').classList.toggle('active', tab === 'source');
+    renderSliceDetailBody();
+  }
+
+  function renderSliceDetail() {
+    if (!sliceDetailState) return;
+    const s = sliceDetailState;
+    document.getElementById('slice-detail-id').textContent = `#${s.id}`;
+    document.getElementById('slice-detail-title').textContent = s.frontmatter.title || 'Untitled';
+    document.getElementById('tab-rendered').classList.add('active');
+    document.getElementById('tab-source').classList.remove('active');
+    renderSliceDetailBody();
+    renderSliceDetailActions();
+  }
+
+  function renderSliceDetailBody() {
+    const container = document.getElementById('slice-detail-body');
+    if (!sliceDetailState) return;
+
+    if (sliceDetailTab === 'rendered') {
+      container.innerHTML = renderRenderedTab(sliceDetailState.body);
+    } else {
+      container.innerHTML = `
+        <textarea class="slice-source-textarea" id="slice-source-editor">${escHtml(sliceDetailState.body)}</textarea>
+        <div class="slice-source-note">Edit directly — changes are saved to the slice file on disk.</div>
+      `;
+    }
+  }
+
+  function renderRenderedTab(body) {
+    // Extract sections from the markdown body
+    const sections = parseMarkdownSections(body);
+    let html = '';
+
+    // Priority order: Goal/Objective, Scope, Out of Scope/Constraints, Acceptance Criteria/Success criteria
+    const sectionOrder = [
+      { keys: ['goal', 'objective'], label: 'Goal' },
+      { keys: ['context'], label: 'Context' },
+      { keys: ['scope'], label: 'Scope' },
+      { keys: ['out of scope', 'constraints'], label: 'Constraints' },
+      { keys: ['tasks'], label: 'Tasks' },
+      { keys: ['acceptance criteria', 'success criteria'], label: 'Acceptance Criteria' },
+    ];
+
+    for (const def of sectionOrder) {
+      const match = sections.find(s => def.keys.some(k => s.heading.toLowerCase().includes(k)));
+      if (!match) continue;
+      const isCriteria = def.label === 'Acceptance Criteria';
+      const contentClass = isCriteria ? 'slice-rendered-criteria' : '';
+      html += `
+        <div class="slice-rendered-section">
+          <div class="slice-rendered-section-label">${escHtml(def.label)}</div>
+          <div class="slice-rendered-section-content ${contentClass}">${marked.parse(match.content)}</div>
+        </div>`;
+    }
+
+    // If no sections matched, just render the full body
+    if (!html && body.trim()) {
+      html = `<div class="slice-rendered-section">
+        <div class="slice-rendered-section-content">${marked.parse(body)}</div>
+      </div>`;
+    }
+
+    return html;
+  }
+
+  function parseMarkdownSections(md) {
+    const lines = md.split('\n');
+    const sections = [];
+    let current = null;
+
+    for (const line of lines) {
+      const headingMatch = line.match(/^(#{1,3})\s+(.+)/);
+      if (headingMatch) {
+        if (current) sections.push(current);
+        current = { heading: headingMatch[2].trim(), content: '' };
+      } else if (current) {
+        current.content += line + '\n';
+      }
+    }
+    if (current) sections.push(current);
+    return sections;
+  }
+
+  function renderSliceDetailActions() {
+    const container = document.getElementById('slice-detail-actions');
+    if (!sliceDetailState) return;
+    const s = sliceDetailState;
+
+    if (s.context === 'staged') {
+      container.innerHTML = `
+        <button class="slice-action-btn slice-action-approve" onclick="sliceDetailApprove()">Approve</button>
+        <button class="slice-action-btn slice-action-refine" onclick="sliceDetailRefine()">Refine</button>
+        <div class="slice-detail-actions-spacer"></div>
+        <button class="slice-action-btn slice-action-destructive" onclick="sliceDetailReject()">Reject</button>
+      `;
+    } else {
+      container.innerHTML = `
+        <button class="slice-action-btn slice-action-save" onclick="sliceDetailSave()">Save edits</button>
+        <button class="slice-action-btn slice-action-send-kira" onclick="sliceDetailSendToKira()">Send to Kira</button>
+        <div class="slice-detail-actions-spacer"></div>
+        <button class="slice-action-btn slice-action-destructive" onclick="sliceDetailRemove()">Remove from queue</button>
+      `;
+    }
+  }
+
+  // ── Staged actions ──
+  async function sliceDetailApprove() {
+    if (!sliceDetailState) return;
+    try {
+      const res = await fetch(`/api/bridge/staged/${sliceDetailState.id}/approve`, { method: 'POST' });
+      if (res.ok) {
+        closeSliceDetail();
+        fetchCombinedQueue();
+        fetchBridge();
+      }
+    } catch (_) {}
+  }
+
+  async function sliceDetailRefine() {
+    if (!sliceDetailState) return;
+    const note = prompt('Refinement note for Kira:');
+    if (note == null) return;
+    try {
+      const res = await fetch(`/api/bridge/staged/${sliceDetailState.id}/amend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: note || 'Needs refinement' }),
+      });
+      if (res.ok) {
+        closeSliceDetail();
+        fetchCombinedQueue();
+        fetchBridge();
+      }
+    } catch (_) {}
+  }
+
+  async function sliceDetailReject() {
+    if (!sliceDetailState) return;
+    if (!confirm(`Reject slice #${sliceDetailState.id}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/bridge/staged/${sliceDetailState.id}/reject`, { method: 'POST' });
+      if (res.ok) {
+        closeSliceDetail();
+        fetchCombinedQueue();
+        fetchBridge();
+      }
+    } catch (_) {}
+  }
+
+  // ── Accepted actions ──
+  async function sliceDetailSave() {
+    if (!sliceDetailState) return;
+    const textarea = document.getElementById('slice-source-editor');
+    const body = textarea ? textarea.value : sliceDetailState.body;
+    try {
+      const res = await fetch(`/api/queue/${sliceDetailState.id}/content`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body }),
+      });
+      if (res.ok) {
+        sliceDetailState.body = body;
+        if (sliceDetailTab === 'rendered') renderSliceDetailBody();
+        fetchCombinedQueue();
+      }
+    } catch (_) {}
+  }
+
+  async function sliceDetailSendToKira() {
+    if (!sliceDetailState) return;
+    if (!confirm(`Send slice #${sliceDetailState.id} back to Kira for revision?`)) return;
+    try {
+      const res = await fetch(`/api/queue/${sliceDetailState.id}/send-to-kira`, { method: 'POST' });
+      if (res.ok) {
+        closeSliceDetail();
+        fetchCombinedQueue();
+        fetchBridge();
+      }
+    } catch (_) {}
+  }
+
+  async function sliceDetailRemove() {
+    if (!sliceDetailState) return;
+    if (!confirm(`Remove slice #${sliceDetailState.id} from the queue? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/queue/${sliceDetailState.id}/remove`, { method: 'POST' });
+      if (res.ok) {
+        closeSliceDetail();
+        fetchCombinedQueue();
+        fetchBridge();
+      }
+    } catch (_) {}
   }
 
   // ── Drag-to-reorder for accepted rows ──────────────────────────────────────
