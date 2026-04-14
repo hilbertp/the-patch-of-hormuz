@@ -53,17 +53,6 @@ Runs in parallel. Cut `ruflo-benchmark-baseline` branch before sprint starts.
 
 ---
 
-## Added with Kira before sprint start — 2026-04-14
-
-These items were identified in a pre-sprint conversation between Philipp and Kira. They are logged here for post-experiment comparison: did Ruflo surface any of these independently?
-
-- **Wormhole scope gap:** Wormhole eliminates permission prompts for the Kira drain, but `/handoff-to-teammate` writes also trigger a prompt — one per file, every time any Cowork role hands off to another. Wormhole should cover handoffs too.
-- **Skill rename:** `/wrap-up` implies end of session. The skill is now used mid-session to keep memory current. Renamed to `/housekeep-memory`.
-- **Terminology rename:** "Brief" renamed to "Slice" everywhere — docs, code, UI. Risk flagged: the commission→brief rename earlier broke the pipeline. This one needs a two-phase approach: docs first, code + verification second.
-- **Drain extensibility:** The autonomous self-activation pattern is built for Kira in Sprint 3 but should not be Kira-specific by design. Any role should be able to get a drain in a future sprint without architectural rework.
-
----
-
 ## Assessment
 
 1. Did Kira deliver a demo?
