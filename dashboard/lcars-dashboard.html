@@ -119,6 +119,8 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     min-width: 0;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   /* ── POST-BUILD PIPELINE (mocked) ──────────────────── */
@@ -185,7 +187,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 16px;
+    margin-bottom: 4px;
   }
 
   .active-brief-info {
@@ -193,17 +195,53 @@
     min-width: 0;
   }
 
+  .active-brief-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+  }
+
+  .active-brief-timer {
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .active-brief-timer-value {
+    font-variant-numeric: tabular-nums;
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.1;
+  }
+
+  .active-brief-timer-label {
+    font-size: 11px;
+    color: #9ca3af;
+    text-align: right;
+  }
+
   .active-brief-id {
     font-size: 12px;
     font-weight: 500;
-    color: #6b7280;
-    margin-bottom: 4px;
+    color: #9ca3af;
+    margin-top: 12px;
+    margin-bottom: 2px;
   }
 
   .active-brief-title {
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 19px;
+    font-weight: 700;
     color: #111827;
+    line-height: 1.3;
+  }
+
+  .active-brief-desc {
+    font-size: 13px;
+    color: #6b7280;
+    margin-top: 4px;
+    line-height: 1.5;
   }
 
   .active-brief-stage {
@@ -224,6 +262,121 @@
   .active-brief-idle {
     font-size: 14px;
     color: #9ca3af;
+    padding: 16px 0;
+  }
+
+  .active-brief-idle-primary {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .active-brief-idle-primary.warning {
+    color: #d97706;
+  }
+
+  .active-brief-idle-secondary {
+    font-size: 13px;
+    color: #9ca3af;
+  }
+
+  /* ── Builder footer ── */
+  .active-brief-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: auto;
+    padding-top: 16px;
+  }
+
+  .active-brief-builder {
+    font-size: 13px;
+    color: #6b7280;
+  }
+
+  /* ── Stop Build button ── */
+  .stop-build-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #dc2626;
+    background: #fffbeb;
+    border: 1px solid #dc2626;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .stop-build-btn:hover {
+    background: #fef2f2;
+  }
+
+  /* ── Stop confirmation dialog ── */
+  .stop-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .stop-confirm-dialog {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+  }
+
+  .stop-confirm-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 8px;
+  }
+
+  .stop-confirm-body {
+    font-size: 14px;
+    color: #6b7280;
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+
+  .stop-confirm-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  .stop-confirm-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: system-ui, -apple-system, sans-serif;
+    transition: opacity 0.15s;
+  }
+
+  .stop-confirm-btn:hover { opacity: 0.85; }
+
+  .stop-confirm-btn-cancel {
+    background: transparent;
+    border: 1px solid #d1d5db;
+    color: #374151;
+  }
+
+  .stop-confirm-btn-confirm {
+    background: #dc2626;
+    border: 1px solid #dc2626;
+    color: #ffffff;
   }
 
   /* ── Active progress bar (Variant A) ───────────────────── */
@@ -260,6 +413,8 @@
     gap: 0;
     overflow-x: auto;
     padding-bottom: 4px;
+    flex-wrap: wrap;
+    row-gap: 6px;
   }
 
   .pipeline-stages::-webkit-scrollbar { height: 3px; }
@@ -268,40 +423,45 @@
 
   .stage-node {
     flex-shrink: 0;
-    padding: 4px 8px;
+    padding: 4px 10px;
     font-size: 11px;
     font-weight: 500;
     border-radius: 4px;
-    color: #d1d5db;
+    color: #9ca3af;
     background: transparent;
-    transition: color 0.2s, background 0.2s;
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s;
     white-space: nowrap;
   }
 
   .stage-node.done {
-    color: #9ca3af;
+    color: #166534;
+    background: #dcfce7;
+    border-color: #16a34a;
   }
 
   .stage-node.active {
-    color: #2563eb;
-    background: #eff6ff;
+    color: #ffffff;
+    background: #111827;
+    border-color: #111827;
     font-weight: 600;
   }
 
   .stage-node.upcoming {
-    color: #d1d5db;
+    color: #9ca3af;
+    border-color: #e5e7eb;
   }
 
   .stage-connector {
     flex-shrink: 0;
     font-size: 10px;
-    padding: 0 2px;
+    padding: 0 3px;
     user-select: none;
-    color: #e5e7eb;
+    color: #d1d5db;
     transition: color 0.2s;
   }
 
-  .stage-connector.done { color: #9ca3af; }
+  .stage-connector.done { color: #16a34a; }
 
   /* ── QUEUE STATS ───────────────────────────────────────── */
   .queue-stats {
@@ -834,19 +994,35 @@
     <div class="panel-hero">
       <div class="active-brief">
         <div class="active-progress-bar" id="active-progress-bar" style="display:none"></div>
+
+        <!-- Header row: label left, timer right -->
         <div class="active-brief-header">
-          <div class="active-brief-info">
-            <div id="mission-id-badge" class="active-brief-id" style="display:none"></div>
-            <div id="mission-text" style="display:none">
-              <div id="pipeline-mission-title" class="active-brief-title"></div>
-              <div id="pipeline-mission-goal" class="active-brief-stage" style="opacity:0.65;font-size:0.82em;margin-top:2px"></div>
-              <div id="pipeline-mission-stage" class="active-brief-stage"></div>
-            </div>
-            <div id="mission-idle-text" class="active-brief-idle">No active brief.</div>
+          <div class="active-brief-label">Active Build</div>
+          <div class="active-brief-timer" id="active-timer-block" style="display:none">
+            <div class="active-brief-timer-value" id="mission-elapsed">0m 00s</div>
+            <div class="active-brief-timer-label">elapsed</div>
           </div>
-          <div id="mission-elapsed" class="active-brief-elapsed" style="display:none">00:00</div>
         </div>
-        <div class="pipeline-stages" id="pipeline-stages"></div>
+
+        <!-- Active state content -->
+        <div id="mission-active-content" style="display:none">
+          <div id="mission-id-badge" class="active-brief-id"></div>
+          <div id="pipeline-mission-title" class="active-brief-title"></div>
+          <div id="pipeline-mission-desc" class="active-brief-desc"></div>
+          <div class="pipeline-stages" id="pipeline-stages" style="margin-top:16px"></div>
+        </div>
+
+        <!-- Idle state content -->
+        <div id="mission-idle-text" class="active-brief-idle">
+          <div class="active-brief-idle-primary">All clear</div>
+          <div class="active-brief-idle-secondary">No active build, nothing pending</div>
+        </div>
+
+        <!-- Footer: builder + stop button (only during active) -->
+        <div class="active-brief-footer" id="active-brief-footer" style="display:none">
+          <span class="active-brief-builder">O'Brien &middot; Backend Engineer</span>
+          <button class="stop-build-btn" id="stop-build-btn" onclick="showStopConfirm()">&#9632; Stop Build</button>
+        </div>
       </div>
     </div>
 
@@ -980,25 +1156,37 @@
 
 </div>
 
+<!-- Stop Build confirmation dialog (outside grid, fixed overlay) -->
+<div class="stop-confirm-overlay" id="stop-confirm-overlay" style="display:none">
+  <div class="stop-confirm-dialog">
+    <div class="stop-confirm-title" id="stop-confirm-title">Stop build?</div>
+    <div class="stop-confirm-body" id="stop-confirm-body">O'Brien's current work will be preserved but the slice returns to pending.</div>
+    <div class="stop-confirm-actions">
+      <button class="stop-confirm-btn stop-confirm-btn-cancel" onclick="hideStopConfirm()">Keep Building</button>
+      <button class="stop-confirm-btn stop-confirm-btn-confirm" onclick="confirmStopBuild()">Confirm Stop</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // ── Mission lifecycle pipeline ──────────────────────────────────────────────
 
   const PIPELINE_STAGES = [
-    { key: 'COMMISSIONED',  label: 'Commissioned' },
-    { key: 'DEVELOPMENT',   label: 'Development' },
-    { key: 'PEER_REVIEW',   label: 'Peer Review' },
-    { key: 'QA',            label: 'QA' },
-    { key: 'MERGED',        label: 'Merged' },
+    { key: 'ACCEPTED',     label: 'Accepted' },
+    { key: 'DEVELOPMENT',  label: 'Development' },
+    { key: 'REVIEW',       label: 'Review' },
+    { key: 'QA',           label: 'QA' },
+    { key: 'MERGED',       label: 'Merged' },
   ];
 
   // Map internal queue states to pipeline stage keys
   function mapStateToPipelineKey(state) {
     switch (state) {
-      case 'PENDING':         return 'COMMISSIONED';
+      case 'PENDING':         return 'ACCEPTED';
       case 'IN_PROGRESS':     return 'DEVELOPMENT';
       case 'EVALUATING':
       case 'AWAITING_REVIEW':
-      case 'IN_REVIEW':       return 'PEER_REVIEW';
+      case 'IN_REVIEW':       return 'REVIEW';
       case 'ACCEPTED':        return 'QA';
       case 'MERGED':
       case 'DONE':            return 'MERGED';
@@ -1033,88 +1221,152 @@
   let briefStartTime = null;
   let lastBriefId    = null;
 
+  // Current active mission info (for stop dialog)
+  let currentMission = null;
+
   function startElapsedTick() {
     setInterval(() => {
       if (briefStartTime == null) return;
       const elapsed = Math.floor((Date.now() - briefStartTime) / 1000);
       const el = document.getElementById('mission-elapsed');
-      if (el && el.style.display !== 'none') el.textContent = fmtElapsed(elapsed);
+      if (el) el.textContent = fmtElapsed(elapsed);
     }, 500);
   }
 
   function fmtElapsed(secs) {
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
+    const m = Math.floor(secs / 60);
     const s = secs % 60;
     const pad = n => String(n).padStart(2, '0');
-    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+    return `${m}m ${pad(s)}s`;
   }
 
+  // Staged items count — updated by fetchStaged()
+  let stagedItemCount = 0;
+
   function updatePipelineUI(data) {
-    const { heartbeat, queue, briefs } = data;
+    const { heartbeat, queue, briefs, recent } = data;
 
     let activeStageKey = null;
     let mission = null;
+    let isBuilding = false;
 
     if (heartbeat.status === 'processing' || queue.active > 0) {
       activeStageKey = 'DEVELOPMENT';
+      isBuilding = true;
       const id = heartbeat.current_brief;
       mission = (id ? briefs.find(c => c.id === String(id)) : null)
              ?? briefs.find(c => c.state === 'IN_PROGRESS');
     } else if (queue.waiting > 0) {
-      activeStageKey = 'COMMISSIONED';
+      activeStageKey = 'ACCEPTED';
       mission = briefs.find(c => c.state === 'PENDING');
     } else if (heartbeat.current_brief) {
       const found = briefs.find(c => c.id === String(heartbeat.current_brief));
       if (found && found.state === 'DONE') {
-        activeStageKey = 'PEER_REVIEW';
+        activeStageKey = 'REVIEW';
         mission = found;
       }
     }
 
-    renderPipeline(activeStageKey);
+    const activeContent = document.getElementById('mission-active-content');
+    const idleEl        = document.getElementById('mission-idle-text');
+    const timerBlock    = document.getElementById('active-timer-block');
+    const elapsedEl     = document.getElementById('mission-elapsed');
+    const badgeEl       = document.getElementById('mission-id-badge');
+    const titleEl       = document.getElementById('pipeline-mission-title');
+    const descEl        = document.getElementById('pipeline-mission-desc');
+    const footerEl      = document.getElementById('active-brief-footer');
+    const progressBar   = document.getElementById('active-progress-bar');
 
-    const badgeEl    = document.getElementById('mission-id-badge');
-    const textEl     = document.getElementById('mission-text');
-    const idleEl     = document.getElementById('mission-idle-text');
-    const elapsedEl  = document.getElementById('mission-elapsed');
-    const titleEl    = document.getElementById('pipeline-mission-title');
-    const stageEl    = document.getElementById('pipeline-mission-stage');
-    const progressBar = document.getElementById('active-progress-bar');
-
-    if (activeStageKey && mission) {
-      badgeEl.textContent  = `Brief ${escHtml(mission.id)}`;
-      badgeEl.style.display = '';
-      titleEl.textContent  = mission.title || '\u2014';
-      const goalEl = document.getElementById('pipeline-mission-goal');
-      if (goalEl) goalEl.textContent = mission.goal || '';
-      const stageMeta = PIPELINE_STAGES.find(s => s.key === activeStageKey);
-      stageEl.textContent  = stageMeta ? stageMeta.label : activeStageKey;
-      textEl.style.display = '';
-      idleEl.style.display = 'none';
+    if (isBuilding && mission) {
+      // ── Active state ──
+      currentMission = mission;
+      badgeEl.textContent   = `#${escHtml(mission.id)}`;
+      titleEl.textContent   = mission.title || '\u2014';
+      descEl.textContent    = mission.goal || '';
+      activeContent.style.display = '';
+      idleEl.style.display  = 'none';
+      footerEl.style.display = '';
       progressBar.style.display = (heartbeat.status === 'processing') ? '' : 'none';
 
+      renderPipeline(activeStageKey);
+
+      // Timer
       if (heartbeat.brief_elapsed_seconds != null) {
-        // Re-anchor when brief changes or on first load
         if (briefStartTime == null || mission.id !== lastBriefId) {
           briefStartTime = Date.now() - (heartbeat.brief_elapsed_seconds * 1000);
           lastBriefId    = mission.id;
         }
         const elapsed = Math.floor((Date.now() - briefStartTime) / 1000);
-        elapsedEl.textContent  = fmtElapsed(elapsed);
-        elapsedEl.style.display = '';
+        elapsedEl.textContent = fmtElapsed(elapsed);
+        timerBlock.style.display = '';
       } else {
-        elapsedEl.style.display = 'none';
+        timerBlock.style.display = 'none';
       }
     } else {
-      badgeEl.style.display   = 'none';
-      textEl.style.display    = 'none';
-      idleEl.style.display    = '';
-      elapsedEl.style.display = 'none';
+      // ── Idle states ──
+      currentMission = null;
+      activeContent.style.display = 'none';
+      timerBlock.style.display = 'none';
+      footerEl.style.display = 'none';
       progressBar.style.display = 'none';
       briefStartTime = null;
       lastBriefId    = null;
+
+      const primaryEl   = idleEl.querySelector('.active-brief-idle-primary');
+      const secondaryEl = idleEl.querySelector('.active-brief-idle-secondary');
+
+      if (stagedItemCount > 0) {
+        // Idle A — staged items awaiting acceptance
+        primaryEl.textContent = `${stagedItemCount} slice${stagedItemCount !== 1 ? 's' : ''} awaiting your approval`;
+        primaryEl.className = 'active-brief-idle-primary warning';
+        secondaryEl.textContent = 'Accept below to start the next build \u2192';
+      } else if (recent && recent.length > 0) {
+        // Idle B — last completed, nothing staged
+        const last = recent[0];
+        primaryEl.textContent = `Last: #${last.id} \u2014 ${last.title || 'Untitled'}`;
+        primaryEl.className = 'active-brief-idle-primary';
+        if (last.completedAt) {
+          const ago = Math.floor((Date.now() - new Date(last.completedAt).getTime()) / 1000);
+          let agoStr;
+          if (ago < 60)       agoStr = `${ago}s ago`;
+          else if (ago < 3600) agoStr = `${Math.floor(ago / 60)}m ${ago % 60}s ago`;
+          else                 agoStr = `${Math.floor(ago / 3600)}h ${Math.floor((ago % 3600) / 60)}m ago`;
+          secondaryEl.textContent = `completed ${agoStr} \u00b7 All clear`;
+        } else {
+          secondaryEl.textContent = 'All clear';
+        }
+      } else {
+        // Idle C — no history at all
+        primaryEl.textContent = 'All clear';
+        primaryEl.className = 'active-brief-idle-primary';
+        secondaryEl.textContent = 'No active build, nothing pending';
+      }
+
+      idleEl.style.display = '';
+
+      // Pipeline stages hidden during idle — they're inside mission-active-content which is display:none
     }
+  }
+
+  // ── Stop Build ──
+  function showStopConfirm() {
+    if (!currentMission) return;
+    const overlay = document.getElementById('stop-confirm-overlay');
+    const titleEl = document.getElementById('stop-confirm-title');
+    const bodyEl  = document.getElementById('stop-confirm-body');
+    titleEl.textContent = `Stop #${currentMission.id} \u2014 ${currentMission.title || 'Untitled'}?`;
+    bodyEl.textContent  = "O'Brien's current work will be preserved but the slice returns to pending.";
+    overlay.style.display = '';
+  }
+
+  function hideStopConfirm() {
+    document.getElementById('stop-confirm-overlay').style.display = 'none';
+  }
+
+  async function confirmStopBuild() {
+    hideStopConfirm();
+    // TODO: Call kill endpoint when available
+    // For now, this is a UI-only confirmation flow
   }
 
   // ── Bridge data wiring ──────────────────────────────────────────────────────
@@ -1512,6 +1764,7 @@
       const res = await fetch('/api/bridge/staged');
       if (!res.ok) return;
       const items = await res.json();
+      stagedItemCount = (items || []).filter(i => i.status !== 'NEEDS_AMENDMENT').length;
       renderStagedCards(items);
     } catch (_) {}
   }
