@@ -52,12 +52,14 @@ Runs in parallel. Cut `ruflo-benchmark-baseline` branch before sprint starts.
 
 ---
 
-## Additional scope (added 2026-04-14)
+## Added with Kira before sprint start — 2026-04-14
 
-- The Wormhole should also eliminate the permission prompt when Cowork roles hand off files to each other — not just the Kira drain. Every `/handoff-to-teammate` write triggers a click today.
-- Rename the `/wrap-up` skill. The current name implies end of session but we use it mid-session to keep memory current. New name: `/housekeep-memory`.
-- Rename "brief" to "Slice" everywhere — docs, code, UI, all of it. The last time we did a rename like this (commission → brief) the pipeline broke. Be careful.
-- The autonomous self-activation pattern built for Kira should work for any role in future sprints, not just Kira. Don't paint yourself into a corner.
+These items were identified in a pre-sprint conversation between Philipp and Kira. They are logged here for post-experiment comparison: did Ruflo surface any of these independently?
+
+- **Wormhole scope gap:** Wormhole eliminates permission prompts for the Kira drain, but `/handoff-to-teammate` writes also trigger a prompt — one per file, every time any Cowork role hands off to another. Wormhole should cover handoffs too.
+- **Skill rename:** `/wrap-up` implies end of session. The skill is now used mid-session to keep memory current. Renamed to `/housekeep-memory`.
+- **Terminology rename:** "Brief" renamed to "Slice" everywhere — docs, code, UI. Risk flagged: the commission→brief rename earlier broke the pipeline. This one needs a two-phase approach: docs first, code + verification second.
+- **Drain extensibility:** The autonomous self-activation pattern is built for Kira in Sprint 3 but should not be Kira-specific by design. Any role should be able to get a drain in a future sprint without architectural rework.
 
 ---
 
