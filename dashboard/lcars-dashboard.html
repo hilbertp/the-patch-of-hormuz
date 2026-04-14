@@ -86,17 +86,30 @@
   .header-status-dot.offline { background: #dc2626; }
   .header-status-dot.idle { background: #f59e0b; }
 
-  /* ── ACTIVE BRIEF ─────────────────────────────────── */
-  /* Active brief row — card left ~50%, black reserved space right */
-  .active-brief-row {
-    display: flex;
-    align-items: stretch;
-    gap: 0;
+  /* ── OPS GRID (4-panel layout) ───────────────────── */
+  .ops-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "hero postbuild"
+      "queue history";
+    gap: 16px;
     margin-bottom: 24px;
-    border-radius: 8px;
-    overflow: hidden;
+    align-items: stretch;
   }
 
+  .panel-hero      { grid-area: hero; display: flex; }
+  .panel-postbuild { grid-area: postbuild; display: flex; }
+  .panel-queue     { grid-area: queue; display: flex; }
+  .panel-history   { grid-area: history; display: flex; }
+
+  .panel-hero .active-brief   { flex: 1; }
+  .panel-postbuild .postbuild-panel { flex: 1; }
+  .panel-queue .queue-panel    { flex: 1; }
+  .panel-history .brief-history { flex: 1; }
+
+  /* ── ACTIVE BRIEF ─────────────────────────────────── */
   .active-brief {
     position: relative;
     background: #ffffff;
@@ -104,14 +117,67 @@
     border-radius: 8px;
     padding: 20px 24px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-    flex: 0 0 50%;
     min-width: 0;
     overflow: hidden;
   }
 
-  .active-brief-aside {
-    flex: 0 0 50%;
-    min-width: 0;
+  /* ── POST-BUILD PIPELINE (mocked) ──────────────────── */
+  .postbuild-panel {
+    background: #ffffff;
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    opacity: 0.5;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .postbuild-panel .section-title {
+    margin-bottom: 12px;
+  }
+
+  .postbuild-lane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .postbuild-lane-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .postbuild-lane-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .postbuild-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #f3f4f6;
+    color: #6b7280;
+    white-space: nowrap;
+  }
+
+  .postbuild-lane-desc {
+    font-size: 12px;
+    color: #9ca3af;
+  }
+
+  .postbuild-arrow {
+    text-align: center;
+    font-size: 16px;
+    color: #d1d5db;
+    padding: 8px 0;
   }
 
   .active-brief-header {
@@ -648,14 +714,7 @@
     margin-top: 8px;
   }
 
-  /* ── QUEUE + HISTORY TWO-COLUMN LAYOUT ───────────────── */
-  .queue-history-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-
+  /* ── QUEUE + HISTORY PANELS ──────────────────────────── */
   .queue-panel {
     background: #ffffff;
     border: 1px solid #e5e7eb;
@@ -713,7 +772,14 @@
     .queue-stats { flex-wrap: wrap; }
     .stat-card { flex: 1 1 calc(50% - 8px); min-width: 0; }
     .crew-grid { grid-template-columns: 1fr; }
-    .queue-history-row { grid-template-columns: 1fr; }
+    .ops-grid {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "hero"
+        "postbuild"
+        "queue"
+        "history";
+    }
   }
 
   /* ── UTILITY (referenced by JS) ────────────────────────── */
@@ -735,27 +801,6 @@
       <div class="header-status-dot" id="header-status-dot"></div>
       <span id="watcher-status-text">ONLINE</span>
     </div>
-  </div>
-
-  <!-- ── ACTIVE BRIEF ───────────────────────────────────────────── -->
-  <div class="active-brief-row">
-  <div class="active-brief">
-    <div class="active-progress-bar" id="active-progress-bar" style="display:none"></div>
-    <div class="active-brief-header">
-      <div class="active-brief-info">
-        <div id="mission-id-badge" class="active-brief-id" style="display:none"></div>
-        <div id="mission-text" style="display:none">
-          <div id="pipeline-mission-title" class="active-brief-title"></div>
-          <div id="pipeline-mission-goal" class="active-brief-stage" style="opacity:0.65;font-size:0.82em;margin-top:2px"></div>
-          <div id="pipeline-mission-stage" class="active-brief-stage"></div>
-        </div>
-        <div id="mission-idle-text" class="active-brief-idle">No active brief.</div>
-      </div>
-      <div id="mission-elapsed" class="active-brief-elapsed" style="display:none">00:00</div>
-    </div>
-    <div class="pipeline-stages" id="pipeline-stages"></div>
-  </div>
-  <div class="active-brief-aside" id="active-brief-aside"></div>
   </div>
 
   <!-- ── QUEUE STATS ─────────────────────────────────────────────────── -->
@@ -782,35 +827,85 @@
     </div>
   </div>
 
+  <!-- ── OPS GRID (4-panel layout) ───────────────────────────────────── -->
+  <div class="ops-grid">
 
-  <!-- ── QUEUE + HISTORY (two-column) ─────────────────────────────────── -->
-  <div class="queue-history-row">
-    <div class="queue-panel">
-      <div class="section-title">Queue</div>
-      <div id="staged-cards"></div>
-      <div id="queue-items">
-        <div class="queue-empty">Queue is clear.</div>
+    <!-- HERO: Active Build -->
+    <div class="panel-hero">
+      <div class="active-brief">
+        <div class="active-progress-bar" id="active-progress-bar" style="display:none"></div>
+        <div class="active-brief-header">
+          <div class="active-brief-info">
+            <div id="mission-id-badge" class="active-brief-id" style="display:none"></div>
+            <div id="mission-text" style="display:none">
+              <div id="pipeline-mission-title" class="active-brief-title"></div>
+              <div id="pipeline-mission-goal" class="active-brief-stage" style="opacity:0.65;font-size:0.82em;margin-top:2px"></div>
+              <div id="pipeline-mission-stage" class="active-brief-stage"></div>
+            </div>
+            <div id="mission-idle-text" class="active-brief-idle">No active brief.</div>
+          </div>
+          <div id="mission-elapsed" class="active-brief-elapsed" style="display:none">00:00</div>
+        </div>
+        <div class="pipeline-stages" id="pipeline-stages"></div>
       </div>
     </div>
-    <div class="brief-history" style="margin-bottom:0">
-      <div class="section-title">History</div>
-      <div class="table-scroll">
-        <table class="brief-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Description</th>
-              <th>Status</th>
-              <th>Duration</th>
-              <th>Tokens</th>
-              <th>Cost</th>
-            </tr>
-          </thead>
-          <tbody id="brief-tbody">
-          </tbody>
-        </table>
+
+    <!-- POST-BUILD PIPELINE (mocked) -->
+    <div class="panel-postbuild">
+      <div class="postbuild-panel">
+        <div class="section-title">Post-Build Pipeline</div>
+        <div class="postbuild-lane">
+          <div class="postbuild-lane-header">
+            <span class="postbuild-lane-name">Nog &mdash; Code Review</span>
+            <span class="postbuild-badge">coming soon</span>
+          </div>
+          <div class="postbuild-lane-desc">anti-patterns &middot; style &middot; linting &middot; conventions</div>
+        </div>
+        <div class="postbuild-arrow">&darr;</div>
+        <div class="postbuild-lane">
+          <div class="postbuild-lane-header">
+            <span class="postbuild-lane-name">Bashir &mdash; QA</span>
+            <span class="postbuild-badge">coming soon</span>
+          </div>
+          <div class="postbuild-lane-desc">E2E regression &middot; user journey &middot; sprint-gated</div>
+        </div>
       </div>
     </div>
+
+    <!-- QUEUE -->
+    <div class="panel-queue">
+      <div class="queue-panel">
+        <div class="section-title">Queue</div>
+        <div id="staged-cards"></div>
+        <div id="queue-items">
+          <div class="queue-empty">Queue is clear.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="panel-history">
+      <div class="brief-history" style="margin-bottom:0">
+        <div class="section-title">History &darr; newest first</div>
+        <div class="table-scroll">
+          <table class="brief-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th>Tokens</th>
+                <th>Cost</th>
+              </tr>
+            </thead>
+            <tbody id="brief-tbody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ── CREW MANIFEST ───────────────────────────────────────────────── -->
