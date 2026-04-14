@@ -17,6 +17,9 @@ bridge/queue/*.md
 bridge/queue/*.json
 !bridge/queue/.gitkeep
 
+# Register log — append-only runtime file, not source code
+bridge/register.jsonl
+
 # Environment
 .env
 .env.*
