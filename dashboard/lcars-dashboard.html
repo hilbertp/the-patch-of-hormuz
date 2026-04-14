@@ -1154,6 +1154,18 @@
     opacity: 0.4;
   }
 
+  .queue-row[draggable="true"] {
+    user-select: none;
+  }
+
+  .queue-row-id {
+    font-size: 11px;
+    color: #9ca3af;
+    font-family: monospace;
+    flex-shrink: 0;
+    min-width: 32px;
+  }
+
   .queue-drag-handle {
     font-size: 14px;
     color: #d1d5db;
@@ -2293,6 +2305,7 @@
   let cachedStagedItems = [];
   let cachedBridgeBriefs = [];
   let cachedQueueOrder = [];
+  let cachedStagedOrder = [];
   let dragSrcId = null;
 
   function isAmendment(item) {
@@ -2314,26 +2327,33 @@
       const found = normalAccepted.find(b => b.id === oid);
       if (found) orderedAccepted.push(found);
     }
-    // Any accepted items not in the order list go at the end
-    for (const b of normalAccepted) {
-      if (!cachedQueueOrder.includes(b.id)) orderedAccepted.push(b);
-    }
+    // Any accepted items not in the order list go at the end, sorted ascending by ID
+    const unorderedAccepted = normalAccepted
+      .filter(b => !cachedQueueOrder.includes(b.id))
+      .sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
+    for (const b of unorderedAccepted) orderedAccepted.push(b);
     const acceptedRows = orderedAccepted.map(b => ({ ...b, rowState: 'accepted', isAmendment: false }));
 
-    // 3. Staged rows — unaccepted, at bottom
-    const stagedRows = cachedStagedItems
-      .filter(s => s.status !== 'NEEDS_AMENDMENT')
-      .map(s => ({
-        id: s.id,
-        title: s.title,
-        sprint: s.sprint,
-        references: s.references,
-        created: null,
-        rowState: 'staged',
-        isAmendment: false,
-      }));
+    // 3. Staged rows — unaccepted, at bottom, ordered by cachedStagedOrder
+    const stagedRows = buildStagedRows();
 
     return [...amendmentRows, ...acceptedRows, ...stagedRows];
+  }
+
+  function buildStagedRows() {
+    const base = cachedStagedItems
+      .filter(s => s.status !== 'NEEDS_AMENDMENT')
+      .map(s => ({ id: s.id, title: s.title, sprint: s.sprint, references: s.references, rowState: 'staged', isAmendment: false }));
+
+    const ordered = [];
+    for (const oid of cachedStagedOrder) {
+      const found = base.find(s => s.id === oid);
+      if (found) ordered.push(found);
+    }
+    const unordered = base
+      .filter(s => !cachedStagedOrder.includes(s.id))
+      .sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
+    return [...ordered, ...unordered];
   }
 
   function renderQueueList() {
@@ -2351,6 +2371,8 @@
       const isAccepted = row.rowState === 'accepted';
       const isAmd = row.isAmendment;
 
+      const isStaged = row.rowState === 'staged';
+
       // Drag handle
       let handleClass = '';
       let draggable = 'false';
@@ -2359,6 +2381,9 @@
         draggable = 'true';
       } else if (isAccepted && isAmd) {
         handleClass = 'locked';
+      } else if (isStaged && !isAmd) {
+        handleClass = 'active';
+        draggable = 'true';
       }
 
       // Action buttons
@@ -2375,6 +2400,7 @@
 
       return `<div class="queue-row" data-id="${eid}" data-state="${row.rowState}" data-amendment="${isAmd}" draggable="${draggable}">
         <span class="queue-drag-handle ${handleClass}">&#10303;</span>
+        <span class="queue-row-id">#${eid}</span>
         <span class="sprint-badge">${escHtml(sprintLabel)}</span>
         <span class="queue-row-title">${escHtml(row.title || '')}</span>
         <span class="queue-row-actions">${actionsHtml}</span>
@@ -2390,6 +2416,8 @@
     try {
       const res = await fetch('/api/bridge/staged/' + id + '/approve', { method: 'POST' });
       if (res.ok) {
+        if (!cachedQueueOrder.includes(id)) cachedQueueOrder = [...cachedQueueOrder, id];
+        cachedStagedOrder = cachedStagedOrder.filter(sid => sid !== id);
         fetchCombinedQueue();
         fetchBridge();
       }
@@ -2672,6 +2700,7 @@
     dragSrcId = e.currentTarget.dataset.id;
     e.currentTarget.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', dragSrcId);
   }
 
   function onDragEnd(e) {
@@ -2683,9 +2712,16 @@
   function onDragOver(e) {
     e.preventDefault();
     const target = e.currentTarget;
-    // Only allow dropping onto non-amendment accepted rows or between them
     if (target.dataset.amendment === 'true') return;
-    if (target.dataset.state === 'staged') return;
+
+    // Determine source section from dragSrcId
+    const srcRow = document.querySelector(`.queue-row[data-id="${dragSrcId}"]`);
+    const srcState = srcRow ? srcRow.dataset.state : null;
+    const targetState = target.dataset.state;
+
+    // Block cross-section drops
+    if (srcState !== targetState) return;
+
     e.dataTransfer.dropEffect = 'move';
     target.classList.add('drag-over');
   }
@@ -2699,28 +2735,57 @@
     const targetRow = e.currentTarget;
     targetRow.classList.remove('drag-over');
     if (!dragSrcId || targetRow.dataset.id === dragSrcId) return;
-    if (targetRow.dataset.amendment === 'true' || targetRow.dataset.state === 'staged') return;
+    if (targetRow.dataset.amendment === 'true') return;
+
+    // Determine source section
+    const srcRow = document.querySelector(`.queue-row[data-id="${dragSrcId}"]`);
+    const srcState = srcRow ? srcRow.dataset.state : null;
+    const targetState = targetRow.dataset.state;
+
+    // Block cross-section drops
+    if (srcState !== targetState) return;
 
     const targetId = targetRow.dataset.id;
 
-    // Reorder: move dragSrcId before targetId in queue order
-    let order = [...cachedQueueOrder];
-    order = order.filter(id => id !== dragSrcId);
-    const targetIdx = order.indexOf(targetId);
-    if (targetIdx !== -1) {
-      order.splice(targetIdx, 0, dragSrcId);
-    } else {
-      order.push(dragSrcId);
-    }
-    cachedQueueOrder = order;
-    renderQueueList();
+    if (targetState === 'accepted') {
+      // Reorder accepted: move dragSrcId before targetId in queue order
+      let order = [...cachedQueueOrder];
+      order = order.filter(id => id !== dragSrcId);
+      const targetIdx = order.indexOf(targetId);
+      if (targetIdx !== -1) {
+        order.splice(targetIdx, 0, dragSrcId);
+      } else {
+        order.push(dragSrcId);
+      }
+      cachedQueueOrder = order;
+      renderQueueList();
 
-    // Persist to server
-    fetch('/api/queue/order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order }),
-    }).catch(() => {});
+      // Persist to server
+      fetch('/api/queue/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order }),
+      }).catch(() => {});
+    } else if (targetState === 'staged') {
+      // Reorder staged: client-side only
+      let order = [...cachedStagedOrder];
+      // Ensure both IDs are in the order array
+      const allStagedIds = cachedStagedItems
+        .filter(s => s.status !== 'NEEDS_AMENDMENT')
+        .map(s => s.id);
+      for (const sid of allStagedIds) {
+        if (!order.includes(sid)) order.push(sid);
+      }
+      order = order.filter(id => id !== dragSrcId);
+      const targetIdx = order.indexOf(targetId);
+      if (targetIdx !== -1) {
+        order.splice(targetIdx, 0, dragSrcId);
+      } else {
+        order.push(dragSrcId);
+      }
+      cachedStagedOrder = order;
+      renderQueueList();
+    }
   }
 
   // ── Combined fetch ─────────────────────────────────────────────────────────
@@ -2733,6 +2798,16 @@
       if (stagedRes.ok) {
         cachedStagedItems = await stagedRes.json();
         stagedItemCount = cachedStagedItems.filter(i => i.status !== 'NEEDS_AMENDMENT').length;
+        // Merge new staged items into cachedStagedOrder without losing existing order
+        const currentStagedIds = cachedStagedItems
+          .filter(i => i.status !== 'NEEDS_AMENDMENT')
+          .map(i => i.id);
+        // Remove IDs no longer in staged
+        cachedStagedOrder = cachedStagedOrder.filter(id => currentStagedIds.includes(id));
+        // Append any new IDs not yet in the order
+        for (const sid of currentStagedIds) {
+          if (!cachedStagedOrder.includes(sid)) cachedStagedOrder.push(sid);
+        }
       }
       if (bridgeRes.ok) {
         const bridgeData = await bridgeRes.json();
