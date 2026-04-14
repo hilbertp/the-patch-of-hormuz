@@ -12,6 +12,11 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 
+# Queue runtime state (managed by watcher, not source code)
+bridge/queue/*.md
+bridge/queue/*.json
+!bridge/queue/.gitkeep
+
 # Environment
 .env
 .env.*
