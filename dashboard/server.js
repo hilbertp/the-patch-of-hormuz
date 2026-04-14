@@ -16,9 +16,30 @@ const DASHBOARD    = path.join(__dirname, 'lcars-dashboard.html');
 
 const CORS_ORIGIN  = 'https://dax-dashboard.lovable.app';
 
+const QUEUE_ORDER  = path.join(REPO_ROOT, 'bridge', 'queue-order.json');
+
 // ── Ensure staging directories exist ─────────────────────────────────────────
 for (const dir of [STAGED_DIR, TRASH_DIR]) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+// ── Sprint lookup ────────────────────────────────────────────────────────────
+// Sprint 1: 001–056, Sprint 2: 057–088, Sprint 3: 089+
+function getSprintForId(id) {
+  const n = parseInt(id, 10);
+  if (isNaN(n)) return null;
+  if (n <= 56) return 1;
+  if (n <= 88) return 2;
+  return 3;
+}
+
+// ── Queue order persistence ──────────────────────────────────────────────────
+function readQueueOrder() {
+  try { return JSON.parse(fs.readFileSync(QUEUE_ORDER, 'utf8')); }
+  catch (_) { return []; }
+}
+function writeQueueOrder(order) {
+  fs.writeFileSync(QUEUE_ORDER, JSON.stringify(order, null, 2), 'utf8');
 }
 
 // ── Frontmatter parser ───────────────────────────────────────────────────────
@@ -212,7 +233,7 @@ function buildBridgeData() {
       else if (verdict === 'AMENDMENT_REQUIRED') reviewStatus = 'amendment_required';
       else if (acceptedSet.has(entry.id))        reviewStatus = 'accepted';
       else                                       reviewStatus = 'waiting_for_review';
-      return { ...entry, outcome: finalOutcome, reviewStatus };
+      return { ...entry, outcome: finalOutcome, reviewStatus, sprint: getSprintForId(entry.id) };
     });
 
   // Queue files
@@ -254,6 +275,8 @@ function buildBridgeData() {
       created:   fm.created   ?? null,
       completed: fm.completed ?? null,
       goal:      goalFromRegister ?? goalFromFm,
+      references: fm.references ?? null,
+      sprint:    fm.sprint ? parseInt(fm.sprint, 10) : getSprintForId(id),
     });
   }
 
@@ -265,7 +288,8 @@ function buildBridgeData() {
     return b.id.localeCompare(a.id);
   });
 
-  return { heartbeat, queue, briefs, recent, economics };
+  const queueOrder = readQueueOrder();
+  return { heartbeat, queue, briefs, recent, economics, queueOrder };
 }
 
 // ── HTTP server ──────────────────────────────────────────────────────────────
@@ -354,13 +378,16 @@ const server = http.createServer(async (req, res) => {
         const fm = parseFrontmatter(content);
         const body = extractBody(content);
         const status = file.endsWith('-NEEDS_AMENDMENT.md') ? 'NEEDS_AMENDMENT' : (fm.status || 'STAGED');
+        const itemId = fm.id ?? file.replace(/-(STAGED|NEEDS_AMENDMENT)\.md$/, '');
         items.push({
-          id:              fm.id ?? file.replace(/-(STAGED|NEEDS_AMENDMENT)\.md$/, ''),
+          id:              itemId,
           title:           fm.title ?? null,
           summary:         fm.summary ?? null,
           goal:            fm.goal ?? null,
           status,
           amendment_note:  fm.amendment_note ?? null,
+          references:      fm.references ?? null,
+          sprint:          fm.sprint ? parseInt(fm.sprint, 10) : getSprintForId(itemId),
           body,
         });
       } catch (_) {}
@@ -400,6 +427,16 @@ const server = http.createServer(async (req, res) => {
         content = updateFrontmatter(content, { status: 'PENDING' });
         fs.writeFileSync(path.join(QUEUE_DIR, `${id}-PENDING.md`), content, 'utf8');
         fs.unlinkSync(filePath);
+        // Add to queue order (amendments go to front, others to end)
+        const order = readQueueOrder();
+        const fm2 = parseFrontmatter(content);
+        if (fm2.references && fm2.references !== 'null') {
+          // Amendment: insert at front
+          order.unshift(id);
+        } else if (!order.includes(id)) {
+          order.push(id);
+        }
+        writeQueueOrder(order);
         writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'approved' });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
@@ -478,6 +515,55 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: String(err) }));
       }
+      return;
+    }
+  }
+
+  // ── Unaccept: move PENDING back to staged ───────────────────────────────
+  const unacceptMatch = pathname.match(/^\/api\/queue\/(\d+)\/unaccept$/);
+  if (unacceptMatch && req.method === 'POST') {
+    const id = unacceptMatch[1];
+    const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
+    if (!fs.existsSync(pendingPath)) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Pending brief ${id} not found` }));
+      return;
+    }
+    try {
+      let content = fs.readFileSync(pendingPath, 'utf8');
+      content = updateFrontmatter(content, { status: 'STAGED' });
+      fs.writeFileSync(path.join(STAGED_DIR, `${id}-STAGED.md`), content, 'utf8');
+      fs.unlinkSync(pendingPath);
+      // Remove from queue order
+      const order = readQueueOrder().filter(oid => oid !== id);
+      writeQueueOrder(order);
+      writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'unaccepted' });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
+  // ── Queue order: get/set build order ────────────────────────────────────
+  if (pathname === '/api/queue/order') {
+    if (req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(readQueueOrder()));
+      return;
+    }
+    if (req.method === 'POST') {
+      const payload = await readJsonBody(req);
+      if (!payload || !Array.isArray(payload.order)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing required field: order (array of IDs)' }));
+        return;
+      }
+      writeQueueOrder(payload.order);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
       return;
     }
   }

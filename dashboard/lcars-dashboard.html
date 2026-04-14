@@ -463,39 +463,6 @@
 
   .stage-connector.done { color: #16a34a; }
 
-  /* ── QUEUE STATS ───────────────────────────────────────── */
-  .queue-stats {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 24px;
-  }
-
-  .stat-card {
-    flex: 1;
-    text-align: center;
-    padding: 16px 8px;
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  }
-
-  .stat-label {
-    font-size: 11px;
-    font-weight: 500;
-    color: #6b7280;
-    margin-bottom: 4px;
-  }
-
-  .stat-value {
-    font-size: 28px;
-    font-weight: 700;
-    line-height: 1;
-    color: #111827;
-  }
-
-  .stat-card.error .stat-value { color: #dc2626; }
-  .stat-card.active .stat-value { color: #2563eb; }
 
   /* ── BRIEF HISTORY ────────────────────────────────── */
   .brief-history {
@@ -887,36 +854,154 @@
     margin-bottom: 0;
   }
 
-  .queue-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid #f3f4f6;
-  }
-
-  .queue-item:last-child { border-bottom: none; }
-
-  .queue-item-info {
+  .queue-panel-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-width: 0;
+    margin-bottom: 16px;
   }
 
-  .queue-item-id {
-    font-size: 12px;
-    font-weight: 600;
+  .queue-panel-header .section-title {
+    margin-bottom: 0;
+  }
+
+  .queue-info-icon {
+    font-size: 11px;
+    color: #9ca3af;
+    cursor: help;
+    user-select: none;
+  }
+
+  .queue-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background 0.15s;
+  }
+
+  .queue-row:last-child { border-bottom: none; }
+
+  .queue-row.drag-over {
+    border-top: 2px solid #2563eb;
+  }
+
+  .queue-row.dragging {
+    opacity: 0.4;
+  }
+
+  .queue-drag-handle {
+    font-size: 14px;
+    color: #d1d5db;
+    cursor: default;
+    user-select: none;
+    flex-shrink: 0;
+    width: 18px;
+    text-align: center;
+    line-height: 1;
+  }
+
+  .queue-drag-handle.active {
+    color: #9ca3af;
+    cursor: grab;
+  }
+
+  .queue-drag-handle.active:active {
+    cursor: grabbing;
+  }
+
+  .queue-drag-handle.locked {
+    color: #e5e7eb;
+    cursor: not-allowed;
+  }
+
+  .sprint-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 500;
     color: #6b7280;
+    border: 1px solid #e5e7eb;
+    white-space: nowrap;
     flex-shrink: 0;
   }
 
-  .queue-item-title {
+  .queue-row-title {
     font-size: 13px;
     color: #374151;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .queue-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .queue-btn-accept {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    border: 1px solid #16a34a;
+    background: #ffffff;
+    color: #16a34a;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .queue-btn-accept:hover {
+    background: #f0fdf4;
+  }
+
+  .queue-btn-accepted {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    border: 1px solid #16a34a;
+    background: #16a34a;
+    color: #ffffff;
+    transition: background 0.15s;
+  }
+
+  .queue-btn-accepted:hover {
+    background: #15803d;
+  }
+
+  .queue-btn-edit {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    color: #6b7280;
+    transition: background 0.15s;
+  }
+
+  .queue-btn-edit:hover {
+    background: #f3f4f6;
   }
 
   .queue-empty {
@@ -929,8 +1014,6 @@
   /* ── RESPONSIVE ────────────────────────────────────────── */
   @media (max-width: 900px) {
     .dashboard-container { padding: 20px 20px; }
-    .queue-stats { flex-wrap: wrap; }
-    .stat-card { flex: 1 1 calc(50% - 8px); min-width: 0; }
     .crew-grid { grid-template-columns: 1fr; }
     .ops-grid {
       grid-template-columns: 1fr;
@@ -960,30 +1043,6 @@
     <div class="header-status">
       <div class="header-status-dot" id="header-status-dot"></div>
       <span id="watcher-status-text">ONLINE</span>
-    </div>
-  </div>
-
-  <!-- ── QUEUE STATS ─────────────────────────────────────────────────── -->
-  <div class="queue-stats">
-    <div class="stat-card">
-      <div class="stat-label">Waiting</div>
-      <div class="stat-value" id="stat-waiting">0</div>
-    </div>
-    <div class="stat-card active">
-      <div class="stat-label">In Progress</div>
-      <div class="stat-value" id="stat-active">0</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Complete</div>
-      <div class="stat-value" id="stat-done">0</div>
-    </div>
-    <div class="stat-card error">
-      <div class="stat-label">Failed</div>
-      <div class="stat-value" id="stat-error">0</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">For Review</div>
-      <div class="stat-value" id="stat-review">0</div>
     </div>
   </div>
 
@@ -1051,9 +1110,11 @@
     <!-- QUEUE -->
     <div class="panel-queue">
       <div class="queue-panel">
-        <div class="section-title">Queue</div>
-        <div id="staged-cards"></div>
-        <div id="queue-items">
+        <div class="queue-panel-header">
+          <div class="section-title">Queue</div>
+          <span class="queue-info-icon" title="Approval order = build order. First accepted = first built. Drag to reprioritize.">(i)</span>
+        </div>
+        <div id="queue-list">
           <div class="queue-empty">Queue is clear.</div>
         </div>
       </div>
@@ -1240,7 +1301,7 @@
     return `${m}m ${pad(s)}s`;
   }
 
-  // Staged items count — updated by fetchStaged()
+  // Staged items count — updated by fetchCombinedQueue()
   let stagedItemCount = 0;
 
   function updatePipelineUI(data) {
@@ -1378,14 +1439,6 @@
       data = await res.json();
     } catch (_) { return; }
 
-    // Stat cards
-    document.getElementById('stat-waiting').textContent = data.queue.waiting ?? 0;
-    document.getElementById('stat-active').textContent  = data.queue.active  ?? 0;
-    document.getElementById('stat-done').textContent    = data.queue.done    ?? 0;
-    document.getElementById('stat-error').textContent   = data.queue.error   ?? 0;
-    document.getElementById('stat-review').textContent  = '0';
-
-
     // Header status
     const statusEl = document.getElementById('watcher-status-text');
     const dotEl = document.getElementById('header-status-dot');
@@ -1471,306 +1524,223 @@
   fetchBridge();
   setInterval(fetchBridge, 5000);
 
-  // ── Queue panel (live pending / in-progress) ────────────────────────────────
-  async function fetchQueue() {
-    try {
-      const res = await fetch('/api/bridge/queue');
-      if (!res.ok) return;
-      const files = await res.json();
-      renderQueuePanel(files);
-    } catch (_) {}
+  // ── Combined Queue panel ─────────────────────────────────────────────────────
+  // Merges staged items and accepted (PENDING) items into one list.
+  // Staged = unaccepted, Accepted = in build order (PENDING in queue dir).
+  let cachedStagedItems = [];
+  let cachedBridgeBriefs = [];
+  let cachedQueueOrder = [];
+  let dragSrcId = null;
+
+  function isAmendment(item) {
+    return item.references && item.references !== 'null';
   }
 
-  function renderQueuePanel(files) {
-    const container = document.getElementById('queue-items');
-    // Filter to PENDING and IN_PROGRESS items
-    const active = (files || []).filter(f =>
-      f.state === 'PENDING' || f.state === 'IN_PROGRESS'
-    );
-    if (active.length === 0) {
-      const hasStagedCards = document.querySelector('#staged-cards .staged-card');
-      container.innerHTML = hasStagedCards ? '' : '<div class="queue-empty">Queue is clear.</div>';
+  function buildQueueRows() {
+    // 1. Amendment accepted rows — locked at top, sorted by creation date
+    const acceptedBriefs = cachedBridgeBriefs.filter(b => b.state === 'PENDING');
+    const amendmentRows = acceptedBriefs
+      .filter(b => isAmendment(b))
+      .sort((a, b) => new Date(a.created || 0) - new Date(b.created || 0))
+      .map(b => ({ ...b, rowState: 'accepted', isAmendment: true }));
+
+    // 2. Non-amendment accepted rows — ordered by queue order
+    const normalAccepted = acceptedBriefs.filter(b => !isAmendment(b));
+    const orderedAccepted = [];
+    for (const oid of cachedQueueOrder) {
+      const found = normalAccepted.find(b => b.id === oid);
+      if (found) orderedAccepted.push(found);
+    }
+    // Any accepted items not in the order list go at the end
+    for (const b of normalAccepted) {
+      if (!cachedQueueOrder.includes(b.id)) orderedAccepted.push(b);
+    }
+    const acceptedRows = orderedAccepted.map(b => ({ ...b, rowState: 'accepted', isAmendment: false }));
+
+    // 3. Staged rows — unaccepted, at bottom
+    const stagedRows = cachedStagedItems
+      .filter(s => s.status !== 'NEEDS_AMENDMENT')
+      .map(s => ({
+        id: s.id,
+        title: s.title,
+        sprint: s.sprint,
+        references: s.references,
+        created: null,
+        rowState: 'staged',
+        isAmendment: false,
+      }));
+
+    return [...amendmentRows, ...acceptedRows, ...stagedRows];
+  }
+
+  function renderQueueList() {
+    const container = document.getElementById('queue-list');
+    const rows = buildQueueRows();
+
+    if (rows.length === 0) {
+      container.innerHTML = '<div class="queue-empty">Queue is clear.</div>';
       return;
     }
-    container.innerHTML = active.map(item => {
-      const stateToClass = { PENDING: 'tag-pending', IN_PROGRESS: 'tag-progress' };
-      const tagCls = stateToClass[item.state] || 'tag-pending';
-      const label = item.state === 'IN_PROGRESS' ? 'IN PROGRESS' : 'PENDING';
-      return `<div class="queue-item">
-        <div class="queue-item-info">
-          <span class="queue-item-id">#${escHtml(item.id)}</span>
-          <span class="queue-item-title">${escHtml(item.title || '')}</span>
-        </div>
-        <span class="tag ${tagCls}">${label}</span>
-      </div>`;
-    }).join('');
-  }
 
-  fetchQueue();
-  setInterval(fetchQueue, 5000);
+    container.innerHTML = rows.map(row => {
+      const eid = escHtml(row.id);
+      const sprintLabel = row.sprint ? `Sprint ${row.sprint}` : '';
+      const isAccepted = row.rowState === 'accepted';
+      const isAmd = row.isAmendment;
 
-  // ── Queue empty-state helper ────────────────────────────────────────────
-  function updateQueueEmptyState() {
-    const queueContainer = document.getElementById('queue-items');
-    const hasQueueItems = queueContainer.querySelector('.queue-item');
-    const hasStagedCards = document.querySelector('#staged-cards .staged-card');
-    if (!hasQueueItems && !hasStagedCards) {
-      queueContainer.innerHTML = '<div class="queue-empty">Queue is clear.</div>';
-    } else if (!hasQueueItems) {
-      queueContainer.innerHTML = '';
-    }
-  }
+      // Drag handle
+      let handleClass = '';
+      let draggable = 'false';
+      if (isAccepted && !isAmd) {
+        handleClass = 'active';
+        draggable = 'true';
+      } else if (isAccepted && isAmd) {
+        handleClass = 'locked';
+      }
 
-  // ── Staged briefs panel ────────────────────────────────────────────────
-  function renderStagedCards(items) {
-    const container = document.getElementById('staged-cards');
-    if (!items || items.length === 0) {
-      container.innerHTML = '';
-      updateQueueEmptyState();
-      return;
-    }
-
-    container.innerHTML = items.map(item => {
-      const summary = escHtml(item.summary || item.goal || '');
-      const isAmendment = item.status === 'NEEDS_AMENDMENT';
-      const eid = escHtml(item.id);
-
+      // Action buttons
       let actionsHtml;
-      if (isAmendment) {
+      if (isAccepted) {
         actionsHtml = `
-          <div class="staged-amendment-state">
-            <div class="staged-amendment-label">&#9203; Awaiting revision</div>
-            ${item.amendment_note ? '<div class="staged-amendment-body">' + escHtml(item.amendment_note) + '</div>' : ''}
-          </div>`;
+          <button class="queue-btn-accepted" onclick="queueUnaccept('${eid}')">&#10003; Accepted</button>
+          <button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
       } else {
         actionsHtml = `
-          <div class="staged-card-actions" id="staged-actions-${eid}">
-            <button class="staged-btn staged-btn-brief" onclick="stagedApprove('${eid}')">Approve</button>
-            <button class="staged-btn staged-btn-amend" onclick="stagedShowAmend('${eid}')">Amend</button>
-            <button class="staged-btn staged-btn-reject" onclick="stagedShowReject('${eid}')">Reject</button>
-          </div>`;
+          <button class="queue-btn-accept" onclick="queueAccept('${eid}')">Accept</button>
+          <button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
       }
 
-      return `
-        <div class="staged-card" id="staged-card-${eid}">
-          <div class="staged-card-title">#${eid} &middot; ${escHtml(item.title || '')}</div>
-          <div class="staged-card-summary">${summary}</div>
-          ${actionsHtml}
-          <div class="staged-details-section" id="staged-details-section-${eid}">
-            <button class="staged-details-toggle" onclick="stagedToggleDetails('${eid}')" id="staged-details-btn-${eid}">&#9656; Details</button>
-            <div class="staged-details-toolbar" style="display:none" id="staged-details-toolbar-${eid}">
-              <button class="staged-mode-btn active" id="staged-mode-read-${eid}" onclick="stagedSetMode('${eid}','read')">Read</button>
-              <button class="staged-mode-btn" id="staged-mode-edit-${eid}" onclick="stagedSetMode('${eid}','edit')">Edit</button>
-              <button class="staged-mode-btn" id="staged-mode-kira-${eid}" onclick="stagedSetMode('${eid}','kira')">Ask Kira</button>
-            </div>
-            <div class="staged-details-body" id="staged-details-read-${eid}"></div>
-            <div class="staged-mode-edit-body" id="staged-details-edit-${eid}" style="display:none">
-              <textarea class="staged-edit-textarea" id="staged-edit-ta-${eid}"></textarea>
-              <div class="staged-edit-actions">
-                <button class="staged-btn staged-btn-brief" onclick="stagedSubmitEdit('${eid}')">Save</button>
-                <button class="staged-btn staged-btn-cancel" onclick="stagedSetMode('${eid}','read')">Cancel</button>
-              </div>
-            </div>
-            <div class="staged-mode-kira-body" id="staged-details-kira-${eid}" style="display:none">
-              <textarea class="staged-edit-textarea staged-kira-textarea" id="staged-kira-ta-${eid}" placeholder="Write rough notes — Kira will clean them up before sending to the queue…"></textarea>
-              <div class="staged-edit-actions">
-                <button class="staged-btn staged-btn-amend" onclick="stagedSubmitKira('${eid}')">Send to Kira</button>
-                <button class="staged-btn staged-btn-cancel" onclick="stagedSetMode('${eid}','read')">Cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>`;
+      return `<div class="queue-row" data-id="${eid}" data-state="${row.rowState}" data-amendment="${isAmd}" draggable="${draggable}">
+        <span class="queue-drag-handle ${handleClass}">&#10303;</span>
+        <span class="sprint-badge">${escHtml(sprintLabel)}</span>
+        <span class="queue-row-title">${escHtml(row.title || '')}</span>
+        <span class="queue-row-actions">${actionsHtml}</span>
+      </div>`;
     }).join('');
 
-    // Populate read views with rendered markdown and cache raw bodies
-    for (const item of items) {
-      const eid = escHtml(item.id);
-      stagedBodyCache[eid] = item.body || '';
-      const readEl = document.getElementById('staged-details-read-' + eid);
-      if (readEl) readEl.innerHTML = marked.parse(item.body || '');
-    }
-    updateQueueEmptyState();
+    // Attach drag events to accepted non-amendment rows
+    setupDragAndDrop();
   }
 
-  // Store raw body per id so Edit textarea always has the current content
-  const stagedBodyCache = {};
-
-  function stagedSetMode(id, mode) {
-    const readEl  = document.getElementById('staged-details-read-' + id);
-    const editEl  = document.getElementById('staged-details-edit-' + id);
-    const kiraEl  = document.getElementById('staged-details-kira-' + id);
-
-    readEl.style.display = mode === 'read' ? '' : 'none';
-    editEl.style.display = mode === 'edit' ? '' : 'none';
-    kiraEl.style.display = mode === 'kira' ? '' : 'none';
-
-    if (mode === 'read') readEl.classList.add('open');
-
-    ['read','edit','kira'].forEach(m => {
-      const btn = document.getElementById('staged-mode-' + m + '-' + id);
-      if (btn) btn.classList.toggle('active', m === mode);
-    });
-
-    if (mode === 'edit') {
-      const ta = document.getElementById('staged-edit-ta-' + id);
-      if (ta) ta.value = stagedBodyCache[id] || '';
-    }
-    if (mode === 'kira') {
-      const ta = document.getElementById('staged-kira-ta-' + id);
-      if (ta) ta.value = '';
-    }
-  }
-
-  async function stagedSubmitEdit(id) {
-    const ta = document.getElementById('staged-edit-ta-' + id);
-    if (!ta) return;
-    const body = ta.value;
-    try {
-      const res = await fetch('/api/bridge/staged/' + id + '/update-body', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body }),
-      });
-      if (res.ok) {
-        stagedBodyCache[id] = body;
-        const readEl = document.getElementById('staged-details-read-' + id);
-        if (readEl) readEl.innerHTML = marked.parse(body);
-        stagedSetMode(id, 'read');
-      }
-    } catch (_) {}
-  }
-
-  async function stagedSubmitKira(id) {
-    const ta = document.getElementById('staged-kira-ta-' + id);
-    if (!ta || !ta.value.trim()) return;
-    try {
-      const res = await fetch('/api/bridge/staged/' + id + '/amend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: ta.value }),
-      });
-      if (res.ok) stagedSetMode(id, 'read');
-    } catch (_) {}
-  }
-
-  function stagedToggleDetails(id) {
-    const toolbar = document.getElementById('staged-details-toolbar-' + id);
-    const readEl  = document.getElementById('staged-details-read-' + id);
-    const btn     = document.getElementById('staged-details-btn-' + id);
-    const isOpen  = readEl.classList.contains('open');
-
-    if (isOpen) {
-      readEl.classList.remove('open');
-      readEl.style.display = 'none';
-      toolbar.style.display = 'none';
-      // collapse edit/kira too
-      const editEl = document.getElementById('staged-details-edit-' + id);
-      const kiraEl = document.getElementById('staged-details-kira-' + id);
-      if (editEl) editEl.style.display = 'none';
-      if (kiraEl) kiraEl.style.display = 'none';
-      // reset mode buttons
-      ['read','edit','kira'].forEach(m => {
-        const mbtn = document.getElementById('staged-mode-' + m + '-' + id);
-        if (mbtn) mbtn.classList.toggle('active', m === 'read');
-      });
-      if (btn) btn.innerHTML = '&#9656; Details';
-    } else {
-      readEl.classList.add('open');
-      readEl.style.display = '';
-      toolbar.style.display = '';
-      stagedSetMode(id, 'read');
-      if (btn) btn.innerHTML = '&#9662; Details';
-    }
-  }
-
-  async function stagedApprove(id) {
+  // ── Accept / Unaccept actions ───────────────────────────────────────────────
+  async function queueAccept(id) {
     try {
       const res = await fetch('/api/bridge/staged/' + id + '/approve', { method: 'POST' });
       if (res.ok) {
-        const card = document.getElementById('staged-card-' + id);
-        if (card) card.remove();
-        updateQueueEmptyState();
+        fetchCombinedQueue();
         fetchBridge();
       }
     } catch (_) {}
   }
 
-  function stagedShowAmend(id) {
-    const actions = document.getElementById('staged-actions-' + id);
-    if (!actions) return;
-    actions.innerHTML = `
-      <div class="staged-inline-amend">
-        <input type="text" id="staged-amend-input-${id}" placeholder="What should change?">
-        <div class="staged-inline-btns">
-          <button class="staged-btn staged-btn-brief" onclick="stagedSubmitAmend('${id}')">Submit</button>
-          <button class="staged-btn staged-btn-cancel" onclick="stagedCancelAmend('${id}')">Cancel</button>
-        </div>
-      </div>`;
-    const input = document.getElementById('staged-amend-input-' + id);
-    if (input) input.focus();
-  }
-
-  function stagedCancelAmend(id) {
-    const actions = document.getElementById('staged-actions-' + id);
-    if (!actions) return;
-    actions.innerHTML = `
-      <button class="staged-btn staged-btn-brief" onclick="stagedApprove('${id}')">Approve</button>
-      <button class="staged-btn staged-btn-amend" onclick="stagedShowAmend('${id}')">Amend</button>
-      <button class="staged-btn staged-btn-reject" onclick="stagedShowReject('${id}')">Reject</button>`;
-  }
-
-  async function stagedSubmitAmend(id) {
-    const input = document.getElementById('staged-amend-input-' + id);
-    const note = input ? input.value.trim() : '';
-    if (!note) return;
+  async function queueUnaccept(id) {
     try {
-      const res = await fetch('/api/bridge/staged/' + id + '/amend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note }),
-      });
-      if (res.ok) fetchStaged();
-    } catch (_) {}
-  }
-
-  function stagedShowReject(id) {
-    const actions = document.getElementById('staged-actions-' + id);
-    if (!actions) return;
-    actions.innerHTML = `
-      <div class="staged-inline-reject">
-        <span class="staged-inline-reject-prompt">Reject this brief?</span>
-        <button class="staged-btn-confirm-reject" onclick="stagedConfirmReject('${id}')">Yes, reject</button>
-        <button class="staged-btn staged-btn-cancel" onclick="stagedCancelAmend('${id}')">Cancel</button>
-      </div>`;
-  }
-
-  async function stagedConfirmReject(id) {
-    try {
-      const res = await fetch('/api/bridge/staged/' + id + '/reject', { method: 'POST' });
+      const res = await fetch('/api/queue/' + id + '/unaccept', { method: 'POST' });
       if (res.ok) {
-        const card = document.getElementById('staged-card-' + id);
-        if (card) card.remove();
-        updateQueueEmptyState();
+        fetchCombinedQueue();
+        fetchBridge();
       }
     } catch (_) {}
   }
 
-  async function fetchStaged() {
-    // Don't re-render if an inline amend input is active, a details panel is open, or a textarea is focused — would destroy user interaction
-    if (document.querySelector('.staged-inline-amend input:focus, .staged-inline-amend input')) return;
-    if (document.querySelector('.staged-details-body.open')) return;
-    if (document.querySelector('.staged-edit-textarea:focus')) return;
+  function queueEdit(id) {
+    // Placeholder — Slice Detail overlay will be wired in slice 100
+    alert('Edit slice #' + id + ' — Slice Detail overlay coming in slice 100.');
+  }
+
+  // ── Drag-to-reorder for accepted rows ──────────────────────────────────────
+  function setupDragAndDrop() {
+    const rows = document.querySelectorAll('.queue-row[draggable="true"]');
+    rows.forEach(row => {
+      row.addEventListener('dragstart', onDragStart);
+      row.addEventListener('dragend', onDragEnd);
+    });
+
+    const allRows = document.querySelectorAll('.queue-row');
+    allRows.forEach(row => {
+      row.addEventListener('dragover', onDragOver);
+      row.addEventListener('dragleave', onDragLeave);
+      row.addEventListener('drop', onDrop);
+    });
+  }
+
+  function onDragStart(e) {
+    dragSrcId = e.currentTarget.dataset.id;
+    e.currentTarget.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function onDragEnd(e) {
+    e.currentTarget.classList.remove('dragging');
+    document.querySelectorAll('.queue-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+    dragSrcId = null;
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    const target = e.currentTarget;
+    // Only allow dropping onto non-amendment accepted rows or between them
+    if (target.dataset.amendment === 'true') return;
+    if (target.dataset.state === 'staged') return;
+    e.dataTransfer.dropEffect = 'move';
+    target.classList.add('drag-over');
+  }
+
+  function onDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over');
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    const targetRow = e.currentTarget;
+    targetRow.classList.remove('drag-over');
+    if (!dragSrcId || targetRow.dataset.id === dragSrcId) return;
+    if (targetRow.dataset.amendment === 'true' || targetRow.dataset.state === 'staged') return;
+
+    const targetId = targetRow.dataset.id;
+
+    // Reorder: move dragSrcId before targetId in queue order
+    let order = [...cachedQueueOrder];
+    order = order.filter(id => id !== dragSrcId);
+    const targetIdx = order.indexOf(targetId);
+    if (targetIdx !== -1) {
+      order.splice(targetIdx, 0, dragSrcId);
+    } else {
+      order.push(dragSrcId);
+    }
+    cachedQueueOrder = order;
+    renderQueueList();
+
+    // Persist to server
+    fetch('/api/queue/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order }),
+    }).catch(() => {});
+  }
+
+  // ── Combined fetch ─────────────────────────────────────────────────────────
+  async function fetchCombinedQueue() {
     try {
-      const res = await fetch('/api/bridge/staged');
-      if (!res.ok) return;
-      const items = await res.json();
-      stagedItemCount = (items || []).filter(i => i.status !== 'NEEDS_AMENDMENT').length;
-      renderStagedCards(items);
+      const [stagedRes, bridgeRes] = await Promise.all([
+        fetch('/api/bridge/staged'),
+        fetch('/api/bridge'),
+      ]);
+      if (stagedRes.ok) {
+        cachedStagedItems = await stagedRes.json();
+        stagedItemCount = cachedStagedItems.filter(i => i.status !== 'NEEDS_AMENDMENT').length;
+      }
+      if (bridgeRes.ok) {
+        const bridgeData = await bridgeRes.json();
+        cachedBridgeBriefs = bridgeData.briefs || [];
+        cachedQueueOrder = bridgeData.queueOrder || [];
+      }
+      renderQueueList();
     } catch (_) {}
   }
 
-  fetchStaged();
-  setInterval(fetchStaged, 5000);
+  fetchCombinedQueue();
+  setInterval(fetchCombinedQueue, 5000);
 </script>
 
 </body>
