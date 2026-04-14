@@ -382,6 +382,7 @@ const server = http.createServer(async (req, res) => {
         content = updateFrontmatter(content, { status: 'PENDING' });
         fs.writeFileSync(path.join(QUEUE_DIR, `${id}-PENDING.md`), content, 'utf8');
         fs.unlinkSync(filePath);
+        writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'approved' });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {
@@ -405,6 +406,7 @@ const server = http.createServer(async (req, res) => {
         const destPath = path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`);
         fs.writeFileSync(destPath, content, 'utf8');
         if (filePath !== destPath) fs.unlinkSync(filePath);
+        writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'refined' });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {
@@ -451,6 +453,7 @@ const server = http.createServer(async (req, res) => {
         content = updateFrontmatter(content, { status: 'REJECTED' });
         fs.writeFileSync(path.join(TRASH_DIR, `${id}-REJECTED.md`), content, 'utf8');
         fs.unlinkSync(filePath);
+        writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'rejected' });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {
