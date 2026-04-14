@@ -75,6 +75,12 @@
     user-select: none;
   }
 
+  .health-pill.degraded {
+    background: #fffbeb;
+    color: #92400e;
+    border-color: #fde68a;
+  }
+
   .health-pill.offline {
     background: #fef2f2;
     color: #dc2626;
@@ -105,19 +111,53 @@
     top: calc(100% + 8px);
     right: 0;
     background: #1f2937;
-    color: #f9fafb;
+    color: #e5e7eb;
     font-size: 11px;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
     font-weight: 400;
-    padding: 8px 12px;
-    border-radius: 6px;
-    white-space: nowrap;
+    padding: 12px 14px;
+    border-radius: 8px;
+    white-space: pre;
     z-index: 100;
-    line-height: 1.6;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    line-height: 1.7;
+    min-width: 340px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
   }
 
   .health-pill:hover .health-pill-tooltip {
     display: block;
+  }
+
+  .health-tooltip-label {
+    color: #9ca3af;
+    font-weight: 600;
+    display: inline;
+  }
+
+  .health-tooltip-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+
+  .health-tooltip-dot.up     { background: #16a34a; }
+  .health-tooltip-dot.stale  { background: #f59e0b; }
+  .health-tooltip-dot.down   { background: #dc2626; }
+  .health-tooltip-dot.active { background: #16a34a; }
+  .health-tooltip-dot.dim    { background: #6b7280; }
+
+  .health-tooltip-detail {
+    color: #9ca3af;
+    padding-left: 13px;
+  }
+
+  .health-tooltip-sep {
+    border: none;
+    border-top: 1px solid #374151;
+    margin: 4px 0;
   }
 
   /* ── OPS GRID (4-panel layout) ───────────────────── */
@@ -832,10 +872,7 @@
       <span class="health-pill-dot"></span>
       <span class="health-pill-waveform">▲▄▂▄▃</span>
       <span id="health-pill-label">online</span>
-      <div class="health-pill-tooltip" id="health-pill-tooltip">
-        Watcher: –<br>
-        Last poll: –
-      </div>
+      <div class="health-pill-tooltip" id="health-pill-tooltip"></div>
     </div>
   </div>
 
@@ -1069,6 +1106,109 @@
   let briefStartTime = null;
   let lastBriefId    = null;
 
+  function fmtAge(seconds) {
+    if (seconds == null) return '–';
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    return `${Math.floor(seconds / 3600)}h ago`;
+  }
+
+  function fmtElapsedCompact(secs) {
+    if (secs == null) return '–';
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m > 0 ? `${m}m${String(s).padStart(2, '0')}s` : `${s}s`;
+  }
+
+  async function updateHealthPill() {
+    const pill = document.getElementById('health-pill');
+    const pillLabel = document.getElementById('health-pill-label');
+    const pillTooltip = document.getElementById('health-pill-tooltip');
+    if (!pill) return;
+
+    let health;
+    try {
+      const res = await fetch('/api/health');
+      if (!res.ok) return;
+      health = await res.json();
+    } catch (_) { return; }
+
+    const w = health.watcher;
+    const wh = health.wormhole;
+
+    // Pill state — driven solely by watcher
+    if (w.status === 'up') {
+      pill.className = 'health-pill';
+      pillLabel.textContent = 'online';
+    } else if (w.status === 'stale') {
+      pill.className = 'health-pill degraded';
+      pillLabel.textContent = 'degraded';
+    } else {
+      pill.className = 'health-pill offline';
+      pillLabel.textContent = 'offline';
+    }
+
+    // Build tooltip lines
+    const esc = s => s == null ? '–' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const lines = [];
+
+    // Watcher row
+    const wDotCls = w.status === 'up' ? 'up' : w.status === 'stale' ? 'stale' : 'down';
+    const wStatusLabel = w.status === 'up' ? 'up' : w.status === 'stale' ? 'stale' : 'down';
+    lines.push(
+      `<span class="health-tooltip-label">Watcher</span>      ` +
+      `<span class="health-tooltip-dot ${wDotCls}"></span> ` +
+      `${esc(wStatusLabel)} · ${fmtAge(w.heartbeatAge_s)}`
+    );
+
+    // Build context line
+    if (w.currentBrief && w.elapsedSeconds != null) {
+      const lastAct = w.lastActivityAge_s != null ? `last output ${fmtAge(w.lastActivityAge_s)}` : '';
+      lines.push(
+        `<span class="health-tooltip-detail">processing · #${esc(w.currentBrief)} · ${fmtElapsedCompact(w.elapsedSeconds)} elapsed` +
+        (lastAct ? ` · ${lastAct}` : '') + `</span>`
+      );
+    } else if (w.status !== 'down') {
+      lines.push(`<span class="health-tooltip-detail">idle</span>`);
+    }
+
+    lines.push('');
+
+    // Wormhole row
+    if (wh.ageSeconds != null && wh.ageSeconds < 60) {
+      lines.push(
+        `<span class="health-tooltip-label">Wormhole</span>    ` +
+        `<span class="health-tooltip-dot active"></span> ` +
+        `active · ${fmtAge(wh.ageSeconds)}`
+      );
+    } else if (wh.lastWriteTs) {
+      const toolName = wh.lastWriteTool ? esc(wh.lastWriteTool) : '?';
+      const pathShort = wh.lastWritePath ? esc(wh.lastWritePath) : '';
+      lines.push(
+        `<span class="health-tooltip-label">Wormhole</span>    ` +
+        `<span class="health-tooltip-dot dim"></span> ` +
+        `last write ${fmtAge(wh.ageSeconds)}`
+      );
+      if (toolName || pathShort) {
+        lines.push(
+          `<span class="health-tooltip-detail">${toolName}` +
+          (pathShort ? ` → ${pathShort}` : '') + `</span>`
+        );
+      }
+    } else {
+      lines.push(
+        `<span class="health-tooltip-label">Wormhole</span>    ` +
+        `<span class="health-tooltip-dot dim"></span> ` +
+        `not yet used this session`
+      );
+    }
+
+    lines.push(`<hr class="health-tooltip-sep">`);
+    lines.push(`Processed    ${w.processedTotal} slices total`);
+
+    pillTooltip.innerHTML = lines.join('\n');
+  }
+
   function startElapsedTick() {
     setInterval(() => {
       if (briefStartTime == null) return;
@@ -1170,26 +1310,8 @@
     document.getElementById('stat-review').textContent  = '0';
 
 
-    // Header health pill
-    const pill = document.getElementById('health-pill');
-    const pillLabel = document.getElementById('health-pill-label');
-    const pillTooltip = document.getElementById('health-pill-tooltip');
-    if (pill) {
-      const s = data.heartbeat.status;
-      const isOnline = (s === 'processing' || s === 'active' || s === 'idle');
-      pill.className = isOnline ? 'health-pill' : 'health-pill offline';
-      if (pillLabel) pillLabel.textContent = isOnline ? 'online' : 'offline';
-      if (pillTooltip && data.heartbeat.ts) {
-        const hbAge = Math.round((Date.now() - new Date(data.heartbeat.ts).getTime()) / 1000);
-        const latency = hbAge < 60 ? `${hbAge}s ago` : `${Math.round(hbAge / 60)}m ago`;
-        const pad = n => String(n).padStart(2, '0');
-        const d = new Date(data.heartbeat.ts);
-        const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-        pillTooltip.innerHTML =
-          `Watcher: ${isOnline ? latency : 'unreachable'}<br>` +
-          `Last poll: ${timeStr}`;
-      }
-    }
+    // Header health pill — fetch from /api/health
+    updateHealthPill();
 
     // Brief history table — sourced from register.jsonl via data.recent
     const tbody = document.getElementById('brief-tbody');

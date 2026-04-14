@@ -13,6 +13,7 @@ const REGISTER     = path.join(REPO_ROOT, 'bridge', 'register.jsonl');
 const STAGED_DIR   = path.join(REPO_ROOT, 'bridge', 'staged');
 const TRASH_DIR    = path.join(REPO_ROOT, 'bridge', 'trash');
 const DASHBOARD    = path.join(__dirname, 'lcars-dashboard.html');
+const WORMHOLE_HB  = path.join(REPO_ROOT, 'bridge', 'wormhole-heartbeat.json');
 
 const CORS_ORIGIN  = 'https://dax-dashboard.lovable.app';
 
@@ -480,6 +481,50 @@ const server = http.createServer(async (req, res) => {
       }
       return;
     }
+  }
+
+  if (pathname === '/api/health') {
+    const now = Date.now();
+
+    // Watcher health
+    let watcher = { status: 'down', heartbeatAge_s: null, currentBrief: null,
+                    elapsedSeconds: null, lastActivityAge_s: null, processedTotal: 0 };
+    try {
+      const raw = JSON.parse(fs.readFileSync(HEARTBEAT, 'utf8'));
+      const age = raw.ts ? (now - new Date(raw.ts).getTime()) / 1000 : Infinity;
+      let status;
+      if (age < 30) status = 'up';
+      else if (age < 60) status = 'stale';
+      else status = 'down';
+      const lastActivityAge = raw.last_activity_ts
+        ? (now - new Date(raw.last_activity_ts).getTime()) / 1000
+        : null;
+      watcher = {
+        status,
+        heartbeatAge_s:   Math.round(age),
+        currentBrief:     raw.current_brief ?? null,
+        elapsedSeconds:   raw.brief_elapsed_seconds ?? null,
+        lastActivityAge_s: lastActivityAge != null ? Math.round(lastActivityAge) : null,
+        processedTotal:   raw.processed_total ?? 0,
+      };
+    } catch (_) { /* missing or malformed → keep defaults */ }
+
+    // Wormhole health
+    let wormhole = { lastWriteTs: null, lastWriteTool: null, lastWritePath: null, ageSeconds: null };
+    try {
+      const raw = JSON.parse(fs.readFileSync(WORMHOLE_HB, 'utf8'));
+      const age = raw.ts ? (now - new Date(raw.ts).getTime()) / 1000 : Infinity;
+      wormhole = {
+        lastWriteTs:   raw.ts   ?? null,
+        lastWriteTool: raw.tool ?? null,
+        lastWritePath: raw.path ?? null,
+        ageSeconds:    raw.ts ? Math.round(age) : null,
+      };
+    } catch (_) { /* file missing → keep nulls */ }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ watcher, wormhole }));
+    return;
   }
 
   if (pathname === '/api/bridge') {
