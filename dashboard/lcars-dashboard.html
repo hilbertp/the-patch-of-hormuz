@@ -481,36 +481,260 @@
     margin-bottom: 16px;
   }
 
-  .table-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+  .history-list {
+    display: flex;
+    flex-direction: column;
   }
 
-  .brief-table {
-    width: 100%;
-    border-collapse: collapse;
+  .history-row {
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .history-row:last-child { border-bottom: none; }
+
+  .history-row-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    cursor: default;
+  }
+
+  .history-chevron {
+    flex-shrink: 0;
+    width: 18px;
+    text-align: center;
+    font-size: 12px;
+    color: #9ca3af;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.15s;
+    line-height: 1;
+  }
+
+  .history-chevron:hover { color: #374151; }
+
+  .history-row-id {
+    font-size: 12px;
+    font-weight: 500;
+    color: #9ca3af;
+    flex-shrink: 0;
+  }
+
+  .history-row-title {
     font-size: 13px;
-    min-width: 480px;
+    color: #374151;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
   }
 
-  .brief-table th {
+  .history-row-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
     font-size: 11px;
     font-weight: 500;
-    color: #6b7280;
-    text-align: left;
-    padding: 8px 12px;
-    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+    flex-shrink: 0;
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .history-expand {
+    display: none;
+    padding: 4px 0 10px 28px;
+  }
+
+  .history-expand.open { display: flex; align-items: center; gap: 10px; }
+
+  .history-expand-desc {
+    font-size: 13px;
+    font-style: italic;
+    color: #9ca3af;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .brief-table td {
-    padding: 10px 12px;
-    border-bottom: 1px solid #f3f4f6;
+  .history-details-btn {
+    background: none;
+    border: none;
     font-size: 13px;
+    font-weight: 500;
+    color: #2563eb;
+    cursor: pointer;
+    padding: 2px 6px;
+    white-space: nowrap;
+    font-family: system-ui, -apple-system, sans-serif;
+    flex-shrink: 0;
+  }
+
+  .history-details-btn:hover { color: #1d4ed8; }
+
+  /* ── HISTORY BRIEFING DETAIL OVERLAY ──────────────── */
+  .history-detail-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 950;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .history-detail-panel {
+    background: #ffffff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 960px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    overflow: hidden;
+  }
+
+  .history-detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
+  }
+
+  .history-detail-header-left {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .history-detail-header-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .history-detail-id {
+    font-size: 12px;
+    font-weight: 500;
+    color: #9ca3af;
+    flex-shrink: 0;
+  }
+
+  .history-detail-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .history-detail-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  .history-detail-close:hover {
+    color: #374151;
+    background: #f3f4f6;
+  }
+
+  .history-detail-context {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .history-ctx-item {
+    font-size: 12px;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .history-ctx-label {
+    color: #9ca3af;
+  }
+
+  .history-ctx-value {
+    font-weight: 500;
     color: #374151;
   }
 
-  .brief-table tr:last-child td { border-bottom: none; }
+  .history-ctx-sep {
+    color: #d1d5db;
+  }
+
+  .history-detail-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+
+  .history-detail-body .slice-rendered-section { margin-bottom: 20px; }
+  .history-detail-body .slice-rendered-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9ca3af;
+    margin-bottom: 6px;
+  }
+  .history-detail-body .slice-rendered-section-content {
+    font-size: 14px;
+    color: #374151;
+    line-height: 1.7;
+  }
+  .history-detail-body .slice-rendered-section-content p { margin: 4px 0; }
+  .history-detail-body .slice-rendered-section-content ul,
+  .history-detail-body .slice-rendered-section-content ol { margin: 4px 0 4px 20px; }
+  .history-detail-body .slice-rendered-section-content li { margin: 3px 0; }
+  .history-detail-body .slice-rendered-section-content code { background: #f3f4f6; border-radius: 3px; padding: 1px 5px; font-family: monospace; font-size: 13px; }
+  .history-detail-body .slice-rendered-section-content pre { background: #f3f4f6; border-radius: 6px; padding: 12px; overflow-x: auto; margin: 8px 0; }
+  .history-detail-body .slice-rendered-section-content pre code { background: none; padding: 0; }
+
+  .history-detail-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    flex-shrink: 0;
+  }
+
+  .history-detail-close-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: system-ui, -apple-system, sans-serif;
+    background: transparent;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    transition: background 0.15s;
+  }
+
+  .history-detail-close-btn:hover { background: #f3f4f6; }
 
   .tag {
     display: inline-block;
@@ -1353,21 +1577,7 @@
     <div class="panel-history">
       <div class="brief-history" style="margin-bottom:0">
         <div class="section-title">History &darr; newest first</div>
-        <div class="table-scroll">
-          <table class="brief-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Description</th>
-                <th>Status</th>
-                <th>Duration</th>
-                <th>Tokens</th>
-                <th>Cost</th>
-              </tr>
-            </thead>
-            <tbody id="brief-tbody">
-            </tbody>
-          </table>
+        <div class="history-list" id="history-list">
         </div>
       </div>
     </div>
@@ -1462,6 +1672,26 @@
     </div>
     <div class="slice-detail-body" id="slice-detail-body"></div>
     <div class="slice-detail-actions" id="slice-detail-actions"></div>
+  </div>
+</div>
+
+<!-- History Briefing Detail overlay -->
+<div class="history-detail-overlay" id="history-detail-overlay" style="display:none">
+  <div class="history-detail-panel">
+    <div class="history-detail-header">
+      <div class="history-detail-header-left">
+        <div class="history-detail-header-top">
+          <span class="history-detail-id" id="history-detail-id"></span>
+          <span class="history-detail-title" id="history-detail-title"></span>
+        </div>
+        <div class="history-detail-context" id="history-detail-context"></div>
+      </div>
+      <button class="history-detail-close" onclick="closeHistoryDetail()">&times; close</button>
+    </div>
+    <div class="history-detail-body" id="history-detail-body"></div>
+    <div class="history-detail-footer">
+      <button class="history-detail-close-btn" onclick="closeHistoryDetail()">&times; Close</button>
+    </div>
   </div>
 </div>
 
@@ -1716,45 +1946,8 @@
       hbEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     }
 
-    // Brief history table — sourced from register.jsonl via data.recent
-    const tbody = document.getElementById('brief-tbody');
-    if (tbody) {
-      const rows = (data.recent ?? []).slice(0, 15);
-      if (rows.length > 0) {
-        const outcomeToClass = {
-          DONE:  'tag-done',
-          ERROR: 'tag-error',
-          ACCEPTED: 'tag-accepted',
-        };
-        tbody.innerHTML = rows.filter(c => !/^merge:/i.test(c.title ?? '')).map(c => {
-          const outcome   = c.outcome ?? 'DONE';
-          const pillKey = c.reviewStatus === 'accepted' ? 'ACCEPTED'
-                        : c.reviewStatus === 'amendment_required' ? 'ERROR'
-                        : outcome;
-          const statusCls = outcomeToClass[pillKey] ?? 'tag-done';
-          const statusLabel = pillKey;
-          const statusTitle = outcome === 'ERROR' && c.reason ? ` title="${escHtml(c.reason)}"` : '';
-          const reviewBadge = c.reviewStatus === 'amendment_required'
-            ? ' <span class="tag tag-error" style="font-size:0.75em">AMD</span>' : '';
-          const dur = c.durationMs != null
-            ? (() => { const s = Math.round(c.durationMs / 1000); return s < 60 ? `${s}s` : `${Math.floor(s/60)}m${s%60}s`; })()
-            : '\u2014';
-          const totalTokens = (c.tokensIn ?? 0) + (c.tokensOut ?? 0);
-          const tokStr  = totalTokens > 0 ? (totalTokens >= 1000 ? (totalTokens / 1000).toFixed(1) + 'k' : String(totalTokens)) : '—';
-          const costStr = c.costUsd != null && c.costUsd > 0 ? '$' + c.costUsd.toFixed(3) : '—';
-          return `<tr>
-            <td>${escHtml(c.id)}</td>
-            <td>${escHtml(c.title ?? '')}${reviewBadge}</td>
-            <td><span class="tag ${statusCls}"${statusTitle}>${escHtml(statusLabel)}</span></td>
-            <td class="time-cell">${dur}</td>
-            <td class="time-cell">${tokStr}</td>
-            <td class="time-cell">${costStr}</td>
-          </tr>`;
-        }).join('');
-      } else {
-        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-dim);text-align:center;padding:12px">No completed briefs yet.</td></tr>';
-      }
-    }
+    // History panel — row-based with chevron expand
+    renderHistoryPanel(data.recent ?? []);
 
     // Pipeline
     updatePipelineUI(data);
@@ -1767,6 +1960,179 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
   }
+
+  // ── Sprint derivation ──────────────────────────────────────────────────────
+  function getSprintForId(id) {
+    const n = parseInt(id, 10);
+    if (isNaN(n)) return null;
+    // Sprint 1: IDs 1–50, Sprint 2: 51–100, Sprint 3: 101+
+    if (n <= 50) return 1;
+    if (n <= 100) return 2;
+    return Math.ceil(n / 50);
+  }
+
+  // ── History panel ─────────────────────────────────────────────────────────
+  let historyExpandedId = null;
+  let cachedHistoryItems = [];
+
+  function renderHistoryPanel(recent) {
+    const container = document.getElementById('history-list');
+    if (!container) return;
+
+    // Only show merged/DONE items (filter out errors and in-progress)
+    const rows = (recent || [])
+      .filter(c => !/^merge:/i.test(c.title ?? ''))
+      .filter(c => {
+        const outcome = c.outcome ?? 'DONE';
+        return outcome === 'DONE' || c.reviewStatus === 'accepted';
+      })
+      .slice(0, 20);
+
+    cachedHistoryItems = rows;
+
+    if (rows.length === 0) {
+      container.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:24px 0;font-size:14px">No completed briefs yet.</div>';
+      return;
+    }
+
+    container.innerHTML = rows.map(c => {
+      const eid = escHtml(c.id);
+      const sprint = getSprintForId(c.id);
+      const sprintLabel = sprint ? `Sprint ${sprint}` : '';
+      const isExpanded = historyExpandedId === c.id;
+      const chevron = isExpanded ? '\u25be' : '\u25b8';
+      const desc = c.goal || c.title || '';
+      // First sentence of goal/description
+      const firstSentence = desc.split(/\.\s/)[0] + (desc.includes('.') ? '.' : '');
+
+      return `<div class="history-row" data-history-id="${eid}">
+        <div class="history-row-main">
+          <span class="history-chevron" onclick="toggleHistoryExpand('${eid}')">${chevron}</span>
+          <span class="history-row-id">#${eid}</span>
+          <span class="sprint-badge">${escHtml(sprintLabel)}</span>
+          <span class="history-row-title">${escHtml(c.title || '')}</span>
+          <span class="history-row-status">merged</span>
+        </div>
+        <div class="history-expand ${isExpanded ? 'open' : ''}" id="history-expand-${eid}">
+          <span class="history-expand-desc">${escHtml(firstSentence)}</span>
+          <button class="history-details-btn" onclick="openHistoryDetail('${eid}')">Details ›</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function toggleHistoryExpand(id) {
+    const wasExpanded = historyExpandedId === id;
+
+    // Collapse previously expanded
+    if (historyExpandedId) {
+      const prevExpand = document.getElementById('history-expand-' + historyExpandedId);
+      if (prevExpand) prevExpand.classList.remove('open');
+      const prevChevron = document.querySelector(`.history-row[data-history-id="${historyExpandedId}"] .history-chevron`);
+      if (prevChevron) prevChevron.textContent = '\u25b8';
+    }
+
+    if (wasExpanded) {
+      historyExpandedId = null;
+      return;
+    }
+
+    // Expand new row
+    historyExpandedId = id;
+    const expand = document.getElementById('history-expand-' + id);
+    if (expand) expand.classList.add('open');
+    const chevron = document.querySelector(`.history-row[data-history-id="${id}"] .history-chevron`);
+    if (chevron) chevron.textContent = '\u25be';
+  }
+
+  // ── History Briefing Detail overlay ───────────────────────────────────────
+  let historyDetailOpen = false;
+
+  function openHistoryDetail(id) {
+    const item = cachedHistoryItems.find(c => c.id === id);
+    if (!item) return;
+
+    const sprint = getSprintForId(id);
+    const dur = item.durationMs != null
+      ? (() => { const s = Math.round(item.durationMs / 1000); return s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`; })()
+      : '\u2014';
+    const totalTokens = (item.tokensIn ?? 0) + (item.tokensOut ?? 0);
+    const tokStr = totalTokens > 0 ? (totalTokens >= 1000 ? (totalTokens / 1000).toFixed(1) + 'k' : String(totalTokens)) : '\u2014';
+    const costStr = item.costUsd != null && item.costUsd > 0 ? '$' + item.costUsd.toFixed(3) : '\u2014';
+
+    document.getElementById('history-detail-id').textContent = `#${id}`;
+    document.getElementById('history-detail-title').textContent = item.title || 'Untitled';
+
+    // Context bar
+    const ctxItems = [
+      { label: 'Sprint', value: sprint ? `Sprint ${sprint}` : '\u2014' },
+      { label: 'Builder', value: 'O\u2019Brien' },
+      { label: 'Outcome', value: 'Merged' },
+      { label: 'Duration', value: dur },
+      { label: 'Tokens', value: tokStr },
+      { label: 'Cost', value: costStr },
+    ];
+    document.getElementById('history-detail-context').innerHTML = ctxItems.map((ci, i) =>
+      (i > 0 ? '<span class="history-ctx-sep">\u00b7</span>' : '') +
+      `<span class="history-ctx-item"><span class="history-ctx-label">${escHtml(ci.label)}:</span> <span class="history-ctx-value">${escHtml(ci.value)}</span></span>`
+    ).join('');
+
+    // Body — fetch full brief content if available, otherwise render what we have
+    renderHistoryDetailBody(item);
+
+    document.getElementById('history-detail-overlay').style.display = '';
+    historyDetailOpen = true;
+  }
+
+  async function renderHistoryDetailBody(item) {
+    const container = document.getElementById('history-detail-body');
+
+    // Try to fetch full brief content from the API
+    try {
+      const res = await fetch(`/api/queue/${item.id}/content`);
+      if (res.ok) {
+        const data = await res.json();
+        container.innerHTML = renderRenderedTab(data.body);
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback: render what we have from the register data
+    let html = '';
+    if (item.goal) {
+      html += `<div class="slice-rendered-section">
+        <div class="slice-rendered-section-label">Objective</div>
+        <div class="slice-rendered-section-content"><p>${escHtml(item.goal)}</p></div>
+      </div>`;
+    }
+    if (item.title) {
+      html += `<div class="slice-rendered-section">
+        <div class="slice-rendered-section-label">Title</div>
+        <div class="slice-rendered-section-content"><p>${escHtml(item.title)}</p></div>
+      </div>`;
+    }
+    if (!html) {
+      html = '<div style="color:#9ca3af;text-align:center;padding:40px 0">No brief content available for this slice.</div>';
+    }
+    container.innerHTML = html;
+  }
+
+  function closeHistoryDetail() {
+    document.getElementById('history-detail-overlay').style.display = 'none';
+    historyDetailOpen = false;
+  }
+
+  // Escape key + backdrop click for history detail
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && historyDetailOpen) {
+      closeHistoryDetail();
+      e.stopPropagation();
+    }
+  });
+
+  document.getElementById('history-detail-overlay').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeHistoryDetail();
+  });
 
   startElapsedTick();
   fetchBridge();
@@ -1927,9 +2293,9 @@
     sliceDetailState = null;
   }
 
-  // Close on Escape
+  // Close on Escape (history detail overlay handled by its own listener with higher priority)
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sliceDetailState) {
+    if (e.key === 'Escape' && !historyDetailOpen && sliceDetailState) {
       closeSliceDetail();
     }
   });
