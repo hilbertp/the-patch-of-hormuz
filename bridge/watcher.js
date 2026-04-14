@@ -1612,9 +1612,11 @@ function poll() {
  * Runs at startup before entering the poll loop. Scans the queue directory for
  * orphaned IN_PROGRESS files left behind by a prior crash and resolves each:
  *
- *   {id}-IN_PROGRESS alone           → rename back to PENDING (re-queue)
- *   {id}-IN_PROGRESS + DONE exists   → delete IN_PROGRESS (already complete)
- *   {id}-IN_PROGRESS + ERROR exists  → delete IN_PROGRESS (already failed)
+ *   {id}-IN_PROGRESS alone            → rename back to PENDING (re-queue)
+ *   {id}-IN_PROGRESS + DONE exists    → delete IN_PROGRESS (already complete)
+ *   {id}-IN_PROGRESS + ERROR exists   → delete IN_PROGRESS (already failed)
+ *   {id}-IN_PROGRESS + ACCEPTED exists → delete IN_PROGRESS (already evaluated)
+ *   {id}-IN_PROGRESS + BRIEF exists   → delete IN_PROGRESS (already archived)
  *
  * Returns an array of action records for display in the startup block.
  */
@@ -1707,10 +1709,12 @@ function crashRecovery() {
     const inProgressPath = path.join(QUEUE_DIR, file);
     const hasDone        = fs.existsSync(path.join(QUEUE_DIR, `${id}-DONE.md`));
     const hasError       = fs.existsSync(path.join(QUEUE_DIR, `${id}-ERROR.md`));
+    const hasAccepted    = fs.existsSync(path.join(QUEUE_DIR, `${id}-ACCEPTED.md`));
+    const hasBrief       = fs.existsSync(path.join(QUEUE_DIR, `${id}-BRIEF.md`));
 
-    if (hasDone || hasError) {
+    if (hasDone || hasError || hasAccepted || hasBrief) {
       // Brief already resolved — the IN_PROGRESS file is a stale artifact.
-      const resolvedAs = hasDone ? 'DONE' : 'ERROR';
+      const resolvedAs = hasDone ? 'DONE' : hasError ? 'ERROR' : hasAccepted ? 'ACCEPTED' : 'BRIEF';
       try {
         fs.unlinkSync(inProgressPath);
         log('info', 'startup_recovery', {
@@ -1719,7 +1723,7 @@ function crashRecovery() {
           action: 'deleted',
           resolved_as: resolvedAs,
         });
-        actions.push({ id, type: hasDone ? 'cleared' : 'cleared_error' });
+        actions.push({ id, type: hasDone ? 'cleared' : hasAccepted ? 'cleared_accepted' : hasBrief ? 'cleared_brief' : 'cleared_error' });
       } catch (err) {
         log('warn', 'startup_recovery', { id, msg: 'Failed to delete orphaned IN_PROGRESS', error: err.message });
       }
