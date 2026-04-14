@@ -117,6 +117,22 @@ function writeRegisterEvent(event) {
   fs.appendFileSync(REGISTER, line, 'utf8');
 }
 
+// ── Title/goal fallback ─────────────────────────────────────────────────────
+// First try the COMMISSIONED register event, then fall back to {id}-BRIEF.md.
+function getTitleAndGoal(id, commissioned) {
+  if (commissioned[id]?.title) {
+    return { title: commissioned[id].title, goal: commissioned[id].goal ?? null };
+  }
+  try {
+    const briefPath = path.join(QUEUE_DIR, `${id}-BRIEF.md`);
+    const content = fs.readFileSync(briefPath, 'utf8');
+    const fm = parseFrontmatter(content);
+    return { title: fm.title ?? null, goal: fm.goal ?? null };
+  } catch (_) {
+    return { title: null, goal: null };
+  }
+}
+
 // ── Bridge data builder ──────────────────────────────────────────────────────
 function buildBridgeData() {
   // Heartbeat
@@ -150,9 +166,11 @@ function buildBridgeData() {
   const economics = { totalTokensIn: 0, totalTokensOut: 0, totalCostUsd: 0, totalBriefs: 0 };
   for (const ev of events) {
     if (ev.event === 'DONE' || ev.event === 'ERROR') {
+      const { title: resolvedTitle, goal: resolvedGoal } = getTitleAndGoal(ev.id, commissioned);
       completedMap[ev.id] = {
         id:          ev.id,
-        title:       commissioned[ev.id]?.title ?? null,
+        title:       resolvedTitle,
+        goal:        resolvedGoal,
         outcome:     ev.event,
         durationMs:  ev.durationMs  ?? null,
         tokensIn:    ev.tokensIn    ?? null,

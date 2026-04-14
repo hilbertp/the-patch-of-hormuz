@@ -452,6 +452,32 @@ function registerEvent(id, event, extra) {
   }
 }
 
+/**
+ * registerCommissioned(id, extra)
+ *
+ * Writes a COMMISSIONED register event with one retry on failure.
+ * A missing COMMISSIONED event means the history panel shows no title —
+ * this is data loss, not a minor hiccup, so we retry and alert loudly.
+ */
+function registerCommissioned(id, extra) {
+  const entry = Object.assign(
+    { ts: new Date().toISOString(), id: String(id), event: 'COMMISSIONED' },
+    extra || {}
+  );
+  const line = JSON.stringify(entry) + '\n';
+  try {
+    fs.appendFileSync(REGISTER_FILE, line);
+  } catch (firstErr) {
+    log('warn', 'register_error', { id, msg: 'COMMISSIONED write failed, retrying…', error: firstErr.message });
+    try {
+      fs.appendFileSync(REGISTER_FILE, line);
+    } catch (retryErr) {
+      log('error', 'register_error', { id, msg: 'COMMISSIONED write failed after retry', error: retryErr.message });
+      process.stdout.write(`\n⚠️  CRITICAL: COMMISSIONED register write FAILED for brief ${id} after retry. History title will be missing. Error: ${retryErr.message}\n`);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Frontmatter parsing
 // ---------------------------------------------------------------------------
@@ -1566,7 +1592,7 @@ function poll() {
   log('info', 'state', { id, from: 'PENDING', to: 'IN_PROGRESS' });
 
   // Register: embed full brief body so success criteria are always recoverable.
-  registerEvent(id, 'COMMISSIONED', { title, goal, body: briefContent });
+  registerCommissioned(id, { title, goal, body: briefContent });
 
   openBriefBlock(id, title, goal);
 

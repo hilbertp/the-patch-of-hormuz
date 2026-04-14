@@ -1,44 +1,48 @@
 ---
 id: "084"
-title: "Amendment 1 — fix failed criteria for brief 066"
+title: "Fix naked history rows: server fallback + watcher COMMISSIONED hardening"
 from: obrien
 to: kira
 status: DONE
 brief_id: "084"
-branch: "slice/066-usage-snapshot-hardening"
-completed: "2026-04-14T18:31:00.000Z"
-tokens_in: 28000
-tokens_out: 4500
-elapsed_ms: 120000
-estimated_human_hours: 0.5
+branch: "slice/084-fix-naked-history-rows"
+completed: "2026-04-14T18:50:00.000Z"
+tokens_in: 42000
+tokens_out: 3500
+elapsed_ms: 180000
+estimated_human_hours: 0.75
 compaction_occurred: false
 ---
 
 ## Summary
 
-Fixed both failed acceptance criteria from brief 066:
+Both fixes implemented and committed together on `slice/084-fix-naked-history-rows`.
 
-### AC #5 — Branch has commits; file tracked
-- `bridge/usage-snapshot.js` was untracked and not in any commit
-- Added and committed it to `slice/066-usage-snapshot-hardening`
-- Branch now has 1 commit ahead of `main`: `a9ecc69`
+### Task 1 — server.js fallback
 
-### AC #1 — five_hour fields no longer null
-- **Root cause:** `formatSnapshot()` read `raw.five_hour_usage` (doesn't exist in API response) instead of `raw.five_hour`
-- **Fix:** Changed to `raw.five_hour` which contains `{ utilization, resets_at }`
-- Also fixed the `monthly_usage` → `seven_day` rename: API returns `raw.seven_day` with `{ utilization, resets_at }`, not `raw.monthly_usage` with `used_credits`/`monthly_limit`
-- Updated pretty-print output and delta calculation to use `utilization` percentage instead of `used`/`limit` token counts
+Added `getTitleAndGoal(id, commissioned)` helper above `buildBridgeData()`. It first checks the `commissioned` map (existing behaviour), then falls back to reading `{id}-BRIEF.md` from `QUEUE_DIR` and parsing its frontmatter. Returns `{ title: null, goal: null }` if neither source has a value.
 
-## Verification
+Applied in the `completedMap` construction where `recent` history entries are built — both `title` and `goal` fields now use the resolved values.
 
-- `node bridge/usage-snapshot.js` with empty config key: exits 0, logs warning to bridge.log, no stderr output
-- `node bridge/usage-snapshot.js --session-key "expired"`: exits 0, silent failure
-- Saved `_raw` snapshot confirms API shape: `five_hour.utilization: 100`, `five_hour.resets_at: "2026-04-12T23:00:00..."`, `seven_day.utilization: 24`
+### Task 2 — watcher.js COMMISSIONED hardening
 
-## All original AC status
+Added `registerCommissioned(id, extra)` function that:
+1. Attempts the register write (same as `registerEvent`).
+2. On failure, logs a warning and retries once immediately.
+3. If the retry also fails, logs an error AND writes a prominent `⚠️ CRITICAL` line to `process.stdout` so it's visible in the watcher terminal.
 
-1. **Script prints usage data with valid key** — fixed, five_hour fields now populated from correct API path
-2. **coworkSessionKey in config** — already present, 3-source fallback works
-3. **Silent failure on bad/missing key** — confirmed exits 0, no stderr, logs to bridge.log
-4. **--silent --log** — logic unchanged, works as before
-5. **All changes committed on branch** — branch `slice/066-usage-snapshot-hardening` is 1 commit ahead of main
+Replaced the `registerEvent(id, 'COMMISSIONED', ...)` call at the pickup site with `registerCommissioned(id, ...)`. The generic `registerEvent` function is unchanged — all other call sites are unaffected.
+
+### Task 3 — backfill verification for slice 082
+
+- Confirmed: no COMMISSIONED event exists for ID 082 in `register.jsonl`.
+- `082-BRIEF.md` exists in the queue with `title: "Strip KAL section from ruflo-benchmark-baseline"` and `goal` in frontmatter.
+- With the server fallback live, `getTitleAndGoal('082', commissioned)` will read `082-BRIEF.md` and return the correct title/goal. The history row will display properly — no manual register patching needed.
+
+## Success criteria verification
+
+1. **Server fallback** — `getTitleAndGoal()` reads `{id}-BRIEF.md` when no COMMISSIONED event exists. Done.
+2. **Slice 082 title** — 082-BRIEF.md exists with correct title; fallback will resolve it. Done.
+3. **Watcher retry + alert** — `registerCommissioned()` retries once, emits stdout warning on double failure. Done.
+4. **Existing rows unaffected** — `getTitleAndGoal()` checks `commissioned` map first (same as before). Done.
+5. **Branch** — All changes on `slice/084-fix-naked-history-rows`. Done.
