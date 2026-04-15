@@ -518,62 +518,6 @@
     100% { left: 100%; }
   }
 
-  /* Pipeline stages */
-  .pipeline-stages {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    flex-wrap: wrap;
-    row-gap: 6px;
-  }
-
-  .pipeline-stages::-webkit-scrollbar { height: 3px; }
-  .pipeline-stages::-webkit-scrollbar-track { background: transparent; }
-  .pipeline-stages::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
-
-  .stage-node {
-    flex-shrink: 0;
-    padding: 4px 10px;
-    font-size: 11px;
-    font-weight: 500;
-    border-radius: 4px;
-    color: #9ca3af;
-    background: transparent;
-    border: 1px solid #e5e7eb;
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-
-  .stage-node.done {
-    color: #166534;
-    background: #dcfce7;
-    border-color: #16a34a;
-  }
-
-  .stage-node.active {
-    color: #ffffff;
-    background: #111827;
-    border-color: #111827;
-    font-weight: 600;
-  }
-
-  .stage-node.upcoming {
-    color: #9ca3af;
-    border-color: #e5e7eb;
-  }
-
-  .stage-connector {
-    flex-shrink: 0;
-    font-size: 10px;
-    padding: 0 3px;
-    user-select: none;
-    color: #d1d5db;
-    transition: color 0.2s;
-  }
-
-  .stage-connector.done { color: #16a34a; }
 
 
   /* ── SLICE HISTORY ────────────────────────────────── */
@@ -1802,9 +1746,6 @@
           </div>
         </div>
 
-        <!-- Pipeline stage pills -->
-        <div class="pipeline-stages" id="pipeline-stages"></div>
-
         <!-- Active state content -->
         <div id="mission-active-content" style="display:none">
           <div id="mission-id-badge" class="active-slice-id"></div>
@@ -2014,53 +1955,6 @@
 </div>
 
 <script>
-  // ── Mission lifecycle pipeline ──────────────────────────────────────────────
-
-  const PIPELINE_STAGES = [
-    { key: 'ACCEPTED',     label: 'Accepted' },
-    { key: 'DEVELOPMENT',  label: 'Development' },
-    { key: 'REVIEW',       label: 'Review' },
-    { key: 'QA',           label: 'QA' },
-    { key: 'MERGED',       label: 'Merged' },
-  ];
-
-  // Map internal queue states to pipeline stage keys
-  function mapStateToPipelineKey(state) {
-    switch (state) {
-      case 'PENDING':         return 'ACCEPTED';
-      case 'IN_PROGRESS':     return 'DEVELOPMENT';
-      case 'EVALUATING':
-      case 'AWAITING_REVIEW':
-      case 'IN_REVIEW':       return 'REVIEW';
-      case 'ACCEPTED':        return 'QA';
-      case 'MERGED':
-      case 'DONE':            return 'MERGED';
-      default:                return null;
-    }
-  }
-
-  function renderPipeline(activeKey) {
-    const activeIdx = activeKey ? PIPELINE_STAGES.findIndex(s => s.key === activeKey) : -1;
-    const container = document.getElementById('pipeline-stages');
-
-    let html = '';
-    PIPELINE_STAGES.forEach((stage, idx) => {
-      if (idx > 0) {
-        const connCls = (activeIdx >= 0 && idx <= activeIdx) ? 'done' : '';
-        html += `<span class="stage-connector ${connCls}">\u203a</span>`;
-      }
-
-      let cls = 'upcoming';
-      if (activeIdx >= 0) {
-        if (idx < activeIdx)      cls = 'done';
-        else if (idx === activeIdx) cls = 'active';
-      }
-
-      html += `<div class="stage-node ${cls}">${escHtml(stage.label)}</div>`;
-    });
-
-    container.innerHTML = html;
-  }
 
   // ── Error display state ─────────────────────────────────────────────────
   const dismissedErrors = new Set();   // IDs the user has dismissed this session
@@ -2227,15 +2121,12 @@
     const errorSlice = slices.find(b => b.state === 'ERROR' && !dismissedErrors.has(b.id));
     const showError = !activeStageKey && errorSlice;
 
-    renderPipeline(activeStageKey);
-
     const badgeEl     = document.getElementById('mission-id-badge');
     const textEl      = document.getElementById('mission-active-content');
     const idleEl      = document.getElementById('mission-idle-text');
     const elapsedEl   = document.getElementById('mission-elapsed');
     const timerBlock  = document.getElementById('active-timer-block');
     const titleEl     = document.getElementById('pipeline-mission-title');
-    const stageEl     = document.getElementById('pipeline-mission-stage');
     const progressBar = document.getElementById('active-progress-bar');
     const errorEl     = document.getElementById('error-display');
 
@@ -2284,8 +2175,6 @@
       titleEl.textContent  = mission.title || '\u2014';
       const goalEl = document.getElementById('pipeline-mission-goal');
       if (goalEl) goalEl.textContent = mission.goal || '';
-      const stageMeta = PIPELINE_STAGES.find(s => s.key === activeStageKey);
-      stageEl.textContent  = stageMeta ? stageMeta.label : activeStageKey;
       textEl.style.display = '';
       idleEl.style.display = 'none';
       progressBar.style.display = (heartbeat.status === 'processing') ? '' : 'none';
