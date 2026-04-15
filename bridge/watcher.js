@@ -319,7 +319,7 @@ function printStartupBlock(recoveryActions) {
       } else if (action.type === 'cleared_error') {
         print(`    ${C.yellow}${SYM.check}${C.reset} Slice ${action.id}${SYM.dash}cleared stale work-in-progress (already failed)`);
       } else if (action.type === 'requeued') {
-        print(`    ${C.yellow}${SYM.back}${C.reset} Slice ${action.id}${SYM.dash}re-queued interrupted brief`);
+        print(`    ${C.yellow}${SYM.back}${C.reset} Slice ${action.id}${SYM.dash}re-queued interrupted slice`);
       } else if (action.type === 'requeued_eval') {
         print(`    ${C.yellow}${SYM.back}${C.reset} Slice ${action.id}${SYM.dash}re-queued interrupted evaluation`);
       } else if (action.type === 'recovery_merged') {
@@ -340,19 +340,19 @@ function printStartupBlock(recoveryActions) {
   const isEmpty = snapshot.waiting === 0 && snapshot.in_progress === 0
                && snapshot.completed === 0 && snapshot.failed === 0;
   if (isEmpty) {
-    print(`    Queue is empty${SYM.dash}watching for new briefs.`);
+    print(`    Queue is empty${SYM.dash}watching for new slices.`);
   } else {
     print(`    ${SYM.clip}${snapshot.waiting} waiting${SYM.sep}${snapshot.in_progress} in progress${SYM.sep}${snapshot.completed} completed${SYM.sep}${snapshot.failed} failed`);
   }
 
-  // Log staged briefs count
+  // Log staged slices count
   let stagedCount = 0;
   try {
     const stagedFiles = fs.readdirSync(STAGED_DIR).filter(f => f.endsWith('-STAGED.md') || f.endsWith('-NEEDS_AMENDMENT.md'));
     stagedCount = stagedFiles.length;
   } catch (_) {}
   if (stagedCount > 0) {
-    print(`    ${C.yellow}ℹ${C.reset}  ${stagedCount} brief(s) awaiting your review in bridge/staged/`);
+    print(`    ${C.yellow}ℹ${C.reset}  ${stagedCount} slice(s) awaiting your review in bridge/staged/`);
   }
 
   print(hLine(B.sng));
@@ -360,13 +360,13 @@ function printStartupBlock(recoveryActions) {
 }
 
 // ---------------------------------------------------------------------------
-// Brief lifecycle blocks (Task 3)
+// Slice lifecycle blocks (Task 3)
 // ---------------------------------------------------------------------------
 
 /**
  * openBriefBlock(id, title, goal)
  *
- * Prints the opening of a brief lifecycle block. Called at pickup.
+ * Prints the opening of a slice lifecycle block. Called at pickup.
  */
 function openBriefBlock(id, title, goal) {
   const titleStr = title ? `${SYM.sep}"${title}"` : '';
@@ -382,7 +382,7 @@ function openBriefBlock(id, title, goal) {
 /**
  * printProgressTick(elapsedMs)
  *
- * Appends a progress line inside the open brief block. Called every 60s.
+ * Appends a progress line inside the open slice block. Called every 60s.
  */
 function printProgressTick(elapsedMs) {
   const elapsed = formatDuration(elapsedMs);
@@ -392,7 +392,7 @@ function printProgressTick(elapsedMs) {
 /**
  * closeBriefBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason)
  *
- * Prints the completion or failure lines and closes the brief block.
+ * Prints the completion or failure lines and closes the slice block.
  */
 function closeBriefBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason) {
   const duration  = formatDuration(durationMs);
@@ -436,7 +436,7 @@ function log(level, event, fields) {
 // ---------------------------------------------------------------------------
 // Register — append-only event log (fortlaufende Liste)
 //
-// One JSON line per event. The brief body is embedded in the COMMISSIONED
+// One JSON line per event. The slice body is embedded in the COMMISSIONED
 // event so the original spec (with success criteria) is always recoverable.
 // Nog's evaluation task reads this file instead of hunting for renamed/deleted
 // queue files.
@@ -476,7 +476,7 @@ function registerCommissioned(id, extra) {
       fs.appendFileSync(REGISTER_FILE, line);
     } catch (retryErr) {
       log('error', 'register_error', { id, msg: 'COMMISSIONED write failed after retry', error: retryErr.message });
-      process.stdout.write(`\n⚠️  CRITICAL: COMMISSIONED register write FAILED for brief ${id} after retry. History title will be missing. Error: ${retryErr.message}\n`);
+      process.stdout.write(`\n⚠️  CRITICAL: COMMISSIONED register write FAILED for slice ${id} after retry. History title will be missing. Error: ${retryErr.message}\n`);
     }
   }
 }
@@ -895,12 +895,12 @@ function ensureMainIsFresh(id) {
 }
 
 /**
- * buildScopeDiff(id, branchName, briefContent)
+ * buildScopeDiff(id, branchName, sliceContent)
  *
  * Builds a human-readable scope summary for Nog's review:
  *   - Which files were changed, added, or deleted on the branch
  *   - Per-file line count deltas
- *   - The brief's title and goal for scope comparison
+ *   - The slice's title and goal for scope comparison
  *
  * Returns a string block to inject into the evaluator prompt.
  */
@@ -924,10 +924,10 @@ function buildScopeDiff(id, branchName, briefContent) {
     lines.push('```');
     lines.push('');
 
-    // Extract brief scope info
+    // Extract slice scope info
     const meta = parseFrontmatter(briefContent) || {};
-    lines.push(`Brief title: ${meta.title || '(unknown)'}`);
-    lines.push(`Brief goal: ${meta.goal || '(unknown)'}`);
+    lines.push(`Slice title: ${meta.title || '(unknown)'}`);
+    lines.push(`Slice goal: ${meta.goal || '(unknown)'}`);
     lines.push(`Branch: ${branchName}`);
     lines.push('');
   } catch (err) {
@@ -1054,7 +1054,7 @@ let idlePrintCounter = 0;
 /**
  * invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effectiveTimeoutMs)
  *
- * Pipes brief content + report path instruction to `claude -p`.
+ * Pipes slice content + report path instruction to `claude -p`.
  * On success: checks donePath exists; if not, writes a fallback ERROR report.
  * On failure: writes an ERROR report.
  * Always cleans up the IN_PROGRESS file on completion (existence-checked to
@@ -1131,11 +1131,11 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
     '```',
     '---',
     'id: "' + id + '"',
-    'title: "(brief title)"',
+    'title: "(slice title)"',
     'from: rom',
     'to: nog',
     'status: DONE',
-    'brief_id: "' + id + '"',
+    'slice_id: "' + id + '"',
     'branch: "' + sliceBranch + '"',
     'completed: "' + new Date().toISOString() + '"',
     'tokens_in: 0',
@@ -1332,7 +1332,7 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
           extra = { lastActivitySecondsAgo, inactivityLimitMinutes, durationMs };
           log('error', 'inactivity_timeout', {
             id,
-            msg: 'Brief killed due to inactivity',
+            msg: 'Slice killed due to inactivity',
             reason,
             lastActivitySecondsAgo,
             inactivityLimitMinutes,
@@ -1344,7 +1344,7 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
           extra = { durationMs };
           log('error', reason === 'timeout' ? 'timeout' : 'error', {
             id,
-            msg: reason === 'timeout' ? 'Brief timed out' : 'claude -p failed',
+            msg: reason === 'timeout' ? 'Slice timed out' : 'claude -p failed',
             reason,
             exitCode: err.code,
             signal: err.signal || null,
@@ -1421,14 +1421,14 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
 
       printSessionSummary();
 
-      // Archive the original brief so Nog's evaluation task can find the
+      // Archive the original slice so Nog's evaluation task can find the
       // success criteria.  Rename IN_PROGRESS → BRIEF (permanent archive).
       // The BRIEF suffix is inert — the poll loop only looks for PENDING files.
       const briefArchivePath = path.join(QUEUE_DIR, `${id}-BRIEF.md`);
       if (fs.existsSync(inProgressPath)) {
         try {
           fs.renameSync(inProgressPath, briefArchivePath);
-          log('info', 'state', { id, msg: 'Archived brief', from: 'IN_PROGRESS', to: 'BRIEF' });
+          log('info', 'state', { id, msg: 'Archived slice', from: 'IN_PROGRESS', to: 'BRIEF' });
         } catch (archiveErr) {
           // Fallback: if rename fails, try to delete so the queue doesn't jam.
           log('warn', 'error', { id, msg: 'Failed to archive IN_PROGRESS file, trashing instead', error: archiveErr.message });
@@ -1517,7 +1517,7 @@ function callReviewAPI(id, verdict, reason) {
 /**
  * countReviewedCycles(rootId)
  *
- * Reads register.jsonl and counts REVIEWED events for a given root brief ID.
+ * Reads register.jsonl and counts REVIEWED events for a given root slice ID.
  * Returns 0 if the file is unreadable.
  */
 function countReviewedCycles(rootId) {
@@ -1542,7 +1542,7 @@ function countReviewedCycles(rootId) {
  * hasReviewEvent(id)
  *
  * Returns true if register.jsonl contains a REVIEWED, ACCEPTED, or STUCK event
- * for this brief ID — meaning it has already been evaluated.
+ * for this slice ID — meaning it has already been evaluated.
  */
 function hasReviewEvent(id) {
   try {
@@ -1588,7 +1588,7 @@ function extractJSON(text) {
 /**
  * invokeEvaluator(id)
  *
- * Reads the BRIEF and EVALUATING files for the given brief ID,
+ * Reads the BRIEF and EVALUATING files for the given slice ID,
  * constructs an evaluator prompt, calls claude -p, parses the JSON verdict,
  * and handles ACCEPTED / AMENDMENT_NEEDED / STUCK outcomes.
  */
@@ -1632,7 +1632,7 @@ function invokeEvaluator(id) {
   const doneMeta = parseFrontmatter(evaluatingContent) || {};
   const branchName = doneMeta.branch || null;
 
-  // Determine root brief ID and amendment cycle.
+  // Determine root slice ID and amendment cycle.
   const briefMeta = parseFrontmatter(briefContent) || {};
   const rootId = briefMeta.root_commission_id || id;
   const cycle  = countReviewedCycles(rootId);
@@ -1640,7 +1640,7 @@ function invokeEvaluator(id) {
   log('info', 'evaluator', { id, rootId, cycle, branchName, msg: 'Starting evaluation' });
   print(`${B.tl}${B.sng.repeat(W - 1)}`);
   print(`${B.vert}  ${SYM.right} Evaluator${SYM.sep}Slice ${id} (${5 - cycle} retries remaining)`);
-  print(`${B.vert}    Evaluating — fresh claude -p session, brief ACs + DONE report injected`);
+  print(`${B.vert}    Evaluating — fresh claude -p session, slice ACs + DONE report injected`);
   print(`${B.vert}`);
 
   // Build scope diff for Nog's review
@@ -1652,26 +1652,26 @@ function invokeEvaluator(id) {
     'Your job has THREE parts:',
     '',
     '### Part 1: Acceptance Criteria',
-    'Did Rom\'s work satisfy ALL acceptance criteria in the original brief?',
+    'Did Rom\'s work satisfy ALL acceptance criteria in the original slice?',
     'Be specific. If even one AC is not met, the verdict is AMENDMENT_NEEDED.',
     '',
     '### Part 2: Intent Verification',
-    'Every slice has a goal — a reason it exists. Read the brief\'s title and goal field.',
+    'Every slice has a goal — a reason it exists. Read the slice\'s title and goal field.',
     'Then ask: does the shipped solution actually achieve that intent?',
     '',
     'It is possible to tick every AC checkbox while missing the point entirely.',
-    'For example: a brief asks for "pagination so users can browse large result sets".',
+    'For example: a slice asks for "pagination so users can browse large result sets".',
     'Rom could add prev/next buttons that technically satisfy the AC "add pagination',
     'controls" but wire them to a hardcoded page 1 — the ACs pass, the intent fails.',
     '',
-    'If the solution does not meaningfully achieve the brief\'s stated goal,',
+    'If the solution does not meaningfully achieve the slice\'s stated goal,',
     'even if individual ACs are technically met, that is AMENDMENT_NEEDED.',
     'Explain what the gap is between the intent and what was delivered.',
     '',
     '### Part 3: Scope Discipline',
-    'Review the list of changed files below against the brief\'s title and goal.',
+    'Review the list of changed files below against the slice\'s title and goal.',
     'Ask yourself:',
-    '- Did Rom ONLY change files that are relevant to this brief\'s goal?',
+    '- Did Rom ONLY change files that are relevant to this slice\'s goal?',
     '- Were any files modified that have nothing to do with the task?',
     '- If files outside the expected scope were touched, is there a clear reason',
     '  (e.g. a shared utility that needed updating, a config change required by the feature)?',
@@ -1679,9 +1679,9 @@ function invokeEvaluator(id) {
     '',
     'Out-of-scope changes are a red flag. If you see them and the DONE report does',
     'not explain why, that is an AMENDMENT_NEEDED — the fix instruction should be',
-    '"revert changes to [file] that are outside the scope of this brief."',
+    '"revert changes to [file] that are outside the scope of this slice."',
     '',
-    '## ORIGINAL BRIEF (contains the acceptance criteria):',
+    '## ORIGINAL SLICE (contains the acceptance criteria):',
     '',
     briefContent,
     '',
@@ -1701,8 +1701,8 @@ function invokeEvaluator(id) {
     '  "reason": "One paragraph explaining your decision. Cover all three parts: ACs, intent, and scope.",',
     '  "failed_criteria": ["list of specific ACs not met, empty if all pass"],',
     '  "intent_met": true or false,',
-    '  "intent_gap": "If intent_met is false: what the brief intended vs what was actually delivered. If true: empty string.",',
-    '  "out_of_scope": ["list of files changed outside the brief\'s scope, empty if clean"],',
+    '  "intent_gap": "If intent_met is false: what the slice intended vs what was actually delivered. If true: empty string.",',
+    '  "out_of_scope": ["list of files changed outside the slice\'s scope, empty if clean"],',
     '  "amendment_instructions": "If AMENDMENT_NEEDED: specific instructions for Rom. Cover failed ACs, intent gaps, and out-of-scope reversions. Reference file paths. If ACCEPTED: empty string."',
     '}',
   ].join('\n');
@@ -1830,7 +1830,7 @@ function mergeBranch(id, branchName, title) {
     return { success: false, sha: null, error: `invalid_branch_name: ${err.message}` };
   }
 
-  const commitMsg = `merge: ${branchName} — ${title || `brief ${id}`} (brief ${id})`;
+  const commitMsg = `merge: ${branchName} — ${title || `slice ${id}`} (slice ${id})`;
   try {
     // ── FUSE-safe checkout main ─────────────────────────────────────────
     fuseSafeCheckoutMain(id);
@@ -1916,7 +1916,7 @@ function mergeBranch(id, branchName, title) {
  * ACCEPTED verdict: register event, rename EVALUATING → ACCEPTED, merge branch to main directly.
  */
 function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationMs) {
-  // Read title from brief file for the merge commit message.
+  // Read title from slice file for the merge commit message.
   const briefPath = path.join(QUEUE_DIR, `${id}-BRIEF.md`);
   let title = null;
   try {
@@ -1940,7 +1940,7 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
 
   callReviewAPI(id, 'ACCEPTED', reason);
 
-  // Merge branch to main directly — no separate merge brief.
+  // Merge branch to main directly — no separate merge slice.
   if (!branchName) {
     log('warn', 'merge', { id, msg: 'No branch name in DONE report — skipping merge' });
     print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}No branch in report — merge skipped`);
@@ -1953,11 +1953,11 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
 
   if (result.success) {
     const shortSha = result.sha.slice(0, 7);
-    registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, brief_id: id });
+    registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, slice_id: id });
     log('info', 'merge', { id, msg: `Merged ${branchName} to main`, branch: branchName, sha: result.sha });
     print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}Merged ${branchName}${SYM.arrow}main (${shortSha})`);
   } else {
-    registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, brief_id: id });
+    registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, slice_id: id });
     log('error', 'merge', { id, msg: `Merge failed for ${branchName}`, branch: branchName, reason: result.error });
     print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}${C.red}${SYM.cross}${C.reset} Merge failed: ${result.error}`);
     printMergeFailedAlert(id, title, branchName, result.error);
@@ -1985,14 +1985,14 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     log('warn', 'evaluator', { id, msg: 'Failed to rename EVALUATING to REVIEWED', error: err.message });
   }
 
-  // Write amendment brief PENDING.
+  // Write amendment slice PENDING.
   const nextId = nextBriefId(QUEUE_DIR);
   const failedList = (failedCriteria || []).map((c, i) => `${i + 1}. ${c}`).join('\n');
   const amendmentContent = [
     '---',
     `id: "${nextId}"`,
-    `title: "Amendment ${cycle + 1} — fix failed criteria for brief ${rootId}"`,
-    `goal: "All acceptance criteria from brief ${rootId} are met on branch ${branchName || '(original branch)'}."`,
+    `title: "Amendment ${cycle + 1} — fix failed criteria for slice ${rootId}"`,
+    `goal: "All acceptance criteria from slice ${rootId} are met on branch ${branchName || '(original branch)'}."`,
     'from: nog',
     'to: rom',
     'priority: normal',
@@ -2007,7 +2007,7 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     '',
     '## Objective',
     '',
-    `This is an amendment to brief ${rootId} (cycle ${cycle + 1} of 5).`,
+    `This is an amendment to slice ${rootId} (cycle ${cycle + 1} of 5).`,
     '',
     '**IMPORTANT: The watcher handles all git branching. Do NOT run any git checkout, git branch, or git switch commands. You are already on the correct branch. Just make your changes and commit.**',
     '',
@@ -2019,7 +2019,7 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     '',
     amendmentInstructions || '(see failed criteria above)',
     '',
-    '## Original acceptance criteria (from brief ' + rootId + ')',
+    '## Original acceptance criteria (from slice ' + rootId + ')',
     '',
     briefContent,
     '',
@@ -2031,16 +2031,16 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     '## Success criteria',
     '',
     '1. All failed criteria listed above are resolved.',
-    '2. All original acceptance criteria from brief ' + rootId + ' are met.',
+    '2. All original acceptance criteria from slice ' + rootId + ' are met.',
     '3. DONE report includes branch name in frontmatter.',
   ].join('\n');
 
   const amendmentPendingPath = path.join(QUEUE_DIR, `${nextId}-PENDING.md`);
   try {
     fs.writeFileSync(amendmentPendingPath, amendmentContent);
-    log('info', 'evaluator', { id, msg: `Wrote amendment brief ${nextId}-PENDING.md`, nextId, cycle: cycle + 1, rootId });
+    log('info', 'evaluator', { id, msg: `Wrote amendment slice ${nextId}-PENDING.md`, nextId, cycle: cycle + 1, rootId });
   } catch (err) {
-    log('warn', 'evaluator', { id, msg: 'Failed to write amendment brief PENDING', error: err.message });
+    log('warn', 'evaluator', { id, msg: 'Failed to write amendment slice PENDING', error: err.message });
   }
 
   callReviewAPI(id, 'AMENDMENT_NEEDED', reason);
@@ -2078,7 +2078,7 @@ function handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs) 
 }
 
 // ---------------------------------------------------------------------------
-// ERROR file (written by watcher on invocation failure or invalid brief)
+// ERROR file (written by watcher on invocation failure or invalid slice)
 // ---------------------------------------------------------------------------
 
 /**
@@ -2089,10 +2089,10 @@ function handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs) 
  *   "timeout"             — process was killed after exceeding the timeout
  *   "crash"               — process exited non-zero; exit_code included
  *   "no_report"           — process exited 0 but wrote no DONE file
- *   "invalid_brief"  — PENDING file failed frontmatter validation
+ *   "invalid_slice"   — PENDING file failed frontmatter validation
  *
  * @param {string}      errorPath  Absolute path for the ERROR file.
- * @param {string}      id         Brief ID.
+ * @param {string}      id         Slice ID.
  * @param {string}      reason     One of the four reason strings above.
  * @param {Error|null}  err        The Error object (null for no_report/invalid).
  * @param {string}      stdout     Combined stdout captured from the process.
@@ -2111,7 +2111,7 @@ function writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra) {
     'from: watcher',
     'to: chiefobrien',
     'status: ERROR',
-    `brief_id: "${id}"`,
+    `slice_id: "${id}"`,
     `completed: "${completed}"`,
     `reason: "${reason}"`,
   ];
@@ -2226,19 +2226,19 @@ function poll() {
     const donePath = path.join(QUEUE_DIR, doneFile);
     const briefPath = path.join(QUEUE_DIR, `${doneId}-BRIEF.md`);
 
-    // Skip if BRIEF file not present (Rom may still be running).
+    // Skip if BRIEF file not present (Rom may still be running — archive not yet written).
     if (!fs.existsSync(briefPath)) continue;
 
-    // Legacy: merge briefs (type: merge) are auto-accepted without claude -p.
-    // Deprecated: handleAccepted() now merges directly — no new merge briefs
-    // are generated. This block handles any legacy merge briefs still in the queue.
+    // Legacy: merge slices (type: merge) are auto-accepted without claude -p.
+    // Deprecated: handleAccepted() now merges directly — no new merge slices
+    // are generated. This block handles any legacy merge slices still in the queue.
     let briefMeta = {};
     try {
       briefMeta = parseFrontmatter(fs.readFileSync(briefPath, 'utf-8')) || {};
     } catch (_) {}
 
     if (briefMeta.type === 'merge') {
-      log('info', 'evaluator', { id: doneId, msg: 'Legacy merge brief auto-accepted (deprecated path)' });
+      log('info', 'evaluator', { id: doneId, msg: 'Legacy merge slice auto-accepted (deprecated path)' });
       const acceptedPath = path.join(QUEUE_DIR, `${doneId}-ACCEPTED.md`);
       try { fs.renameSync(donePath, acceptedPath); } catch (_) {}
       registerEvent(doneId, 'ACCEPTED', { reason: 'auto-accepted merge', cycle: 0 });
@@ -2291,10 +2291,10 @@ function poll() {
   const pendingFile = pendingFiles[0];
   const pendingPath = path.join(QUEUE_DIR, pendingFile);
 
-  // Derive the brief ID from the filename (e.g. "003-PENDING.md" → "003").
+  // Derive the slice ID from the filename (e.g. "003-PENDING.md" → "003").
   const id = pendingFile.replace('-PENDING.md', '');
 
-  // Read brief content.
+  // Read slice content.
   let briefContent;
   try {
     briefContent = fs.readFileSync(pendingPath, 'utf-8');
@@ -2329,7 +2329,7 @@ function poll() {
   // If validation fails:
   //   - Do NOT rename to IN_PROGRESS (file stays as PENDING for inspection)
   //   - Write an ERROR report immediately
-  //   - Log with reason "invalid_brief"
+  //   - Log with reason "invalid_slice"
   //   - Remove the PENDING file so the poll loop doesn't re-process it forever
   //   - Continue the poll loop (do not crash)
   // ---------------------------------------------------------------------------
@@ -2344,18 +2344,18 @@ function poll() {
 
     log('error', 'error', {
       id: errId,
-      msg: 'Brief rejected — missing required frontmatter fields',
-      reason: 'invalid_brief',
+      msg: 'Slice rejected — missing required frontmatter fields',
+      reason: 'invalid_slice',
       missing_fields: missingFields,
       file: pendingFile,
     });
 
-    // Stakeholder-friendly terminal output for rejected briefs.
+    // Stakeholder-friendly terminal output for rejected slices.
     print(`  ${C.red}${SYM.cross}${C.reset} Slice ${errId} rejected${SYM.dash}Missing required fields: ${missingFields.join(', ')}`);
 
-    writeErrorFile(errPath, errId, 'invalid_brief', null, '', '', { missingFields });
-    log('info', 'state', { id: errId, from: 'PENDING', to: 'ERROR', reason: 'invalid_brief' });
-    registerEvent(errId, 'ERROR', { reason: 'invalid_brief', missingFields });
+    writeErrorFile(errPath, errId, 'invalid_slice', null, '', '', { missingFields });
+    log('info', 'state', { id: errId, from: 'PENDING', to: 'ERROR', reason: 'invalid_slice' });
+    registerEvent(errId, 'ERROR', { reason: 'invalid_slice', missingFields });
 
     // Remove the invalid PENDING file so it doesn't loop indefinitely.
     try { fs.renameSync(pendingPath, path.join(TRASH_DIR, path.basename(pendingPath) + '.invalid')); } catch (_) {}
@@ -2371,10 +2371,10 @@ function poll() {
     return;
   }
 
-  log('info', 'pickup', { id, title, msg: 'Brief picked up', file: pendingFile });
+  log('info', 'pickup', { id, title, msg: 'Slice picked up', file: pendingFile });
   log('info', 'state', { id, from: 'PENDING', to: 'IN_PROGRESS' });
 
-  // Register: embed full brief body so success criteria are always recoverable.
+  // Register: embed full slice body so success criteria are always recoverable.
   registerCommissioned(id, { title, goal, body: briefContent });
 
   openBriefBlock(id, title, goal);
@@ -2473,11 +2473,11 @@ function crashRecovery() {
     // Re-attempt merge.
     const result = mergeBranch(id, branchName, title);
     if (result.success) {
-      registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, brief_id: id, recovery: true });
+      registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, slice_id: id, recovery: true });
       log('info', 'startup_recovery', { id, msg: `Recovery merge succeeded for ${branchName}`, branch: branchName, sha: result.sha });
       actions.push({ id, type: 'recovery_merged', branch: branchName, sha: result.sha });
     } else {
-      registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, brief_id: id, recovery: true });
+      registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, slice_id: id, recovery: true });
       log('warn', 'startup_recovery', { id, msg: `Recovery merge failed for ${branchName}`, branch: branchName, reason: result.error });
       actions.push({ id, type: 'recovery_merge_failed', branch: branchName, reason: result.error });
       printUnmergedAlert(id, title, branchName);
@@ -2496,7 +2496,7 @@ function crashRecovery() {
     const hasBrief       = fs.existsSync(path.join(QUEUE_DIR, `${id}-BRIEF.md`));
 
     if (hasDone || hasError || hasAccepted || hasBrief) {
-      // Brief already resolved — the IN_PROGRESS file is a stale artifact.
+      // Slice already resolved — the IN_PROGRESS file is a stale artifact.
       const resolvedAs = hasDone ? 'DONE' : hasError ? 'ERROR' : hasAccepted ? 'ACCEPTED' : 'BRIEF';
       try {
         fs.renameSync(inProgressPath, path.join(TRASH_DIR, path.basename(inProgressPath) + '.orphan'));
@@ -2511,7 +2511,7 @@ function crashRecovery() {
         log('warn', 'startup_recovery', { id, msg: 'Failed to delete orphaned IN_PROGRESS', error: err.message });
       }
     } else {
-      // No resolution file — brief was interrupted mid-flight. Re-queue it.
+      // No resolution file — slice was interrupted mid-flight. Re-queue it.
       const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
       try {
         fs.renameSync(inProgressPath, pendingPath);  // atomic rename
@@ -2531,7 +2531,7 @@ function crashRecovery() {
 }
 
 // ---------------------------------------------------------------------------
-// Brief ID management (3.2)
+// Slice ID management (3.2)
 // ---------------------------------------------------------------------------
 
 /**
@@ -2568,11 +2568,11 @@ function shutdown(signal) {
   log('info', 'shutdown', { msg: `Received ${signal} — shutting down` });
   if (processing) {
     log('warn', 'shutdown', {
-      msg: 'A brief is in flight at shutdown. The IN_PROGRESS file will be recovered by crash recovery (Layer 3) on next startup.',
-      current_brief: heartbeatState.current_brief,
+      msg: 'A slice is in flight at shutdown. The IN_PROGRESS file will be recovered by crash recovery (Layer 3) on next startup.',
+      current_brief: heartbeatState.current_brief,  // internal key name kept for state compat
     });
     print('');
-    print(`  Watcher shutting down${SYM.dash}brief in progress will be recovered on next start.`);
+    print(`  Watcher shutting down${SYM.dash}slice in progress will be recovered on next start.`);
   }
   process.exit(0);
 }
