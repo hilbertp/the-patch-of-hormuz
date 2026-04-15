@@ -278,14 +278,21 @@ function buildBridgeData() {
     const goalFromRegister = commissioned[id]?.goal ?? null;
     const goalFromFm       = fm.goal ?? null;
 
+    // For ERROR/DONE state, the file's own title is a watcher-generated fallback
+    // ("Slice N — crash"). Prefer the real title from the COMMISSIONED event or
+    // the BRIEF archive so the error display shows something meaningful.
+    const { title: betterTitle, goal: betterGoal } = (state === 'ERROR' || state === 'DONE')
+      ? getTitleAndGoal(id, commissioned)
+      : { title: null, goal: null };
+
     briefs.push({
       id,
-      title:     fm.title     ?? filename,
+      title:     betterTitle ?? fm.title ?? filename,
       state,
       from:      fm.from      ?? null,
       created:   fm.created   ?? null,
       completed: fm.completed ?? null,
-      goal:      goalFromRegister ?? goalFromFm,
+      goal:      betterGoal ?? goalFromRegister ?? goalFromFm,
       references: fm.references ?? null,
       sprint:    fm.sprint ? parseInt(fm.sprint, 10) : getSprintForId(id),
     });

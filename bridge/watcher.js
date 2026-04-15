@@ -118,7 +118,7 @@ function printUnmergedAlert(id, title, branchName) {
   const msg = [
     '',
     '⚠️  UNMERGED BRANCH — Philipp action required',
-    `    Brief ${id}: ${title || '(unknown)'}`,
+    `    Slice ${id}: ${title || '(unknown)'}`,
     `    Branch: ${branchName}`,
     '    Status: ACCEPTED but not merged to main',
     `    Fix: git merge --no-ff ${branchName} && git push origin main`,
@@ -131,7 +131,7 @@ function printMergeFailedAlert(id, title, branchName, errorMsg) {
   const msg = [
     '',
     '⚠️  MERGE FAILED — Philipp action required',
-    `    Brief ${id}: ${title || '(unknown)'}`,
+    `    Slice ${id}: ${title || '(unknown)'}`,
     `    Branch: ${branchName}`,
     `    Error: ${errorMsg}`,
     `    Fix: git merge --no-ff ${branchName} && git push origin main`,
@@ -313,21 +313,21 @@ function printStartupBlock(recoveryActions) {
     print('  Recovered on startup:');
     for (const action of recoveryActions) {
       if (action.type === 'cleared') {
-        print(`    ${C.green}${SYM.check}${C.reset} Brief ${action.id}${SYM.dash}cleared stale work-in-progress (already completed)`);
+        print(`    ${C.green}${SYM.check}${C.reset} Slice ${action.id}${SYM.dash}cleared stale work-in-progress (already completed)`);
       } else if (action.type === 'cleared_error') {
-        print(`    ${C.yellow}${SYM.check}${C.reset} Brief ${action.id}${SYM.dash}cleared stale work-in-progress (already failed)`);
+        print(`    ${C.yellow}${SYM.check}${C.reset} Slice ${action.id}${SYM.dash}cleared stale work-in-progress (already failed)`);
       } else if (action.type === 'requeued') {
-        print(`    ${C.yellow}${SYM.back}${C.reset} Brief ${action.id}${SYM.dash}re-queued interrupted brief`);
+        print(`    ${C.yellow}${SYM.back}${C.reset} Slice ${action.id}${SYM.dash}re-queued interrupted brief`);
       } else if (action.type === 'requeued_eval') {
-        print(`    ${C.yellow}${SYM.back}${C.reset} Brief ${action.id}${SYM.dash}re-queued interrupted evaluation`);
+        print(`    ${C.yellow}${SYM.back}${C.reset} Slice ${action.id}${SYM.dash}re-queued interrupted evaluation`);
       } else if (action.type === 'recovery_merged') {
-        print(`    ${C.green}${SYM.check}${C.reset} Brief ${action.id}${SYM.dash}recovered merge: ${action.branch}${SYM.arrow}main (${action.sha.slice(0, 7)})`);
+        print(`    ${C.green}${SYM.check}${C.reset} Slice ${action.id}${SYM.dash}recovered merge: ${action.branch}${SYM.arrow}main (${action.sha.slice(0, 7)})`);
       } else if (action.type === 'recovery_merge_failed') {
-        print(`    ${C.red}${SYM.cross}${C.reset} Brief ${action.id}${SYM.dash}recovery merge failed: ${action.reason}`);
+        print(`    ${C.red}${SYM.cross}${C.reset} Slice ${action.id}${SYM.dash}recovery merge failed: ${action.reason}`);
       } else if (action.type === 'accepted_already_merged') {
-        print(`    ${C.green}${SYM.check}${C.reset} Brief ${action.id}${SYM.dash}branch already on main (no merge needed)`);
+        print(`    ${C.green}${SYM.check}${C.reset} Slice ${action.id}${SYM.dash}branch already on main (no merge needed)`);
       } else if (action.type === 'accepted_no_branch') {
-        print(`    ${C.yellow}${SYM.cross}${C.reset} Brief ${action.id}${SYM.dash}ACCEPTED but no branch name — manual merge required`);
+        print(`    ${C.yellow}${SYM.cross}${C.reset} Slice ${action.id}${SYM.dash}ACCEPTED but no branch name — manual merge required`);
       }
     }
   }
@@ -369,7 +369,7 @@ function printStartupBlock(recoveryActions) {
 function openBriefBlock(id, title, goal) {
   const titleStr = title ? `${SYM.sep}"${title}"` : '';
   print(`${B.tl}${B.sng.repeat(W - 1)}`);
-  print(`${B.vert}  ${SYM.right} Brief ${id}${titleStr}`);
+  print(`${B.vert}  ${SYM.right} Slice ${id}${titleStr}`);
   if (goal) {
     print(`${B.vert}    Goal: ${goal}`);
   }
@@ -502,6 +502,29 @@ function parseFrontmatter(content) {
     if (key) meta[key] = val;
   });
   return meta;
+}
+
+// Sets or replaces key-value pairs in YAML frontmatter. Returns updated text.
+function updateFrontmatter(text, updates) {
+  const lines = text.split('\n');
+  let start = -1, end = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() === '---') {
+      if (start === -1) { start = i; } else { end = i; break; }
+    }
+  }
+  if (start === -1 || end === -1) return text;
+  const fmLines = lines.slice(start + 1, end);
+  for (const [key, val] of Object.entries(updates)) {
+    const idx = fmLines.findIndex(l => {
+      const c = l.indexOf(':');
+      return c !== -1 && l.slice(0, c).trim() === key;
+    });
+    const newLine = `${key}: "${val}"`;
+    if (idx !== -1) fmLines[idx] = newLine;
+    else fmLines.push(newLine);
+  }
+  return [...lines.slice(0, start + 1), ...fmLines, ...lines.slice(end)].join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -794,6 +817,57 @@ function invokeOBrien(briefContent, donePath, inProgressPath, errorPath, id, eff
           });
         }
 
+        // ── API error recovery ────────────────────────────────────────────────
+        // If the crash was caused by a transient Anthropic API error (HTTP 5xx),
+        // move the slice back to PENDING for automatic retry instead of losing it.
+        // A retry-count embedded in the frontmatter limits retries to MAX_API_RETRIES.
+        const MAX_API_RETRIES = 3;
+        const isApiError = reason === 'crash' && stdout &&
+          (stdout.includes('"api_error"') || /API Error: 5\d\d/.test(stdout));
+
+        if (isApiError) {
+          // Parse current retry count from IN_PROGRESS frontmatter
+          let retryCount = 0;
+          try {
+            const ipContent = fs.readFileSync(inProgressPath, 'utf8');
+            const ipFm = parseFrontmatter(ipContent);
+            retryCount = parseInt(ipFm._api_retry_count || '0', 10) || 0;
+          } catch (_) {}
+
+          if (retryCount < MAX_API_RETRIES) {
+            // Bump retry count in frontmatter, rename back to PENDING
+            try {
+              const ipContent = fs.readFileSync(inProgressPath, 'utf8');
+              const updated  = updateFrontmatter(ipContent, {
+                status: 'PENDING',
+                _api_retry_count: String(retryCount + 1),
+              });
+              fs.writeFileSync(pendingPath, updated, 'utf8');
+              // inProgressPath will be cleaned up below (renamed → BRIEF via normal flow
+              // won't happen since we're returning early; delete it explicitly)
+              try { fs.unlinkSync(inProgressPath); } catch (_) {}
+              log('warn', 'api_retry', {
+                id,
+                msg: `Anthropic API error — requeueing for retry (attempt ${retryCount + 1}/${MAX_API_RETRIES})`,
+                durationMs,
+              });
+              processing = false;
+              heartbeatState.status = 'idle';
+              heartbeatState.current_brief = null;
+              heartbeatState.current_brief_title = null;
+              heartbeatState.current_brief_goal = null;
+              heartbeatState.pickupTime = null;
+              try { fs.unlinkSync(NOG_ACTIVE_FILE); } catch (_) {}
+              return; // Skip ERROR file — slice will be retried
+            } catch (retryErr) {
+              log('error', 'api_retry', { id, msg: 'Retry requeue failed, falling through to ERROR', error: retryErr.message });
+            }
+          } else {
+            log('warn', 'api_retry', { id, msg: `API error retry limit (${MAX_API_RETRIES}) reached — writing ERROR`, durationMs });
+          }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra);
         log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason });
         registerEvent(id, 'ERROR', { reason, exitCode: err.code, durationMs });
@@ -1023,7 +1097,7 @@ function invokeEvaluator(id) {
 
   log('info', 'evaluator', { id, rootId, cycle, branchName, msg: 'Starting evaluation' });
   print(`${B.tl}${B.sng.repeat(W - 1)}`);
-  print(`${B.vert}  ${SYM.right} Evaluator${SYM.sep}Brief ${id} (${5 - cycle} retries remaining)`);
+  print(`${B.vert}  ${SYM.right} Evaluator${SYM.sep}Slice ${id} (${5 - cycle} retries remaining)`);
   print(`${B.vert}    Evaluating — fresh claude -p session, brief ACs + DONE report injected`);
   print(`${B.vert}`);
 
@@ -1381,7 +1455,7 @@ function handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs) 
 
   callReviewAPI(id, 'STUCK', reason);
 
-  print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} STUCK${SYM.sep}Brief ${id} hit amendment cap (${cycle} cycles). Manual intervention required.`);
+  print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} STUCK${SYM.sep}Slice ${id} hit amendment cap (${cycle} cycles). Manual intervention required.`);
   print(`${B.bl}${B.sng.repeat(W - 1)}`);
   print('');
 }
@@ -1416,7 +1490,7 @@ function writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra) {
   const frontmatter = [
     '---',
     `id: "${id}"`,
-    `title: "Brief ${id} — ${reason}"`,
+    `title: "Slice ${id} — ${reason}"`,
     'from: watcher',
     'to: kira',
     'status: ERROR',
@@ -1450,7 +1524,7 @@ function writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra) {
         ? `The process exited with a non-zero status (exit code ${exitCode ?? 'unknown'}).`
         : reason === 'no_report'
           ? 'The process exited cleanly but wrote no DONE file.'
-          : `Brief frontmatter validation failed. Missing fields: ${(extra && extra.missingFields || []).join(', ')}.`;
+          : `Slice frontmatter validation failed. Missing fields: ${(extra && extra.missingFields || []).join(', ')}.`;
 
   const content = [
     ...frontmatter,
@@ -1552,7 +1626,7 @@ function poll() {
       try { fs.renameSync(donePath, acceptedPath); } catch (_) {}
       registerEvent(doneId, 'ACCEPTED', { reason: 'auto-accepted merge', cycle: 0 });
       callReviewAPI(doneId, 'ACCEPTED', 'auto-accepted merge');
-      print(`  ${C.green}${SYM.check}${C.reset} Brief ${doneId}${SYM.dash}Merge auto-accepted`);
+      print(`  ${C.green}${SYM.check}${C.reset} Slice ${doneId}${SYM.dash}Merge auto-accepted`);
       continue;
     }
 
@@ -1660,7 +1734,7 @@ function poll() {
     });
 
     // Stakeholder-friendly terminal output for rejected briefs.
-    print(`  ${C.red}${SYM.cross}${C.reset} Brief ${errId} rejected${SYM.dash}Missing required fields: ${missingFields.join(', ')}`);
+    print(`  ${C.red}${SYM.cross}${C.reset} Slice ${errId} rejected${SYM.dash}Missing required fields: ${missingFields.join(', ')}`);
 
     writeErrorFile(errPath, errId, 'invalid_brief', null, '', '', { missingFields });
     log('info', 'state', { id: errId, from: 'PENDING', to: 'ERROR', reason: 'invalid_brief' });

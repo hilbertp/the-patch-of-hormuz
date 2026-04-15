@@ -8,7 +8,7 @@ priority: high
 created: "2026-04-15T00:00:00Z"
 references: "106"
 timeout_min: 20
-status: STAGED
+status: "STAGED"
 ---
 
 ## Objective
