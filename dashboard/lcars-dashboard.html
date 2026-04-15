@@ -2100,7 +2100,7 @@
     let mission = null;
     let isBuilding = false;
 
-    if (heartbeat.status === 'processing' || queue.active > 0) {
+    if (heartbeat.status === 'processing') {
       activeStageKey = 'DEVELOPMENT';
       isBuilding = true;
       const id = heartbeat.current_slice;
