@@ -158,13 +158,13 @@
   .panel-queue     { grid-area: queue; display: flex; }
   .panel-history   { grid-area: history; display: flex; }
 
-  .panel-hero .active-brief   { flex: 1; }
+  .panel-hero .active-slice   { flex: 1; }
   .panel-postbuild .postbuild-panel { flex: 1; }
   .panel-queue .queue-panel    { flex: 1; }
-  .panel-history .brief-history { flex: 1; }
+  .panel-history .slice-history { flex: 1; }
 
-  /* ── ACTIVE BRIEF ─────────────────────────────────── */
-  .active-brief {
+  /* ── ACTIVE SLICE ─────────────────────────────────── */
+  .active-slice {
     position: relative;
     background: #ffffff;
     border: 1px solid #e5e7eb;
@@ -294,7 +294,7 @@
     padding: 8px 0;
   }
 
-  .active-brief-header {
+  .active-slice-header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
@@ -302,12 +302,12 @@
     margin-bottom: 4px;
   }
 
-  .active-brief-info {
+  .active-slice-info {
     flex: 1;
     min-width: 0;
   }
 
-  .active-brief-label {
+  .active-slice-label {
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
@@ -315,12 +315,12 @@
     color: #6b7280;
   }
 
-  .active-brief-timer {
+  .active-slice-timer {
     text-align: right;
     flex-shrink: 0;
   }
 
-  .active-brief-timer-value {
+  .active-slice-timer-value {
     font-variant-numeric: tabular-nums;
     font-size: 24px;
     font-weight: 700;
@@ -328,13 +328,13 @@
     line-height: 1.1;
   }
 
-  .active-brief-timer-label {
+  .active-slice-timer-label {
     font-size: 11px;
     color: #9ca3af;
     text-align: right;
   }
 
-  .active-brief-id {
+  .active-slice-id {
     font-size: 12px;
     font-weight: 500;
     color: #9ca3af;
@@ -342,27 +342,27 @@
     margin-bottom: 2px;
   }
 
-  .active-brief-title {
+  .active-slice-title {
     font-size: 19px;
     font-weight: 700;
     color: #111827;
     line-height: 1.3;
   }
 
-  .active-brief-desc {
+  .active-slice-desc {
     font-size: 13px;
     color: #6b7280;
     margin-top: 4px;
     line-height: 1.5;
   }
 
-  .active-brief-stage {
+  .active-slice-stage {
     font-size: 13px;
     color: #6b7280;
     margin-top: 2px;
   }
 
-  .active-brief-elapsed {
+  .active-slice-elapsed {
     font-variant-numeric: tabular-nums;
     font-size: 20px;
     font-weight: 600;
@@ -371,29 +371,29 @@
     flex-shrink: 0;
   }
 
-  .active-brief-idle {
+  .active-slice-idle {
     font-size: 14px;
     color: #9ca3af;
     padding: 16px 0;
   }
 
-  .active-brief-idle-primary {
+  .active-slice-idle-primary {
     font-size: 15px;
     font-weight: 600;
     margin-bottom: 4px;
   }
 
-  .active-brief-idle-primary.warning {
+  .active-slice-idle-primary.warning {
     color: #d97706;
   }
 
-  .active-brief-idle-secondary {
+  .active-slice-idle-secondary {
     font-size: 13px;
     color: #9ca3af;
   }
 
   /* ── Builder footer ── */
-  .active-brief-footer {
+  .active-slice-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -401,7 +401,7 @@
     padding-top: 16px;
   }
 
-  .active-brief-builder {
+  .active-slice-builder {
     font-size: 13px;
     color: #6b7280;
   }
@@ -576,8 +576,8 @@
   .stage-connector.done { color: #16a34a; }
 
 
-  /* ── BRIEF HISTORY ────────────────────────────────── */
-  .brief-history {
+  /* ── SLICE HISTORY ────────────────────────────────── */
+  .slice-history {
     background: #ffffff;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
@@ -710,7 +710,7 @@
     font-family: system-ui, -apple-system, sans-serif;
   }
 
-  /* ── HISTORY BRIEFING DETAIL OVERLAY ──────────────── */
+  /* ── HISTORY SLICING DETAIL OVERLAY ──────────────── */
   .history-detail-overlay {
     position: fixed;
     inset: 0;
@@ -1047,7 +1047,7 @@
 
   .staged-btn:hover { opacity: 0.85; }
 
-  .staged-btn-brief {
+  .staged-btn-slice {
     background: #2563eb;
     color: #fff;
   }
@@ -1247,7 +1247,7 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   }
 
-  .queue-panel .brief-history {
+  .queue-panel .slice-history {
     margin-bottom: 0;
   }
 
@@ -1790,15 +1790,15 @@
 
     <!-- HERO: Active Build -->
     <div class="panel-hero">
-      <div class="active-brief">
+      <div class="active-slice">
         <div class="active-progress-bar" id="active-progress-bar" style="display:none"></div>
 
         <!-- Header row: label left, timer right -->
-        <div class="active-brief-header">
-          <div class="active-brief-label">Active Build</div>
-          <div class="active-brief-timer" id="active-timer-block" style="display:none">
-            <div class="active-brief-timer-value" id="mission-elapsed">0m 00s</div>
-            <div class="active-brief-timer-label">elapsed</div>
+        <div class="active-slice-header">
+          <div class="active-slice-label">Active Build</div>
+          <div class="active-slice-timer" id="active-timer-block" style="display:none">
+            <div class="active-slice-timer-value" id="mission-elapsed">0m 00s</div>
+            <div class="active-slice-timer-label">elapsed</div>
           </div>
         </div>
 
@@ -1807,38 +1807,38 @@
 
         <!-- Active state content -->
         <div id="mission-active-content" style="display:none">
-          <div id="mission-id-badge" class="active-brief-id"></div>
-          <div id="pipeline-mission-title" class="active-brief-title"></div>
+          <div id="mission-id-badge" class="active-slice-id"></div>
+          <div id="pipeline-mission-title" class="active-slice-title"></div>
           <div id="invocation-gap-indicator" style="display:none;color:#f59e42;font-size:0.82em;margin-top:4px">Invoking Rom — waiting for first response…</div>
-          <div id="pipeline-mission-goal" class="active-brief-stage" style="opacity:0.65;font-size:0.82em;margin-top:2px"></div>
-          <div id="pipeline-mission-stage" class="active-brief-stage"></div>
+          <div id="pipeline-mission-goal" class="active-slice-stage" style="opacity:0.65;font-size:0.82em;margin-top:2px"></div>
+          <div id="pipeline-mission-stage" class="active-slice-stage"></div>
         </div>
 
         <!-- Error display (shown when active slice is in ERROR state) -->
         <div id="error-display" style="display:none">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <div id="error-display-badge" class="active-brief-id" style="display:none"></div>
+            <div id="error-display-badge" class="active-slice-id" style="display:none"></div>
             <span id="error-display-tag" class="tag tag-error" style="font-size:0.75em">error</span>
           </div>
-          <div id="error-display-title" class="active-brief-title" style="margin-bottom:2px"></div>
+          <div id="error-display-title" class="active-slice-title" style="margin-bottom:2px"></div>
           <div id="error-display-reason" style="color:#dc2626;font-weight:500;font-size:0.92em;margin-top:4px"></div>
           <div id="error-display-output" style="color:#6b7280;font-size:0.82em;margin-top:6px;white-space:pre-wrap;max-height:80px;overflow:auto;font-family:monospace;background:#f3f4f6;border-radius:4px;padding:6px 8px"></div>
           <button id="error-dismiss-btn" style="margin-top:10px;padding:4px 14px;font-size:0.82em;border:1px solid #d1d5db;border-radius:4px;background:#fff;cursor:pointer;color:#374151">Dismiss</button>
         </div>
 
         <!-- Idle state content -->
-        <div id="mission-idle-text" class="active-brief-idle">
-          <div class="active-brief-idle-primary">All clear</div>
-          <div class="active-brief-idle-secondary">No active build, nothing pending</div>
+        <div id="mission-idle-text" class="active-slice-idle">
+          <div class="active-slice-idle-primary">All clear</div>
+          <div class="active-slice-idle-secondary">No active build, nothing pending</div>
         </div>
 
         <!-- Footer: builder + stop button (only during active) -->
-        <div class="active-brief-footer" id="active-brief-footer" style="display:none">
-          <span class="active-brief-builder">Rom &middot; Backend Engineer</span>
+        <div class="active-slice-footer" id="active-slice-footer" style="display:none">
+          <span class="active-slice-builder">Rom &middot; Backend Engineer</span>
           <button class="stop-build-btn" id="stop-build-btn" onclick="showStopConfirm()">&#9632; Stop Build</button>
         </div>
       </div>
-      <div class="active-brief-aside" id="active-brief-aside"></div>
+      <div class="active-slice-aside" id="active-slice-aside"></div>
     </div>
 
     <!-- POST-BUILD PIPELINE -->
@@ -1879,7 +1879,7 @@
 
     <!-- HISTORY -->
     <div class="panel-history">
-      <div class="brief-history" style="margin-bottom:0">
+      <div class="slice-history" style="margin-bottom:0">
         <div class="section-title">History</div>
         <div class="history-list" id="history-list">
         </div>
@@ -1914,7 +1914,7 @@
         <div class="crew-name">Chief O'Brien</div>
         <div class="crew-role">Tech Lead</div>
         <span class="crew-badge badge-active">active</span>
-        <div class="crew-function">Sequences the queue, directs delivery, writes briefs, and owns the dev process.</div>
+        <div class="crew-function">Sequences the queue, directs delivery, writes slices, and owns the dev process.</div>
       </div>
 
       <div class="crew-card active">
@@ -1981,7 +1981,7 @@
   </div>
 </div>
 
-<!-- History Briefing Detail overlay -->
+<!-- History Slicing Detail overlay -->
 <div class="history-detail-overlay" id="history-detail-overlay" style="display:none">
   <div class="history-detail-panel">
     <div class="history-detail-header">
@@ -2074,7 +2074,7 @@
     non_zero_exit:      'Process exited with error',
     no_report:          'No report written',
     incomplete_metrics: 'Incomplete metrics in report',
-    invalid_brief:      'Invalid brief',
+    invalid_slice:      'Invalid slice',
     signal:             'Killed by signal',
     nog_escalation:     'Escalated by Nog',
   };
@@ -2101,16 +2101,16 @@
   });
 
   // Elapsed time: computed from a fixed start timestamp, no re-anchoring
-  let briefStartTime = null;
-  let lastBriefId    = null;
+  let sliceStartTime = null;
+  let lastSliceId    = null;
 
   // Current active mission info (for stop dialog)
   let currentMission = null;
 
   function startElapsedTick() {
     setInterval(() => {
-      if (briefStartTime == null) return;
-      const elapsed = Math.floor((Date.now() - briefStartTime) / 1000);
+      if (sliceStartTime == null) return;
+      const elapsed = Math.floor((Date.now() - sliceStartTime) / 1000);
       const el = document.getElementById('mission-elapsed');
       if (el) el.textContent = fmtElapsed(elapsed);
     }, 500);
@@ -2200,7 +2200,7 @@
   }
 
   function updatePipelineUI(data) {
-    const { heartbeat, queue, briefs, recent } = data;
+    const { heartbeat, queue, slices, recent } = data;
 
     let activeStageKey = null;
     let mission = null;
@@ -2209,23 +2209,23 @@
     if (heartbeat.status === 'processing' || queue.active > 0) {
       activeStageKey = 'DEVELOPMENT';
       isBuilding = true;
-      const id = heartbeat.current_brief;
-      mission = (id ? briefs.find(c => c.id === String(id)) : null)
-             ?? briefs.find(c => c.state === 'IN_PROGRESS');
+      const id = heartbeat.current_slice;
+      mission = (id ? slices.find(c => c.id === String(id)) : null)
+             ?? slices.find(c => c.state === 'IN_PROGRESS');
     } else if (queue.waiting > 0) {
       activeStageKey = 'ACCEPTED';
-      mission = briefs.find(c => c.state === 'PENDING');
-    } else if (heartbeat.current_brief) {
-      const found = briefs.find(c => c.id === String(heartbeat.current_brief));
+      mission = slices.find(c => c.state === 'PENDING');
+    } else if (heartbeat.current_slice) {
+      const found = slices.find(c => c.id === String(heartbeat.current_slice));
       if (found && found.state === 'DONE') {
         activeStageKey = 'REVIEW';
         mission = found;
       }
     }
 
-    // Detect ERROR state: most recent errored brief not yet dismissed
-    const errorBrief = briefs.find(b => b.state === 'ERROR' && !dismissedErrors.has(b.id));
-    const showError = !activeStageKey && errorBrief;
+    // Detect ERROR state: most recent errored slice not yet dismissed
+    const errorSlice = slices.find(b => b.state === 'ERROR' && !dismissedErrors.has(b.id));
+    const showError = !activeStageKey && errorSlice;
 
     renderPipeline(activeStageKey);
 
@@ -2245,14 +2245,14 @@
       idleEl.style.display      = 'none';
       elapsedEl.style.display   = 'none';
       progressBar.style.display = 'none';
-      briefStartTime = null;
-      lastBriefId    = null;
+      sliceStartTime = null;
+      lastSliceId    = null;
 
       // Populate error display
-      const eid = errorBrief.id;
+      const eid = errorSlice.id;
       document.getElementById('error-display-badge').textContent = `#${escHtml(eid)}`;
       document.getElementById('error-display-badge').style.display = '';
-      document.getElementById('error-display-title').textContent = errorBrief.title || '\u2014';
+      document.getElementById('error-display-title').textContent = errorSlice.title || '\u2014';
       errorEl.style.display = '';
 
       // Fetch error details (only once per error ID)
@@ -2295,12 +2295,12 @@
         gapEl.style.display = (heartbeat.status === 'processing' && !heartbeat.firstOutputAt) ? '' : 'none';
       }
 
-      if (heartbeat.brief_elapsed_seconds != null) {
-        if (briefStartTime == null || mission.id !== lastBriefId) {
-          briefStartTime = Date.now() - (heartbeat.brief_elapsed_seconds * 1000);
-          lastBriefId    = mission.id;
+      if (heartbeat.slice_elapsed_seconds != null) {
+        if (sliceStartTime == null || mission.id !== lastSliceId) {
+          sliceStartTime = Date.now() - (heartbeat.slice_elapsed_seconds * 1000);
+          lastSliceId    = mission.id;
         }
-        const elapsed = Math.floor((Date.now() - briefStartTime) / 1000);
+        const elapsed = Math.floor((Date.now() - sliceStartTime) / 1000);
         elapsedEl.textContent = fmtElapsed(elapsed);
         timerBlock.style.display = '';
       } else {
@@ -2315,22 +2315,22 @@
       progressBar.style.display = 'none';
       const gapElIdle = document.getElementById('invocation-gap-indicator');
       if (gapElIdle) gapElIdle.style.display = 'none';
-      briefStartTime = null;
-      lastBriefId    = null;
+      sliceStartTime = null;
+      lastSliceId    = null;
 
-      const primaryEl   = idleEl.querySelector('.active-brief-idle-primary');
-      const secondaryEl = idleEl.querySelector('.active-brief-idle-secondary');
+      const primaryEl   = idleEl.querySelector('.active-slice-idle-primary');
+      const secondaryEl = idleEl.querySelector('.active-slice-idle-secondary');
 
       if (stagedItemCount > 0) {
         // Idle A — staged items awaiting acceptance
         primaryEl.textContent = `${stagedItemCount} slice${stagedItemCount !== 1 ? 's' : ''} awaiting your approval`;
-        primaryEl.className = 'active-brief-idle-primary warning';
+        primaryEl.className = 'active-slice-idle-primary warning';
         secondaryEl.textContent = 'Accept below to start the next build \u2192';
       } else if (recent && recent.length > 0) {
         // Idle B — last completed, nothing staged
         const last = recent[0];
         primaryEl.textContent = `Last: #${last.id} \u2014 ${last.title || 'Untitled'}`;
-        primaryEl.className = 'active-brief-idle-primary';
+        primaryEl.className = 'active-slice-idle-primary';
         if (last.completedAt) {
           const ago = Math.floor((Date.now() - new Date(last.completedAt).getTime()) / 1000);
           let agoStr;
@@ -2344,7 +2344,7 @@
       } else {
         // Idle C — no history at all
         primaryEl.textContent = 'All clear';
-        primaryEl.className = 'active-brief-idle-primary';
+        primaryEl.className = 'active-slice-idle-primary';
         secondaryEl.textContent = 'No active build, nothing pending';
       }
 
@@ -2574,7 +2574,7 @@
     else historyExpandedSet.add(id);
   }
 
-  // ── History Briefing Detail overlay ───────────────────────────────────────
+  // ── History Slicing Detail overlay ───────────────────────────────────────
   let historyDetailOpen = false;
 
   function openHistoryDetail(id) {
@@ -2606,7 +2606,7 @@
       `<span class="history-ctx-item"><span class="history-ctx-label">${escHtml(ci.label)}:</span> <span class="history-ctx-value">${escHtml(ci.value)}</span></span>`
     ).join('');
 
-    // Body — fetch full brief content if available, otherwise render what we have
+    // Body — fetch full slice content if available, otherwise render what we have
     renderHistoryDetailBody(item);
 
     document.getElementById('history-detail-overlay').style.display = '';
@@ -2616,7 +2616,7 @@
   async function renderHistoryDetailBody(item) {
     const container = document.getElementById('history-detail-body');
 
-    // Try to fetch full brief content from the API
+    // Try to fetch full slice content from the API
     try {
       const res = await fetch(`/api/queue/${item.id}/content`);
       if (res.ok) {
@@ -2694,9 +2694,9 @@
     const lines = [];
     const wDotCls = w.status === 'up' ? 'up' : w.status === 'stale' ? 'stale' : 'down';
     lines.push(`<span class="health-tooltip-label">Watcher</span>      <span class="health-tooltip-dot ${wDotCls}"></span> ${esc(w.status)} · ${fmtAge(w.heartbeatAge_s)}`);
-    if (w.currentBrief && w.elapsedSeconds != null) {
+    if (w.currentSlice && w.elapsedSeconds != null) {
       const lastAct = w.lastActivityAge_s != null ? ` · last output ${fmtAge(w.lastActivityAge_s)}` : '';
-      lines.push(`<span class="health-tooltip-detail">processing · #${esc(w.currentBrief)} · ${fmtElapsedCompact(w.elapsedSeconds)} elapsed${lastAct}</span>`);
+      lines.push(`<span class="health-tooltip-detail">processing · #${esc(w.currentSlice)} · ${fmtElapsedCompact(w.elapsedSeconds)} elapsed${lastAct}</span>`);
     } else if (w.status !== 'down') {
       lines.push(`<span class="health-tooltip-detail">idle</span>`);
     }
@@ -2724,7 +2724,7 @@
   // Merges staged items and accepted (PENDING) items into one list.
   // Staged = unaccepted, Accepted = in build order (PENDING in queue dir).
   let cachedStagedItems = [];
-  let cachedBridgeBriefs = [];
+  let cachedBridgeSlices = [];
   let cachedQueueOrder = [];
   let cachedStagedOrder = [];
   let dragSrcId = null;
@@ -2735,14 +2735,14 @@
 
   function buildQueueRows() {
     // 1. Amendment accepted rows — locked at top, sorted by creation date
-    const acceptedBriefs = cachedBridgeBriefs.filter(b => b.state === 'PENDING');
-    const amendmentRows = acceptedBriefs
+    const acceptedSlices = cachedBridgeSlices.filter(b => b.state === 'PENDING');
+    const amendmentRows = acceptedSlices
       .filter(b => isAmendment(b))
       .sort((a, b) => new Date(a.created || 0) - new Date(b.created || 0))
       .map(b => ({ ...b, goal: b.goal ?? null, rowState: 'accepted', isAmendment: true }));
 
     // 2. Non-amendment accepted rows — ordered by queue order
-    const normalAccepted = acceptedBriefs.filter(b => !isAmendment(b));
+    const normalAccepted = acceptedSlices.filter(b => !isAmendment(b));
     const orderedAccepted = [];
     for (const oid of cachedQueueOrder) {
       const found = normalAccepted.find(b => b.id === oid);
@@ -2894,7 +2894,7 @@
 
   async function queueEdit(id) {
     // Determine context: accepted (PENDING in queue) vs staged
-    const isAccepted = cachedBridgeBriefs.some(b => b.id === String(id) && b.state === 'PENDING');
+    const isAccepted = cachedBridgeSlices.some(b => b.id === String(id) && b.state === 'PENDING');
     const context = isAccepted ? 'accepted' : 'staged';
 
     // Fetch full content from server
@@ -3265,7 +3265,7 @@
       }
       if (bridgeRes.ok) {
         const bridgeData = await bridgeRes.json();
-        cachedBridgeBriefs = bridgeData.briefs || [];
+        cachedBridgeSlices = bridgeData.slices || [];
         cachedQueueOrder = bridgeData.queueOrder || [];
       }
       renderQueueList();

@@ -420,11 +420,11 @@ function printStartupBlock(recoveryActions) {
 // ---------------------------------------------------------------------------
 
 /**
- * openBriefBlock(id, title, goal)
+ * openSliceBlock(id, title, goal)
  *
  * Prints the opening of a slice lifecycle block. Called at pickup.
  */
-function openBriefBlock(id, title, goal) {
+function openSliceBlock(id, title, goal) {
   const titleStr = title ? `${SYM.sep}"${title}"` : '';
   print(`${B.tl}${B.sng.repeat(W - 1)}`);
   print(`${B.vert}  ${SYM.right} Slice ${id}${titleStr}`);
@@ -446,11 +446,11 @@ function printProgressTick(elapsedMs) {
 }
 
 /**
- * closeBriefBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason)
+ * closeSliceBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason)
  *
  * Prints the completion or failure lines and closes the slice block.
  */
-function closeBriefBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason) {
+function closeSliceBlock(success, durationMs, tokensIn, tokensOut, costUsd, reason) {
   const duration  = formatDuration(durationMs);
   const tokenStr  = formatTokens(tokensIn, tokensOut);
   const costStr   = formatCost(costUsd);
@@ -960,7 +960,7 @@ function ensureMainIsFresh(id) {
  *
  * Returns a string block to inject into the evaluator prompt.
  */
-function buildScopeDiff(id, branchName, briefContent) {
+function buildScopeDiff(id, branchName, sliceContent) {
   const lines = [];
   try {
     // File-level diff stat (which files changed and by how much)
@@ -981,7 +981,7 @@ function buildScopeDiff(id, branchName, briefContent) {
     lines.push('');
 
     // Extract slice scope info
-    const meta = parseFrontmatter(briefContent) || {};
+    const meta = parseFrontmatter(sliceContent) || {};
     lines.push(`Slice title: ${meta.title || '(unknown)'}`);
     lines.push(`Slice goal: ${meta.goal || '(unknown)'}`);
     lines.push(`Branch: ${branchName}`);
@@ -1055,9 +1055,9 @@ function verifyWorkingTreeMatchesMain(id, context) {
 
 let heartbeatState = {
   status: 'idle',
-  current_brief: null,
-  current_brief_title: null,
-  current_brief_goal: null,
+  current_slice: null,
+  current_slice_title: null,
+  current_slice_goal: null,
   pickupTime: null,   // internal — not written to file
   processed_total: 0,
 };
@@ -1080,10 +1080,10 @@ function writeHeartbeat() {
   const snapshot = {
     ts: new Date().toISOString(),
     status: heartbeatState.status,
-    current_brief: heartbeatState.current_brief,
-    current_brief_title: heartbeatState.current_brief_title,
-    current_brief_goal: heartbeatState.current_brief_goal,
-    brief_elapsed_seconds: elapsedSeconds,
+    current_slice: heartbeatState.current_slice,
+    current_slice_title: heartbeatState.current_slice_title,
+    current_slice_goal: heartbeatState.current_slice_goal,
+    slice_elapsed_seconds: elapsedSeconds,
     last_activity_ts: currentLastActivityTs ? currentLastActivityTs.toISOString() : null,
     processed_total: heartbeatState.processed_total,
     queue,
@@ -1108,7 +1108,7 @@ let idlePrintCounter = 0;
 // ---------------------------------------------------------------------------
 
 /**
- * invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effectiveTimeoutMs)
+ * invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effectiveTimeoutMs)
  *
  * Pipes slice content + report path instruction to `claude -p`.
  * On success: checks donePath exists; if not, writes a fallback ERROR report.
@@ -1116,7 +1116,7 @@ let idlePrintCounter = 0;
  * Always cleans up the IN_PROGRESS file on completion (existence-checked to
  * avoid ENOENT when Rom's crash recovery already handled it).
  */
-function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal) {
+function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal) {
   // ── WATCHER-OWNED BRANCH LIFECYCLE ─────────────────────────────────────
   // The watcher OWNS all branching. Rom never creates, checks out, or manages
   // branches. This is the rigid pipeline gate that prevents prompt-quality
@@ -1125,10 +1125,10 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
   // New slices:  main → create slice/{id} branch → invoke Rom on that branch
   // Amendments:  checkout existing branch → invoke Rom on that branch
   // ──────────────────────────────────────────────────────────────────────────
-  const briefMeta = parseFrontmatter(briefContent) || {};
-  const isAmendment = briefMeta.references && briefMeta.references !== 'null';
+  const sliceMeta = parseFrontmatter(sliceContent) || {};
+  const isAmendment = sliceMeta.references && sliceMeta.references !== 'null';
   const sliceBranch = isAmendment
-    ? (briefMeta.branch || `slice/${briefMeta.root_commission_id || id}`)
+    ? (sliceMeta.branch || `slice/${sliceMeta.root_commission_id || id}`)
     : `slice/${id}`;
 
   if (!isAmendment) {
@@ -1147,9 +1147,9 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
       registerEvent(id, 'ERROR', { reason: 'branch_creation_failed', error: err.message });
       processing = false;
       heartbeatState.status = 'idle';
-      heartbeatState.current_brief = null;
-      heartbeatState.current_brief_title = null;
-      heartbeatState.current_brief_goal = null;
+      heartbeatState.current_slice = null;
+      heartbeatState.current_slice_title = null;
+      heartbeatState.current_slice_goal = null;
       heartbeatState.pickupTime = null;
       writeHeartbeat();
       return;
@@ -1167,9 +1167,9 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
       registerEvent(id, 'ERROR', { reason: 'amendment_branch_checkout_failed', error: err.message });
       processing = false;
       heartbeatState.status = 'idle';
-      heartbeatState.current_brief = null;
-      heartbeatState.current_brief_title = null;
-      heartbeatState.current_brief_goal = null;
+      heartbeatState.current_slice = null;
+      heartbeatState.current_slice_title = null;
+      heartbeatState.current_slice_goal = null;
       heartbeatState.pickupTime = null;
       writeHeartbeat();
       return;
@@ -1211,7 +1211,7 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
     '- completed: must be full ISO 8601 UTC datetime (e.g. "2026-04-12T01:22:40.000Z"), never date-only',
   ].join('\n');
 
-  const prompt = briefContent + doneTemplate;
+  const prompt = sliceContent + doneTemplate;
 
   const pickupTime = Date.now();
 
@@ -1223,9 +1223,9 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
   currentLastActivityTs = new Date();
 
   heartbeatState.status = 'processing';
-  heartbeatState.current_brief = id;
-  heartbeatState.current_brief_title = title || null;
-  heartbeatState.current_brief_goal = goal || null;
+  heartbeatState.current_slice = id;
+  heartbeatState.current_slice_title = title || null;
+  heartbeatState.current_slice_goal = goal || null;
   heartbeatState.pickupTime = pickupTime;
   writeHeartbeat();
 
@@ -1312,13 +1312,13 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
             writeErrorFile(errorPath, id, 'incomplete_metrics', null, stdout, '', { missingFields: metricsValid.invalid, durationMs });
             log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason: 'incomplete_metrics' });
             registerEvent(id, 'ERROR', { reason: 'incomplete_metrics', invalid: metricsValid.invalid, durationMs });
-            closeBriefBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'Incomplete metrics in DONE report');
+            closeSliceBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'Incomplete metrics in DONE report');
             recordSessionResult(false, tokensIn, tokensOut, costUsd);
           } else {
             // --- Write Point 1: append timesheet row (Bet 3) ---
-            const briefMeta = parseFrontmatter(briefContent) || {};
-            const expectedHours = briefMeta.expected_human_hours && briefMeta.expected_human_hours !== 'null'
-              ? parseFloat(briefMeta.expected_human_hours)
+            const sliceMeta = parseFrontmatter(sliceContent) || {};
+            const expectedHours = sliceMeta.expected_human_hours && sliceMeta.expected_human_hours !== 'null'
+              ? parseFloat(sliceMeta.expected_human_hours)
               : null;
             const doneTokensIn  = parseInt(doneMeta.tokens_in, 10);
             const doneTokensOut = parseInt(doneMeta.tokens_out, 10);
@@ -1330,7 +1330,7 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
               role: 'rom',
               source: 'watcher',
               commission_id: String(id),
-              title: (briefMeta.title || title || '').replace(/^["']|["']$/g, ''),
+              title: (sliceMeta.title || title || '').replace(/^["']|["']$/g, ''),
               phase: null,
               human_hours: parseFloat(doneMeta.estimated_human_hours),
               human_role: null,
@@ -1355,7 +1355,7 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
             log('info', 'complete', { id, msg: "Rom finished — DONE file present", durationMs, tokensIn, tokensOut });
             log('info', 'state', { id, from: 'IN_PROGRESS', to: 'DONE' });
             registerEvent(id, 'DONE', { durationMs, tokensIn, tokensOut, costUsd });
-            closeBriefBlock(true, durationMs, tokensIn, tokensOut, costUsd, null);
+            closeSliceBlock(true, durationMs, tokensIn, tokensOut, costUsd, null);
             recordSessionResult(true, tokensIn, tokensOut, costUsd);
           }
         } else {
@@ -1371,7 +1371,7 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
           registerEvent(id, 'ERROR', { reason: 'no_report', durationMs });
           // timesheet write point 2 — update watcher row at terminal state
           updateTimesheet(id, { result: 'ERROR', cycle: null, ts_result: new Date().toISOString() });
-          closeBriefBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'No report written');
+          closeSliceBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'No report written');
           recordSessionResult(false, tokensIn, tokensOut, costUsd);
         }
       } else {
@@ -1444,9 +1444,9 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
             print(`  ${C.yellow}⏸${C.reset}  Rate limit hit — slice ${id} requeued. Dispatch paused ${waitMin} min (≈${resetAt})`);
             processing = false;
             heartbeatState.status = 'idle';
-            heartbeatState.current_brief = null;
-            heartbeatState.current_brief_title = null;
-            heartbeatState.current_brief_goal = null;
+            heartbeatState.current_slice = null;
+            heartbeatState.current_slice_title = null;
+            heartbeatState.current_slice_goal = null;
             heartbeatState.pickupTime = null;
             try { fs.renameSync(NOG_ACTIVE_FILE, path.join(TRASH_DIR, 'nog-active.json.ratelimit')); } catch (_) {}
             return; // Skip ERROR file — slice will be retried after the pause
@@ -1482,7 +1482,7 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
                 _api_retry_count: String(retryCount + 1),
               });
               fs.writeFileSync(pendingPath, updated, 'utf8');
-              // inProgressPath will be cleaned up below (renamed → BRIEF via normal flow
+              // inProgressPath will be cleaned up below (renamed → SLICE via normal flow
               // won't happen since we're returning early; move to trash explicitly)
               try { fs.renameSync(inProgressPath, path.join(TRASH_DIR, path.basename(inProgressPath) + '.api-retry')); } catch (_) {}
               log('warn', 'api_retry', {
@@ -1499,9 +1499,9 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
               });
               processing = false;
               heartbeatState.status = 'idle';
-              heartbeatState.current_brief = null;
-              heartbeatState.current_brief_title = null;
-              heartbeatState.current_brief_goal = null;
+              heartbeatState.current_slice = null;
+              heartbeatState.current_slice_title = null;
+              heartbeatState.current_slice_goal = null;
               heartbeatState.pickupTime = null;
               try { fs.renameSync(NOG_ACTIVE_FILE, path.join(TRASH_DIR, 'nog-active.json.api-retry')); } catch (_) {}
               return; // Skip ERROR file — slice will be retried
@@ -1519,20 +1519,20 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
         registerEvent(id, 'ERROR', { reason, exitCode: err.code, durationMs });
         // timesheet write point 2 — update watcher row at terminal state
         updateTimesheet(id, { result: 'ERROR', cycle: null, ts_result: new Date().toISOString() });
-        closeBriefBlock(false, durationMs, tokensIn, tokensOut, costUsd, reasonDisplay);
+        closeSliceBlock(false, durationMs, tokensIn, tokensOut, costUsd, reasonDisplay);
         recordSessionResult(false, tokensIn, tokensOut, costUsd);
       }
 
       printSessionSummary();
 
       // Archive the original slice so Nog's evaluation task can find the
-      // success criteria.  Rename IN_PROGRESS → BRIEF (permanent archive).
-      // The BRIEF suffix is inert — the poll loop only looks for PENDING files.
-      const briefArchivePath = path.join(QUEUE_DIR, `${id}-BRIEF.md`);
+      // success criteria.  Rename IN_PROGRESS → SLICE (permanent archive).
+      // The SLICE suffix is inert — the poll loop only looks for PENDING files.
+      const sliceArchivePath = path.join(QUEUE_DIR, `${id}-SLICE.md`);
       if (fs.existsSync(inProgressPath)) {
         try {
-          fs.renameSync(inProgressPath, briefArchivePath);
-          log('info', 'state', { id, msg: 'Archived slice', from: 'IN_PROGRESS', to: 'BRIEF' });
+          fs.renameSync(inProgressPath, sliceArchivePath);
+          log('info', 'state', { id, msg: 'Archived slice', from: 'IN_PROGRESS', to: 'SLICE' });
         } catch (archiveErr) {
           // Fallback: if rename fails, try to delete so the queue doesn't jam.
           log('warn', 'error', { id, msg: 'Failed to archive IN_PROGRESS file, trashing instead', error: archiveErr.message });
@@ -1543,9 +1543,9 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
       // Reset processing state.
       processing = false;
       heartbeatState.status = 'idle';
-      heartbeatState.current_brief = null;
-      heartbeatState.current_brief_title = null;
-      heartbeatState.current_brief_goal = null;
+      heartbeatState.current_slice = null;
+      heartbeatState.current_slice_title = null;
+      heartbeatState.current_slice_goal = null;
       heartbeatState.pickupTime = null;
       heartbeatState.processed_total += 1;
       writeHeartbeat();
@@ -1692,26 +1692,26 @@ function extractJSON(text) {
 /**
  * invokeEvaluator(id)
  *
- * Reads the BRIEF and EVALUATING files for the given slice ID,
+ * Reads the SLICE and EVALUATING files for the given slice ID,
  * constructs an evaluator prompt, calls claude -p, parses the JSON verdict,
  * and handles ACCEPTED / AMENDMENT_NEEDED / STUCK outcomes.
  */
 function invokeEvaluator(id) {
-  const briefPath  = path.join(QUEUE_DIR, `${id}-BRIEF.md`);
+  const slicePath  = path.join(QUEUE_DIR, `${id}-SLICE.md`);
   const evaluatingPath  = path.join(QUEUE_DIR, `${id}-EVALUATING.md`);
 
-  // Read BRIEF file (original ACs).
-  let briefContent;
+  // Read SLICE file (original ACs).
+  let sliceContent;
   try {
-    briefContent = fs.readFileSync(briefPath, 'utf-8');
+    sliceContent = fs.readFileSync(slicePath, 'utf-8');
   } catch (err) {
-    log('warn', 'evaluator', { id, msg: 'BRIEF file not found — skipping evaluation', error: err.message });
+    log('warn', 'evaluator', { id, msg: 'SLICE file not found — skipping evaluation', error: err.message });
     // Rename back to DONE so the poll loop can try again later.
     try { fs.renameSync(evaluatingPath, path.join(QUEUE_DIR, `${id}-DONE.md`)); } catch (_) {}
     processing = false;
     heartbeatState.status = 'idle';
-    heartbeatState.current_brief = null;
-    heartbeatState.current_brief_goal = null;
+    heartbeatState.current_slice = null;
+    heartbeatState.current_slice_goal = null;
     heartbeatState.pickupTime = null;
     writeHeartbeat();
     return;
@@ -1725,8 +1725,8 @@ function invokeEvaluator(id) {
     log('warn', 'evaluator', { id, msg: 'EVALUATING file not found — skipping evaluation', error: err.message });
     processing = false;
     heartbeatState.status = 'idle';
-    heartbeatState.current_brief = null;
-    heartbeatState.current_brief_goal = null;
+    heartbeatState.current_slice = null;
+    heartbeatState.current_slice_goal = null;
     heartbeatState.pickupTime = null;
     writeHeartbeat();
     return;
@@ -1737,8 +1737,8 @@ function invokeEvaluator(id) {
   const branchName = doneMeta.branch || null;
 
   // Determine root slice ID and amendment cycle.
-  const briefMeta = parseFrontmatter(briefContent) || {};
-  const rootId = briefMeta.root_commission_id || id;
+  const sliceMeta = parseFrontmatter(sliceContent) || {};
+  const rootId = sliceMeta.root_commission_id || id;
   const cycle  = countReviewedCycles(rootId);
 
   log('info', 'evaluator', { id, rootId, cycle, branchName, msg: 'Starting evaluation' });
@@ -1748,7 +1748,7 @@ function invokeEvaluator(id) {
   print(`${B.vert}`);
 
   // Build scope diff for Nog's review
-  const scopeDiff = branchName ? buildScopeDiff(id, branchName, briefContent) : '## SCOPE REVIEW — branch name unknown, scope diff unavailable\n';
+  const scopeDiff = branchName ? buildScopeDiff(id, branchName, sliceContent) : '## SCOPE REVIEW — branch name unknown, scope diff unavailable\n';
 
   const prompt = [
     'You are Nog, Evaluator for Liberation of Bajor.',
@@ -1787,7 +1787,7 @@ function invokeEvaluator(id) {
     '',
     '## ORIGINAL SLICE (contains the acceptance criteria):',
     '',
-    briefContent,
+    sliceContent,
     '',
     '## ROM\'S DONE REPORT:',
     '',
@@ -1817,7 +1817,7 @@ function invokeEvaluator(id) {
   try {
     fs.writeFileSync(NOG_ACTIVE_FILE, JSON.stringify({
       sliceId: String(id),
-      title: briefMeta.title || null,
+      title: sliceMeta.title || null,
       round: cycle + 1,
       invokedAt: new Date().toISOString(),
     }), 'utf8');
@@ -1884,8 +1884,8 @@ function invokeEvaluator(id) {
         print('');
         processing = false;
         heartbeatState.status = 'idle';
-        heartbeatState.current_brief = null;
-        heartbeatState.current_brief_goal = null;
+        heartbeatState.current_slice = null;
+        heartbeatState.current_slice_goal = null;
         heartbeatState.pickupTime = null;
         heartbeatState.processed_total += 1;
         writeHeartbeat();
@@ -1899,7 +1899,7 @@ function invokeEvaluator(id) {
       if (finalVerdict === 'ACCEPTED') {
         handleAccepted(id, reason, cycle + 1, branchName, evaluatingPath, durationMs);
       } else if (finalVerdict === 'AMENDMENT_NEEDED') {
-        handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions, cycle, branchName, evaluatingPath, briefContent, durationMs);
+        handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions, cycle, branchName, evaluatingPath, sliceContent, durationMs);
       } else {
         handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs);
       }
@@ -1907,8 +1907,8 @@ function invokeEvaluator(id) {
       // Reset processing state.
       processing = false;
       heartbeatState.status = 'idle';
-      heartbeatState.current_brief = null;
-      heartbeatState.current_brief_goal = null;
+      heartbeatState.current_slice = null;
+      heartbeatState.current_slice_goal = null;
       heartbeatState.pickupTime = null;
       heartbeatState.processed_total += 1;
       writeHeartbeat();
@@ -2021,10 +2021,10 @@ function mergeBranch(id, branchName, title) {
  */
 function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationMs) {
   // Read title from slice file for the merge commit message.
-  const briefPath = path.join(QUEUE_DIR, `${id}-BRIEF.md`);
+  const slicePath = path.join(QUEUE_DIR, `${id}-SLICE.md`);
   let title = null;
   try {
-    const commMeta = parseFrontmatter(fs.readFileSync(briefPath, 'utf-8'));
+    const commMeta = parseFrontmatter(fs.readFileSync(slicePath, 'utf-8'));
     if (commMeta) title = commMeta.title || null;
   } catch (_) {}
 
@@ -2073,11 +2073,11 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
 
 /**
  * handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions,
- *                 cycle, branchName, evaluatingPath, briefContent, durationMs)
+ *                 cycle, branchName, evaluatingPath, sliceContent, durationMs)
  *
  * AMENDMENT_NEEDED verdict: register event, rename EVALUATING → REVIEWED, write amendment PENDING.
  */
-function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions, cycle, branchName, evaluatingPath, briefContent, durationMs) {
+function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions, cycle, branchName, evaluatingPath, sliceContent, durationMs) {
   registerEvent(id, 'REVIEWED', { verdict: 'AMENDMENT_NEEDED', reason, failed_criteria: failedCriteria, cycle: cycle + 1, root_commission_id: rootId });
   log('info', 'evaluator', { id, verdict: 'AMENDMENT_NEEDED', cycle: cycle + 1, rootId, durationMs });
 
@@ -2090,7 +2090,7 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
   }
 
   // Write amendment slice PENDING.
-  const nextId = nextBriefId(QUEUE_DIR);
+  const nextId = nextSliceId(QUEUE_DIR);
   const failedList = (failedCriteria || []).map((c, i) => `${i + 1}. ${c}`).join('\n');
   const amendmentContent = [
     '---',
@@ -2125,7 +2125,7 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     '',
     '## Original acceptance criteria (from slice ' + rootId + ')',
     '',
-    briefContent,
+    sliceContent,
     '',
     '## Constraints',
     '',
@@ -2345,20 +2345,20 @@ function poll() {
   for (const doneFile of doneFiles) {
     const doneId = doneFile.replace('-DONE.md', '');
     const donePath = path.join(QUEUE_DIR, doneFile);
-    const briefPath = path.join(QUEUE_DIR, `${doneId}-BRIEF.md`);
+    const slicePath = path.join(QUEUE_DIR, `${doneId}-SLICE.md`);
 
-    // Skip if BRIEF file not present (Rom may still be running — archive not yet written).
-    if (!fs.existsSync(briefPath)) continue;
+    // Skip if SLICE file not present (Rom may still be running — archive not yet written).
+    if (!fs.existsSync(slicePath)) continue;
 
     // Legacy: merge slices (type: merge) are auto-accepted without claude -p.
     // Deprecated: handleAccepted() now merges directly — no new merge slices
     // are generated. This block handles any legacy merge slices still in the queue.
-    let briefMeta = {};
+    let sliceMeta = {};
     try {
-      briefMeta = parseFrontmatter(fs.readFileSync(briefPath, 'utf-8')) || {};
+      sliceMeta = parseFrontmatter(fs.readFileSync(slicePath, 'utf-8')) || {};
     } catch (_) {}
 
-    if (briefMeta.type === 'merge') {
+    if (sliceMeta.type === 'merge') {
       log('info', 'evaluator', { id: doneId, msg: 'Legacy merge slice auto-accepted (deprecated path)' });
       const acceptedPath = path.join(QUEUE_DIR, `${doneId}-ACCEPTED.md`);
       try { fs.renameSync(donePath, acceptedPath); } catch (_) {}
@@ -2388,8 +2388,8 @@ function poll() {
 
     processing = true;
     heartbeatState.status = 'evaluating';
-    heartbeatState.current_brief = doneId;
-    heartbeatState.current_brief_goal = briefMeta.goal || null;
+    heartbeatState.current_slice = doneId;
+    heartbeatState.current_slice_goal = sliceMeta.goal || null;
     heartbeatState.pickupTime = Date.now();
     writeHeartbeat();
 
@@ -2416,16 +2416,16 @@ function poll() {
   const id = pendingFile.replace('-PENDING.md', '');
 
   // Read slice content.
-  let briefContent;
+  let sliceContent;
   try {
-    briefContent = fs.readFileSync(pendingPath, 'utf-8');
+    sliceContent = fs.readFileSync(pendingPath, 'utf-8');
   } catch (err) {
     log('error', 'error', { id, msg: 'Failed to read PENDING file', error: err.message });
     return;
   }
 
   // Parse frontmatter for timeout_min override and title.
-  const meta = parseFrontmatter(briefContent);
+  const meta = parseFrontmatter(sliceContent);
   const timeoutMin = meta && meta.timeout_min && meta.timeout_min !== 'null'
     ? parseInt(meta.timeout_min, 10)
     : null;
@@ -2496,14 +2496,14 @@ function poll() {
   log('info', 'state', { id, from: 'PENDING', to: 'IN_PROGRESS' });
 
   // Register: embed full slice body so success criteria are always recoverable.
-  registerCommissioned(id, { title, goal, body: briefContent });
+  registerCommissioned(id, { title, goal, body: sliceContent });
 
-  openBriefBlock(id, title, goal);
+  openSliceBlock(id, title, goal);
 
   processing = true;
 
   // Invoke Rom asynchronously — event loop stays live.
-  invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal);
+  invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal);
 }
 
 // ---------------------------------------------------------------------------
@@ -2520,7 +2520,7 @@ function poll() {
  *   {id}-IN_PROGRESS + DONE exists    → delete IN_PROGRESS (already complete)
  *   {id}-IN_PROGRESS + ERROR exists   → delete IN_PROGRESS (already failed)
  *   {id}-IN_PROGRESS + ACCEPTED exists → delete IN_PROGRESS (already evaluated)
- *   {id}-IN_PROGRESS + BRIEF exists   → delete IN_PROGRESS (already archived)
+ *   {id}-IN_PROGRESS + SLICE exists   → delete IN_PROGRESS (already archived)
  *
  * Returns an array of action records for display in the startup block.
  */
@@ -2565,9 +2565,9 @@ function crashRecovery() {
       if (meta) branchName = meta.branch || null;
     } catch (_) {}
 
-    // Read title from BRIEF file.
+    // Read title from SLICE file.
     try {
-      const commContent = fs.readFileSync(path.join(QUEUE_DIR, `${id}-BRIEF.md`), 'utf-8');
+      const commContent = fs.readFileSync(path.join(QUEUE_DIR, `${id}-SLICE.md`), 'utf-8');
       const commMeta = parseFrontmatter(commContent);
       if (commMeta) title = commMeta.title || null;
     } catch (_) {}
@@ -2614,11 +2614,11 @@ function crashRecovery() {
     const hasDone        = fs.existsSync(path.join(QUEUE_DIR, `${id}-DONE.md`));
     const hasError       = fs.existsSync(path.join(QUEUE_DIR, `${id}-ERROR.md`));
     const hasAccepted    = fs.existsSync(path.join(QUEUE_DIR, `${id}-ACCEPTED.md`));
-    const hasBrief       = fs.existsSync(path.join(QUEUE_DIR, `${id}-BRIEF.md`));
+    const hasSlice       = fs.existsSync(path.join(QUEUE_DIR, `${id}-SLICE.md`));
 
-    if (hasDone || hasError || hasAccepted || hasBrief) {
+    if (hasDone || hasError || hasAccepted || hasSlice) {
       // Slice already resolved — the IN_PROGRESS file is a stale artifact.
-      const resolvedAs = hasDone ? 'DONE' : hasError ? 'ERROR' : hasAccepted ? 'ACCEPTED' : 'BRIEF';
+      const resolvedAs = hasDone ? 'DONE' : hasError ? 'ERROR' : hasAccepted ? 'ACCEPTED' : 'SLICE';
       try {
         fs.renameSync(inProgressPath, path.join(TRASH_DIR, path.basename(inProgressPath) + '.orphan'));
         log('info', 'startup_recovery', {
@@ -2627,7 +2627,7 @@ function crashRecovery() {
           action: 'trashed',
           resolved_as: resolvedAs,
         });
-        actions.push({ id, type: hasDone ? 'cleared' : hasAccepted ? 'cleared_accepted' : hasBrief ? 'cleared_brief' : 'cleared_error' });
+        actions.push({ id, type: hasDone ? 'cleared' : hasAccepted ? 'cleared_accepted' : hasSlice ? 'cleared_slice' : 'cleared_error' });
       } catch (err) {
         log('warn', 'startup_recovery', { id, msg: 'Failed to delete orphaned IN_PROGRESS', error: err.message });
       }
@@ -2656,7 +2656,7 @@ function crashRecovery() {
 // ---------------------------------------------------------------------------
 
 /**
- * nextBriefId(queueDir)
+ * nextSliceId(queueDir)
  *
  * Reads all filenames in queueDir, extracts their numeric prefix IDs, and
  * returns the next ID as a zero-padded three-digit string (e.g. "009").
@@ -2665,7 +2665,7 @@ function crashRecovery() {
  * This function is purely computational — it does not write any files.
  * Exported so the watcher can call it from bridge/next-id.js.
  */
-function nextBriefId(queueDir) {
+function nextSliceId(queueDir) {
   let files;
   try {
     files = fs.readdirSync(queueDir);
@@ -2690,7 +2690,7 @@ function shutdown(signal) {
   if (processing) {
     log('warn', 'shutdown', {
       msg: 'A slice is in flight at shutdown. The IN_PROGRESS file will be recovered by crash recovery (Layer 3) on next startup.',
-      current_brief: heartbeatState.current_brief,  // internal key name kept for state compat
+      current_slice: heartbeatState.current_slice,  // internal key name kept for state compat
     });
     print('');
     print(`  Watcher shutting down${SYM.dash}slice in progress will be recovered on next start.`);
@@ -2740,4 +2740,4 @@ if (require.main === module) {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextBriefId, getQueueSnapshot };
+module.exports = { nextSliceId, getQueueSnapshot };

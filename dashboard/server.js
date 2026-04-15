@@ -142,14 +142,14 @@ function writeRegisterEvent(event) {
 }
 
 // ── Title/goal fallback ─────────────────────────────────────────────────────
-// First try the COMMISSIONED register event, then fall back to {id}-BRIEF.md.
+// First try the COMMISSIONED register event, then fall back to {id}-SLICE.md.
 function getTitleAndGoal(id, commissioned) {
   if (commissioned[id]?.title) {
     return { title: commissioned[id].title, goal: commissioned[id].goal ?? null };
   }
   try {
-    const briefPath = path.join(QUEUE_DIR, `${id}-BRIEF.md`);
-    const content = fs.readFileSync(briefPath, 'utf8');
+    const slicePath = path.join(QUEUE_DIR, `${id}-SLICE.md`);
+    const content = fs.readFileSync(slicePath, 'utf8');
     const fm = parseFrontmatter(content);
     return { title: fm.title ?? null, goal: fm.goal ?? null };
   } catch (_) {
@@ -160,16 +160,16 @@ function getTitleAndGoal(id, commissioned) {
 // ── Bridge data builder ──────────────────────────────────────────────────────
 function buildBridgeData() {
   // Heartbeat
-  let heartbeat = { ts: null, status: 'down', current_brief: null,
-                    brief_elapsed_seconds: null, processed_total: 0 };
+  let heartbeat = { ts: null, status: 'down', current_slice: null,
+                    slice_elapsed_seconds: null, processed_total: 0 };
   try {
     const raw = JSON.parse(fs.readFileSync(HEARTBEAT, 'utf8'));
     const age = raw.ts ? (Date.now() - new Date(raw.ts).getTime()) / 1000 : Infinity;
     heartbeat = {
       ts:                        raw.ts   ?? null,
       status:                    age < 60 ? (raw.status ?? 'idle') : 'down',
-      current_brief:             raw.current_brief ?? null,
-      brief_elapsed_seconds:     raw.brief_elapsed_seconds ?? null,
+      current_slice:             raw.current_slice ?? null,
+      slice_elapsed_seconds:     raw.slice_elapsed_seconds ?? null,
       processed_total:           raw.processed_total ?? 0,
     };
   } catch (_) { /* file missing or malformed → keep defaults */ }
@@ -195,7 +195,7 @@ function buildBridgeData() {
   const completedMap = {};
   const reviewedMap  = {};
   const acceptedSet  = new Set();
-  const economics = { totalTokensIn: 0, totalTokensOut: 0, totalCostUsd: 0, totalBriefs: 0 };
+  const economics = { totalTokensIn: 0, totalTokensOut: 0, totalCostUsd: 0, totalSlices: 0 };
   for (const ev of events) {
     if (ev.event === 'DONE' || ev.event === 'ERROR') {
       const { title: resolvedTitle, goal: resolvedGoal } = getTitleAndGoal(ev.id, commissioned);
@@ -215,14 +215,14 @@ function buildBridgeData() {
         economics.totalTokensIn  += ev.tokensIn  ?? 0;
         economics.totalTokensOut += ev.tokensOut ?? 0;
         economics.totalCostUsd   += ev.costUsd   ?? 0;
-        economics.totalBriefs++;
+        economics.totalSlices++;
       }
     }
     // REVIEW_RECEIVED carries the verdict; REVIEWED is the legacy name
     if (ev.event === 'REVIEW_RECEIVED' || ev.event === 'REVIEWED') {
       reviewedMap[ev.id] = ev.verdict;
     }
-    // ACCEPTED after an ERROR means Philipp overrode the watcher rejection
+    // ACCEPTED after an ERROR means Philipp overrode the watcher (approve|slice|amend|reject|update-body)ion
     if (ev.event === 'ACCEPTED' || ev.event === 'MERGED') {
       acceptedSet.add(ev.id);
     }
@@ -247,7 +247,7 @@ function buildBridgeData() {
         ? 'ACCEPTED' : entry.outcome;
       let reviewStatus;
       if (verdict === 'ACCEPTED')                reviewStatus = 'accepted';
-      else if (verdict === 'AMENDMENT_REQUIRED') reviewStatus = 'amendment_required';
+      else if (verdict === 'AMENDMENT_REQUIRED') reviewStatus = '(approve|slice|amend|reject|update-body)ment_required';
       else if (acceptedSet.has(entry.id))        reviewStatus = 'accepted';
       else                                       reviewStatus = 'waiting_for_review';
       return { ...entry, outcome: finalOutcome, reviewStatus, sprint: getSprintForId(entry.id) };
@@ -259,7 +259,7 @@ function buildBridgeData() {
   catch (_) {}
 
   const queue = { waiting: 0, active: 0, done: 0, error: 0 };
-  const briefs = [];
+  const slices = [];
 
   for (const filename of files) {
     // Derive state from filename suffix: {id}-{STATE}.md
@@ -286,12 +286,12 @@ function buildBridgeData() {
 
     // For ERROR/DONE state, the file's own title is a watcher-generated fallback
     // ("Slice N — crash"). Prefer the real title from the COMMISSIONED event or
-    // the BRIEF archive so the error display shows something meaningful.
+    // the SLICE archive so the error display shows something meaningful.
     const { title: betterTitle, goal: betterGoal } = (state === 'ERROR' || state === 'DONE')
       ? getTitleAndGoal(id, commissioned)
       : { title: null, goal: null };
 
-    briefs.push({
+    slices.push({
       id,
       title:     betterTitle ?? fm.title ?? filename,
       state,
@@ -306,7 +306,7 @@ function buildBridgeData() {
   }
 
   // Sort by numeric ID descending
-  briefs.sort((a, b) => {
+  slices.sort((a, b) => {
     const na = parseInt(a.id, 10);
     const nb = parseInt(b.id, 10);
     if (!isNaN(na) && !isNaN(nb)) return nb - na;
@@ -322,7 +322,7 @@ function buildBridgeData() {
     if (raw && raw.sliceId) nogActive = raw;
   } catch (_) {}
 
-  return { heartbeat, queue, briefs, recent, economics, queueOrder, nogActive, apiRetries };
+  return { heartbeat, queue, slices, recent, economics, queueOrder, nogActive, apiRetries };
 }
 
 // ── HTTP server ──────────────────────────────────────────────────────────────
@@ -398,7 +398,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── Staged brief endpoints ──────────────────────────────────────────────
+  // ── Staged slice endpoints ──────────────────────────────────────────────
   if (pathname === '/api/bridge/staged' && req.method === 'GET') {
     let files = [];
     try { files = fs.readdirSync(STAGED_DIR).filter(f => f.endsWith('-STAGED.md') || f.endsWith('-NEEDS_AMENDMENT.md')); }
@@ -430,7 +430,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const stagedMatch = pathname.match(/^\/api\/bridge\/staged\/(\d+)\/(approve|brief|amend|reject|update-body)$/);
+  const stagedMatch = pathname.match(/^\/api\/bridge\/staged\/(\d+)\/(approve|slice|amend|reject|update-body)$/);
   if (stagedMatch) {
     if (req.method !== 'POST') {
       res.writeHead(405, { 'Content-Type': 'text/plain' });
@@ -450,11 +450,11 @@ const server = http.createServer(async (req, res) => {
 
     if (!filePath) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: `Staged brief ${id} not found` }));
+      res.end(JSON.stringify({ error: `Staged slice ${id} not found` }));
       return;
     }
 
-    if (action === 'approve' || action === 'brief') {
+    if (action === 'amend' || action === 'slice') {
       try {
         let content = fs.readFileSync(filePath, 'utf8');
         content = updateFrontmatter(content, { status: 'PENDING' });
@@ -504,7 +504,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (action === 'update-body') {
+    if (action === 'amend') {
       const payload = await readJsonBody(req);
       if (!payload || typeof payload.body !== 'string') {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -535,12 +535,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (action === 'reject') {
+    if (action === 'amend') {
       try {
         let content = fs.readFileSync(filePath, 'utf8');
         content = updateFrontmatter(content, { status: 'REJECTED' });
         try { fs.renameSync(filePath, path.join(TRASH_DIR, `${id}-REJECTED.md`)); } catch (_) { fs.writeFileSync(path.join(TRASH_DIR, `${id}-REJECTED.md`), content, 'utf8'); }
-        writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'rejected' });
+        writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'amended' });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {
@@ -592,7 +592,7 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/api/health') {
     const now = Date.now();
-    let watcher = { status: 'down', heartbeatAge_s: null, currentBrief: null,
+    let watcher = { status: 'down', heartbeatAge_s: null, currentSlice: null,
                     elapsedSeconds: null, lastActivityAge_s: null, processedTotal: 0 };
     try {
       const raw = JSON.parse(fs.readFileSync(HEARTBEAT, 'utf8'));
@@ -603,8 +603,8 @@ const server = http.createServer(async (req, res) => {
       watcher = {
         status,
         heartbeatAge_s:    Math.round(age),
-        currentBrief:      raw.current_brief ?? null,
-        elapsedSeconds:    raw.brief_elapsed_seconds ?? null,
+        currentSlice:      raw.current_slice ?? null,
+        elapsedSeconds:    raw.slice_elapsed_seconds ?? null,
         lastActivityAge_s: lastActivityAge != null ? Math.round(lastActivityAge) : null,
         processedTotal:    raw.processed_total ?? 0,
       };
@@ -626,10 +626,10 @@ const server = http.createServer(async (req, res) => {
   const queueContentMatch = pathname.match(/^\/api\/queue\/(\d+)\/content$/);
   if (queueContentMatch && req.method === 'GET') {
     const id = queueContentMatch[1];
-    // BRIEF.md is the original prompt given to O'Brien — show it first.
+    // SLICE.md is the original prompt given to O'Brien — show it first.
     // Fall back to PENDING (same content, still in queue) then STAGED, then DONE report.
     const candidates = [
-      path.join(QUEUE_DIR, `${id}-BRIEF.md`),
+      path.join(QUEUE_DIR, `${id}-SLICE.md`),
       path.join(QUEUE_DIR, `${id}-PENDING.md`),
       path.join(STAGED_DIR, `${id}-STAGED.md`),
       path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`),
