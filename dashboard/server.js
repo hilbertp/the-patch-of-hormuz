@@ -168,8 +168,8 @@ function buildBridgeData() {
     heartbeat = {
       ts:                        raw.ts   ?? null,
       status:                    age < 60 ? (raw.status ?? 'idle') : 'down',
-      current_slice:             raw.current_slice ?? null,
-      slice_elapsed_seconds:     raw.slice_elapsed_seconds ?? null,
+      current_slice:             raw.current_slice ?? raw.current_brief ?? null,
+      slice_elapsed_seconds:     raw.slice_elapsed_seconds ?? raw.brief_elapsed_seconds ?? null,
       processed_total:           raw.processed_total ?? 0,
     };
   } catch (_) { /* file missing or malformed → keep defaults */ }
@@ -603,8 +603,8 @@ const server = http.createServer(async (req, res) => {
       watcher = {
         status,
         heartbeatAge_s:    Math.round(age),
-        currentSlice:      raw.current_slice ?? null,
-        elapsedSeconds:    raw.slice_elapsed_seconds ?? null,
+        currentSlice:      raw.current_slice ?? raw.current_brief ?? null,
+        elapsedSeconds:    raw.slice_elapsed_seconds ?? raw.brief_elapsed_seconds ?? null,
         lastActivityAge_s: lastActivityAge != null ? Math.round(lastActivityAge) : null,
         processedTotal:    raw.processed_total ?? 0,
       };
