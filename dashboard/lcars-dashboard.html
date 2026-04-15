@@ -2209,7 +2209,7 @@
       }
     } else if (activeStageKey && mission) {
       errorEl.style.display = 'none';
-      badgeEl.textContent  = `Brief ${escHtml(mission.id)}`;
+      badgeEl.textContent  = `Slice ${escHtml(mission.id)}`;
       badgeEl.style.display = '';
       titleEl.textContent  = mission.title || '\u2014';
       const goalEl = document.getElementById('pipeline-mission-goal');
@@ -2388,7 +2388,7 @@
     cachedHistoryItems = rows;
 
     if (total === 0) {
-      container.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:24px 0;font-size:14px">No completed briefs yet.</div>';
+      container.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:24px 0;font-size:14px">No completed slices yet.</div>';
       return;
     }
 
@@ -2516,7 +2516,7 @@
       </div>`;
     }
     if (!html) {
-      html = '<div style="color:#9ca3af;text-align:center;padding:40px 0">No brief content available for this slice.</div>';
+      html = '<div style="color:#9ca3af;text-align:center;padding:40px 0">No content available for this slice.</div>';
     }
     container.innerHTML = html;
   }
