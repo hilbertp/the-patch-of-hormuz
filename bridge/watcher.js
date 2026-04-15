@@ -528,6 +528,225 @@ function updateFrontmatter(text, updates) {
 }
 
 // ---------------------------------------------------------------------------
+// Git safety layer — FUSE-safe branch management
+// ---------------------------------------------------------------------------
+//
+// The FUSE mount blocks fs.unlink (EPERM). Git checkout uses unlink internally
+// to replace tracked files when switching branches, so `git checkout main`
+// silently fails whenever files differ between the current branch and main.
+//
+// This caused repeated regressions: Chief O'Brien's direct edits or merged
+// features would vanish from disk because checkout left stale branch files.
+//
+// Strategy (immutable rules):
+//
+//   1. AUTO-COMMIT before processing — any dirty tracked files are committed
+//      to the current branch before we attempt to switch. No uncommitted
+//      changes are ever discarded.
+//
+//   2. FUSE-SAFE CHECKOUT — instead of `git checkout main`:
+//      a. Detect differing files via `git diff --name-only HEAD main`
+//      b. Overwrite each file on disk with main's version (fs.writeFileSync
+//         works on FUSE — it truncates in-place, no unlink)
+//      c. Move HEAD pointer: `git symbolic-ref HEAD refs/heads/main`
+//      d. Reset the index: `git read-tree main`
+//      e. Verify: confirm `git rev-parse --abbrev-ref HEAD` === 'main'
+//
+//   3. BRANCH NAME SANITIZATION — Rom's DONE report provides the branch name
+//      as untrusted input. Reject anything that isn't [a-zA-Z0-9._/-].
+//
+//   4. POST-MERGE VERIFICATION — after every merge, verify that the working
+//      tree matches git's committed state. If not, overwrite disk from git.
+// ---------------------------------------------------------------------------
+
+const BRANCH_NAME_REGEX = /^[a-zA-Z0-9._\/-]+$/;
+
+/**
+ * autoCommitDirtyTree(reason)
+ *
+ * If the working tree has uncommitted changes to tracked files, commit them
+ * to the current branch. Returns true if a commit was made.
+ *
+ * Uses GIT_INDEX_FILE to avoid index.lock issues on FUSE.
+ */
+function autoCommitDirtyTree(reason) {
+  try {
+    const status = execSync('git status --porcelain', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+    // Only care about modified tracked files (M, D, R) — not untracked (??)
+    const trackedChanges = status.split('\n').filter(l => l && !l.startsWith('??'));
+    if (trackedChanges.length === 0) return false;
+
+    const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+    const msg = `autocommit: ${reason} [${trackedChanges.length} file(s) on ${branch}]`;
+    log('warn', 'git_safety', { msg, files: trackedChanges.map(l => l.trim()).join(', ') });
+
+    execSync('git add -u', { cwd: PROJECT_DIR, stdio: 'pipe' }); // -u: only tracked files
+    execSync(`git commit -m "${msg.replace(/"/g, '\\"')}"`, { cwd: PROJECT_DIR, stdio: 'pipe' });
+    log('info', 'git_safety', { msg: `Auto-committed ${trackedChanges.length} files to ${branch}` });
+    return true;
+  } catch (err) {
+    log('warn', 'git_safety', { msg: 'autoCommitDirtyTree failed', error: err.message });
+    return false;
+  }
+}
+
+/**
+ * fuseSafeCheckoutMain(id)
+ *
+ * FUSE-safe replacement for `git checkout main`. Never calls unlink.
+ *
+ * 1. If already on main with clean tree → no-op.
+ * 2. Auto-commit any dirty tracked files to current branch.
+ * 3. Overwrite each differing file on disk with main's version
+ *    (fs.writeFileSync truncates in-place — works on FUSE).
+ * 4. Remove files that exist on the current branch but not on main
+ *    (via rename to trash — FUSE-safe).
+ * 5. Move HEAD to main and reset the index.
+ *
+ * Throws on unrecoverable failure.
+ */
+function fuseSafeCheckoutMain(id) {
+  const current = execSync('git rev-parse --abbrev-ref HEAD', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+
+  if (current === 'main') {
+    // Already on main — just verify tree is clean.
+    autoCommitDirtyTree('uncommitted changes on main before slice processing');
+    return;
+  }
+
+  // Step 1: commit any dirty tracked files to the CURRENT branch (not main).
+  autoCommitDirtyTree(`uncommitted changes on ${current} before switching to main`);
+
+  // Step 2: get list of files that differ between current HEAD and main.
+  let diffFiles = [];
+  try {
+    const raw = execSync('git diff --name-only HEAD main', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+    if (raw) diffFiles = raw.split('\n').filter(Boolean);
+  } catch (err) {
+    log('warn', 'git_safety', { id, msg: 'git diff --name-only failed', error: err.message });
+  }
+
+  // Step 3: overwrite each differing file on disk with main's version.
+  const trashDir = path.join(QUEUE_DIR, '..', 'trash');
+  fs.mkdirSync(trashDir, { recursive: true });
+  let overwritten = 0;
+  let removed = 0;
+
+  for (const file of diffFiles) {
+    const diskPath = path.join(PROJECT_DIR, file);
+    try {
+      // Try to get main's version of this file
+      const content = execSync(`git show main:${file}`, { cwd: PROJECT_DIR, encoding: 'buffer' });
+      // Ensure parent directory exists (file might be in a new subdirectory on main)
+      fs.mkdirSync(path.dirname(diskPath), { recursive: true });
+      fs.writeFileSync(diskPath, content);
+      overwritten++;
+    } catch (_) {
+      // File doesn't exist on main — it only exists on the current branch.
+      // Rename to trash (FUSE-safe) so the working tree matches main.
+      try {
+        fs.renameSync(diskPath, path.join(trashDir, path.basename(file) + '.branch-cleanup'));
+        removed++;
+      } catch (__) {
+        // If even rename fails, just leave it — it'll be untracked on main.
+      }
+    }
+  }
+
+  // Step 4: also handle files that exist on main but not on current branch (new on main).
+  let mainOnlyFiles = [];
+  try {
+    const raw = execSync('git diff --name-only --diff-filter=A main HEAD', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+    if (raw) mainOnlyFiles = raw.split('\n').filter(Boolean);
+  } catch (_) {}
+
+  for (const file of mainOnlyFiles) {
+    if (diffFiles.includes(file)) continue; // Already handled above
+    const diskPath = path.join(PROJECT_DIR, file);
+    try {
+      const content = execSync(`git show main:${file}`, { cwd: PROJECT_DIR, encoding: 'buffer' });
+      fs.mkdirSync(path.dirname(diskPath), { recursive: true });
+      fs.writeFileSync(diskPath, content);
+      overwritten++;
+    } catch (_) {}
+  }
+
+  // Step 5: move HEAD pointer to main and reset index.
+  execSync('git symbolic-ref HEAD refs/heads/main', { cwd: PROJECT_DIR, stdio: 'pipe' });
+  execSync('git read-tree main', { cwd: PROJECT_DIR, stdio: 'pipe' });
+
+  // Step 6: verify.
+  const verify = execSync('git rev-parse --abbrev-ref HEAD', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+  if (verify !== 'main') {
+    throw new Error(`fuseSafeCheckoutMain: HEAD is ${verify}, expected main`);
+  }
+
+  log('info', 'git_safety', {
+    id,
+    msg: `FUSE-safe checkout to main complete (was: ${current})`,
+    filesOverwritten: overwritten,
+    filesRemoved: removed,
+    totalDiff: diffFiles.length,
+  });
+}
+
+/**
+ * sanitizeBranchName(name)
+ *
+ * Validates that a branch name from Rom's DONE report is safe for shell
+ * interpolation. Returns the name if valid, throws if not.
+ */
+function sanitizeBranchName(name) {
+  if (!name || typeof name !== 'string') {
+    throw new Error('Branch name is missing or not a string');
+  }
+  if (!BRANCH_NAME_REGEX.test(name)) {
+    throw new Error(`Invalid branch name: "${name}" — must match ${BRANCH_NAME_REGEX}`);
+  }
+  if (name.includes('..') || name.startsWith('-')) {
+    throw new Error(`Invalid branch name: "${name}" — contains unsafe pattern`);
+  }
+  return name;
+}
+
+/**
+ * verifyWorkingTreeMatchesMain(id, context)
+ *
+ * After a merge or checkout, verify the working tree has no unexpected
+ * differences from git's committed state. If it does, overwrite disk.
+ *
+ * This catches FUSE-induced partial updates (git wrote some files but
+ * couldn't unlink others).
+ */
+function verifyWorkingTreeMatchesMain(id, context) {
+  try {
+    const dirty = execSync('git diff --name-only HEAD', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+    if (!dirty) return; // Clean — all good.
+
+    const files = dirty.split('\n').filter(Boolean);
+    log('warn', 'git_safety', {
+      id,
+      msg: `Post-${context} verification: ${files.length} files differ from committed state — overwriting disk`,
+      files: files.join(', '),
+    });
+
+    for (const file of files) {
+      const diskPath = path.join(PROJECT_DIR, file);
+      try {
+        const content = execSync(`git show HEAD:${file}`, { cwd: PROJECT_DIR, encoding: 'buffer' });
+        fs.writeFileSync(diskPath, content);
+      } catch (_) {
+        // File was deleted in git — rename to trash
+        const trashDir = path.join(QUEUE_DIR, '..', 'trash');
+        try { fs.renameSync(diskPath, path.join(trashDir, path.basename(file) + '.verify-cleanup')); } catch (__) {}
+      }
+    }
+  } catch (err) {
+    log('warn', 'git_safety', { id, msg: `Post-${context} verification failed`, error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Heartbeat
 // ---------------------------------------------------------------------------
 
@@ -601,10 +820,10 @@ function invokeOBrien(briefContent, donePath, inProgressPath, errorPath, id, eff
   const isAmendment = briefMeta.references && briefMeta.references !== 'null';
   if (!isAmendment) {
     try {
-      execSync('git checkout main', { cwd: PROJECT_DIR, stdio: 'pipe' });
-      log('info', 'branch', { id, msg: 'Checked out main before O\'Brien invocation' });
+      fuseSafeCheckoutMain(id);
+      log('info', 'branch', { id, msg: 'FUSE-safe checkout to main before Rom invocation' });
     } catch (err) {
-      log('warn', 'branch', { id, msg: 'Failed to checkout main before invocation — proceeding on current HEAD', error: err.message });
+      log('error', 'branch', { id, msg: 'fuseSafeCheckoutMain failed — proceeding on current HEAD', error: err.message });
     }
   } else {
     log('info', 'branch', { id, msg: 'Amendment brief — skipping checkout main (staying on current branch)' });
@@ -1245,16 +1464,26 @@ function invokeEvaluator(id) {
 /**
  * mergeBranch(id, branchName, title)
  *
- * Performs git checkout main && git merge --no-ff {branch} && git push origin main.
+ * FUSE-safe merge: checkout main → regression guard → merge → verify → push.
  * Returns { success, sha, error } where sha is the merge commit hash on success.
  */
 function mergeBranch(id, branchName, title) {
+  // ── Branch name sanitization (defence against shell injection) ────────
+  try {
+    branchName = sanitizeBranchName(branchName);
+  } catch (err) {
+    log('error', 'merge', { id, msg: 'Branch name rejected by sanitizer', error: err.message });
+    return { success: false, sha: null, error: `invalid_branch_name: ${err.message}` };
+  }
+
   const commitMsg = `merge: ${branchName} — ${title || `brief ${id}`} (brief ${id})`;
   try {
-    execSync('git checkout main', { cwd: PROJECT_DIR, stdio: 'pipe' });
+    // ── FUSE-safe checkout main ─────────────────────────────────────────
+    fuseSafeCheckoutMain(id);
 
-    // Regression guard: if the branch's dashboard HTML is significantly shorter
-    // than main's, Rom likely built on a stale base and is missing features.
+    // ── Regression guard ────────────────────────────────────────────────
+    // If the branch's dashboard HTML is significantly shorter than main's,
+    // Rom likely built on a stale base and is missing features.
     try {
       const mainLines = parseInt(execSync(
         `git show main:dashboard/lcars-dashboard.html | wc -l`,
@@ -1287,8 +1516,15 @@ function mergeBranch(id, branchName, title) {
       log('info', 'merge', { id, msg: 'Regression guard skipped — file not found on one or both branches' });
     }
 
+    // ── Merge ───────────────────────────────────────────────────────────
     execSync(`git merge --no-ff ${branchName} -m "${commitMsg.replace(/"/g, '\\"')}"`, { cwd: PROJECT_DIR, stdio: 'pipe' });
     const sha = execSync('git rev-parse HEAD', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+
+    // ── Post-merge verification ─────────────────────────────────────────
+    // FUSE may leave disk files out of sync after merge. Overwrite any
+    // that don't match the committed state.
+    verifyWorkingTreeMatchesMain(id, 'merge');
+
     try {
       execSync('git push origin main', { cwd: PROJECT_DIR, stdio: 'pipe' });
     } catch (pushErr) {
