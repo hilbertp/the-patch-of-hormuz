@@ -14,7 +14,8 @@ const STAGED_DIR   = path.join(REPO_ROOT, 'bridge', 'staged');
 const TRASH_DIR    = path.join(REPO_ROOT, 'bridge', 'trash');
 const DASHBOARD    = path.join(__dirname, 'lcars-dashboard.html');
 
-const FIRST_OUTPUT = path.join(REPO_ROOT, 'bridge', 'first-output.json');
+const FIRST_OUTPUT  = path.join(REPO_ROOT, 'bridge', 'first-output.json');
+const NOG_ACTIVE    = path.join(REPO_ROOT, 'bridge', 'nog-active.json');
 
 const CORS_ORIGIN  = 'https://dax-dashboard.lovable.app';
 
@@ -232,7 +233,7 @@ function buildBridgeData() {
       if (!b.completedAt) return -1;
       return new Date(b.completedAt) - new Date(a.completedAt);
     })
-    .slice(0, 10)
+    .slice(0, 200)
     .map(entry => {
       const verdict = reviewedMap[entry.id];
       // If watcher errored but Philipp accepted it, show final outcome as ACCEPTED
@@ -299,7 +300,15 @@ function buildBridgeData() {
   });
 
   const queueOrder = readQueueOrder();
-  return { heartbeat, queue, briefs, recent, economics, queueOrder };
+
+  // Nog active state (slice 105)
+  let nogActive = null;
+  try {
+    const raw = JSON.parse(fs.readFileSync(NOG_ACTIVE, 'utf8'));
+    if (raw && raw.sliceId) nogActive = raw;
+  } catch (_) {}
+
+  return { heartbeat, queue, briefs, recent, economics, queueOrder, nogActive };
 }
 
 // ── HTTP server ──────────────────────────────────────────────────────────────
@@ -564,6 +573,103 @@ const server = http.createServer(async (req, res) => {
     } catch (_) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end('[]');
+    }
+    return;
+  }
+
+  if (pathname === '/api/health') {
+    const now = Date.now();
+    let watcher = { status: 'down', heartbeatAge_s: null, currentBrief: null,
+                    elapsedSeconds: null, lastActivityAge_s: null, processedTotal: 0 };
+    try {
+      const raw = JSON.parse(fs.readFileSync(HEARTBEAT, 'utf8'));
+      const age = raw.ts ? (now - new Date(raw.ts).getTime()) / 1000 : Infinity;
+      const status = age < 30 ? 'up' : age < 60 ? 'stale' : 'down';
+      const lastActivityAge = raw.last_activity_ts
+        ? (now - new Date(raw.last_activity_ts).getTime()) / 1000 : null;
+      watcher = {
+        status,
+        heartbeatAge_s:    Math.round(age),
+        currentBrief:      raw.current_brief ?? null,
+        elapsedSeconds:    raw.brief_elapsed_seconds ?? null,
+        lastActivityAge_s: lastActivityAge != null ? Math.round(lastActivityAge) : null,
+        processedTotal:    raw.processed_total ?? 0,
+      };
+    } catch (_) {}
+    const wormholePath = path.join(REPO_ROOT, 'bridge', 'wormhole-heartbeat.json');
+    let wormhole = { lastWriteTs: null, lastWriteTool: null, lastWritePath: null, ageSeconds: null };
+    try {
+      const raw = JSON.parse(fs.readFileSync(wormholePath, 'utf8'));
+      const age = raw.ts ? (now - new Date(raw.ts).getTime()) / 1000 : Infinity;
+      wormhole = { lastWriteTs: raw.ts ?? null, lastWriteTool: raw.tool ?? null,
+                   lastWritePath: raw.path ?? null, ageSeconds: raw.ts ? Math.round(age) : null };
+    } catch (_) {}
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ watcher, wormhole }));
+    return;
+  }
+
+  // ── Queue slice content (for slice detail overlay) ─────────────────────────
+  const queueContentMatch = pathname.match(/^\/api\/queue\/(\d+)\/content$/);
+  if (queueContentMatch && req.method === 'GET') {
+    const id = queueContentMatch[1];
+    // Search order: ACCEPTED, DONE, PENDING, BRIEF (queue dir), then staged
+    const candidates = [
+      path.join(QUEUE_DIR, `${id}-ACCEPTED.md`),
+      path.join(QUEUE_DIR, `${id}-DONE.md`),
+      path.join(QUEUE_DIR, `${id}-PENDING.md`),
+      path.join(QUEUE_DIR, `${id}-BRIEF.md`),
+      path.join(STAGED_DIR, `${id}-STAGED.md`),
+      path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`),
+    ];
+    let found = null;
+    for (const p of candidates) {
+      if (fs.existsSync(p)) { found = p; break; }
+    }
+    if (!found) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `No content found for slice ${id}` }));
+      return;
+    }
+    try {
+      const raw = fs.readFileSync(found, 'utf8');
+      const frontmatter = parseFrontmatter(raw);
+      const body = extractBody(raw);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ id, frontmatter, body, raw }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
+  // ── Unaccept (move PENDING back to staged) ──────────────────────────────────
+  const queueUnacceptMatch = pathname.match(/^\/api\/queue\/(\d+)\/unaccept$/);
+  if (queueUnacceptMatch && req.method === 'POST') {
+    const id = queueUnacceptMatch[1];
+    const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
+    if (!fs.existsSync(pendingPath)) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `No pending slice ${id}` }));
+      return;
+    }
+    try {
+      let content = fs.readFileSync(pendingPath, 'utf8');
+      content = updateFrontmatter(content, { status: 'STAGED' });
+      fs.writeFileSync(path.join(STAGED_DIR, `${id}-STAGED.md`), content, 'utf8');
+      fs.unlinkSync(pendingPath);
+      // Remove from queue order
+      const order = readQueueOrder();
+      const idx = order.indexOf(id);
+      if (idx !== -1) order.splice(idx, 1);
+      writeQueueOrder(order);
+      writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'unaccepted' });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
     }
     return;
   }

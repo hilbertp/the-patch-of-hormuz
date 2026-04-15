@@ -28,3 +28,5 @@ bridge/register.jsonl
 .env
 .env.*
 !.env.example
+bridge/nog-active.json
+bridge/wormhole-heartbeat.json

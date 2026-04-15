@@ -49,6 +49,7 @@ const LOG_FILE       = path.resolve(__dirname, config.logFile);
 const HEARTBEAT_FILE = path.resolve(__dirname, config.heartbeatFile);
 const PROJECT_DIR    = path.resolve(__dirname, config.projectDir);
 const REGISTER_FILE  = path.resolve(__dirname, 'register.jsonl');
+const NOG_ACTIVE_FILE = path.resolve(__dirname, 'nog-active.json');
 
 // Ensure queue directory exists.
 fs.mkdirSync(QUEUE_DIR, { recursive: true });
@@ -1054,6 +1055,16 @@ function invokeEvaluator(id) {
 
   const pickupTime = Date.now();
 
+  // Write nog-active.json so the dashboard can show Nog's live state.
+  try {
+    fs.writeFileSync(NOG_ACTIVE_FILE, JSON.stringify({
+      sliceId: String(id),
+      title: briefMeta.title || null,
+      round: cycle + 1,
+      invokedAt: new Date().toISOString(),
+    }), 'utf8');
+  } catch (_) {}
+
   // Progress tick every 60s.
   const tickInterval = setInterval(() => {
     printProgressTick(Date.now() - pickupTime);
@@ -1070,6 +1081,8 @@ function invokeEvaluator(id) {
     },
     (err, stdout, stderr) => {
       clearInterval(tickInterval);
+      // Clean up nog-active.json — Nog is done.
+      try { fs.unlinkSync(NOG_ACTIVE_FILE); } catch (_) {}
       const durationMs = Date.now() - pickupTime;
 
       let verdict = null;
