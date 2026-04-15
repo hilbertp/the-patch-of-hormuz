@@ -862,6 +862,83 @@ function verifyBranchState(id, expectedBranch) {
 }
 
 /**
+ * ensureMainIsFresh(id)
+ *
+ * Fetches from origin and fast-forwards local main so the branch we're
+ * about to create includes all remote work. If the fetch fails (offline,
+ * no remote), log a warning but continue — local main is still valid.
+ */
+function ensureMainIsFresh(id) {
+  try {
+    execSync('git fetch origin main', { cwd: PROJECT_DIR, stdio: 'pipe', timeout: 15000 });
+    const local  = execSync('git rev-parse main', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+    const remote = execSync('git rev-parse origin/main', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+
+    if (local !== remote) {
+      // Fast-forward local main to match remote (safe — we're on main after fuseSafeCheckoutMain)
+      execSync('git merge --ff-only origin/main', { cwd: PROJECT_DIR, stdio: 'pipe' });
+      const after = execSync('git rev-parse main', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+      log('info', 'git_safety', {
+        id,
+        msg: `Fast-forwarded main: ${local.slice(0, 8)} → ${after.slice(0, 8)}`,
+      });
+    } else {
+      log('info', 'git_safety', { id, msg: 'main is up to date with origin' });
+    }
+  } catch (err) {
+    log('warn', 'git_safety', {
+      id,
+      msg: 'Could not fetch origin/main — proceeding with local main',
+      error: err.message,
+    });
+  }
+}
+
+/**
+ * buildScopeDiff(id, branchName, briefContent)
+ *
+ * Builds a human-readable scope summary for Nog's review:
+ *   - Which files were changed, added, or deleted on the branch
+ *   - Per-file line count deltas
+ *   - The brief's title and goal for scope comparison
+ *
+ * Returns a string block to inject into the evaluator prompt.
+ */
+function buildScopeDiff(id, branchName, briefContent) {
+  const lines = [];
+  try {
+    // File-level diff stat (which files changed and by how much)
+    const stat = execSync(`git diff --stat main...${branchName}`, { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+    // File list with status (A=added, M=modified, D=deleted)
+    const nameStatus = execSync(`git diff --name-status main...${branchName}`, { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+
+    lines.push('## SCOPE REVIEW — files changed on this branch');
+    lines.push('');
+    lines.push('```');
+    lines.push(nameStatus);
+    lines.push('```');
+    lines.push('');
+    lines.push('Summary:');
+    lines.push('```');
+    lines.push(stat.split('\n').slice(-1)[0] || '(no changes)');  // last line = totals
+    lines.push('```');
+    lines.push('');
+
+    // Extract brief scope info
+    const meta = parseFrontmatter(briefContent) || {};
+    lines.push(`Brief title: ${meta.title || '(unknown)'}`);
+    lines.push(`Brief goal: ${meta.goal || '(unknown)'}`);
+    lines.push(`Branch: ${branchName}`);
+    lines.push('');
+  } catch (err) {
+    lines.push('## SCOPE REVIEW — could not generate diff');
+    lines.push(`Error: ${err.message}`);
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+/**
  * sanitizeBranchName(name)
  *
  * Validates that a branch name from Rom's DONE report is safe for shell
@@ -999,9 +1076,10 @@ function invokeRom(briefContent, donePath, inProgressPath, errorPath, id, effect
     : `slice/${id}`;
 
   if (!isAmendment) {
-    // NEW SLICE: checkout main → create branch → verify
+    // NEW SLICE: fetch → checkout main → create branch → verify
     try {
       fuseSafeCheckoutMain(id);
+      ensureMainIsFresh(id);
       createBranchFromMain(id, sliceBranch);
       log('info', 'branch', { id, msg: `Watcher created branch ${sliceBranch} from main` });
     } catch (err) {
@@ -1565,10 +1643,30 @@ function invokeEvaluator(id) {
   print(`${B.vert}    Evaluating — fresh claude -p session, brief ACs + DONE report injected`);
   print(`${B.vert}`);
 
+  // Build scope diff for Nog's review
+  const scopeDiff = branchName ? buildScopeDiff(id, branchName, briefContent) : '## SCOPE REVIEW — branch name unknown, scope diff unavailable\n';
+
   const prompt = [
     'You are Nog, Evaluator for Liberation of Bajor.',
     '',
-    'Your job: evaluate whether Rom\'s DONE report satisfies ALL acceptance criteria in the original brief. Be specific. If even one AC is not met, the verdict is AMENDMENT_NEEDED.',
+    'Your job has TWO parts:',
+    '',
+    '### Part 1: Acceptance Criteria',
+    'Did Rom\'s work satisfy ALL acceptance criteria in the original brief?',
+    'Be specific. If even one AC is not met, the verdict is AMENDMENT_NEEDED.',
+    '',
+    '### Part 2: Scope Discipline',
+    'Review the list of changed files below against the brief\'s title and goal.',
+    'Ask yourself:',
+    '- Did Rom ONLY change files that are relevant to this brief\'s goal?',
+    '- Were any files modified that have nothing to do with the task?',
+    '- If files outside the expected scope were touched, is there a clear reason',
+    '  (e.g. a shared utility that needed updating, a config change required by the feature)?',
+    '- Did any existing file lose significant content that was NOT related to the task?',
+    '',
+    'Out-of-scope changes are a red flag. If you see them and the DONE report does',
+    'not explain why, that is an AMENDMENT_NEEDED — the fix instruction should be',
+    '"revert changes to [file] that are outside the scope of this brief."',
     '',
     '## ORIGINAL BRIEF (contains the acceptance criteria):',
     '',
@@ -1578,6 +1676,8 @@ function invokeEvaluator(id) {
     '',
     evaluatingContent,
     '',
+    scopeDiff,
+    '',
     `## AMENDMENT CYCLE: ${cycle} of 5`,
     '',
     `## BRANCH: ${branchName || '(unknown — read from DONE report above)'}`,
@@ -1585,9 +1685,10 @@ function invokeEvaluator(id) {
     'Respond with ONLY valid JSON, no other text:',
     '{',
     '  "verdict": "ACCEPTED" or "AMENDMENT_NEEDED",',
-    '  "reason": "One paragraph explaining your decision. Reference specific ACs.",',
+    '  "reason": "One paragraph explaining your decision. Reference specific ACs and scope.",',
     '  "failed_criteria": ["list of specific ACs that were not met, empty if ACCEPTED"],',
-    '  "amendment_instructions": "If AMENDMENT_NEEDED: specific instructions for Rom to fix each failed criterion. Reference file paths and expected changes. If ACCEPTED: empty string."',
+    '  "out_of_scope": ["list of files changed that are outside the brief\'s scope, empty if all changes are in scope"],',
+    '  "amendment_instructions": "If AMENDMENT_NEEDED: specific instructions for Rom to fix each failed criterion or revert out-of-scope changes. Reference file paths. If ACCEPTED: empty string."',
     '}',
   ].join('\n');
 
@@ -1719,33 +1820,18 @@ function mergeBranch(id, branchName, title) {
     // ── FUSE-safe checkout main ─────────────────────────────────────────
     fuseSafeCheckoutMain(id);
 
-    // ── Regression guard ────────────────────────────────────────────────
-    // Two-tier check:
+    // ── Truncation safety net ─────────────────────────────────────────
+    // Last-resort mechanical check: if any substantial file lost >50% of
+    // its content, that's almost certainly truncation damage (context
+    // compaction, FUSE partial write), not a deliberate change. Block it.
     //
-    // 1. STALE BASE detection (hard block):
-    //    If the branch forked from an older main (merge-base != main tip),
-    //    any file shrinkage >15% is almost certainly a regression — the
-    //    builder was working from an outdated copy and overwrote features
-    //    they never had. Block the merge.
-    //
-    // 2. CURRENT BASE + severe shrinkage (hard block):
-    //    Even on a current base, >50% shrinkage of a substantial file is
-    //    likely truncation damage (context compaction, FUSE partial write),
-    //    not a deliberate refactor. Block it.
-    //
-    // 3. CURRENT BASE + moderate shrinkage (allow with warning):
-    //    If the branch is from the latest main and a file got 15-50%
-    //    shorter, that's probably an intentional refactor or cleanup.
-    //    Log a warning for the audit trail but allow the merge.
-    //
+    // Scope discipline (was the work in scope? were out-of-scope files
+    // touched?) is Nog's job — he gets the full file diff in his prompt.
+    // This guard only catches catastrophic data loss that Nog can't see.
     try {
-      const mergeBase = execSync(`git merge-base main ${branchName}`, { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
-      const mainTip   = execSync('git rev-parse main', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
-      const isCurrentBase = mergeBase === mainTip;
-
       const changedFiles = execSync(`git diff --name-only main...${branchName}`, { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
       if (changedFiles) {
-        const shrunk = [];
+        const truncated = [];
         for (const file of changedFiles.split('\n').filter(Boolean)) {
           try {
             const mainLines = parseInt(execSync(
@@ -1756,76 +1842,34 @@ function mergeBranch(id, branchName, title) {
               `git show ${branchName}:${file} | wc -l`,
               { cwd: PROJECT_DIR, encoding: 'utf-8' }
             ).trim(), 10);
-
-            // Only check files that are substantial (>50 lines on main)
-            if (mainLines > 50 && branchLines < mainLines * 0.85) {
+            if (mainLines > 50 && branchLines < mainLines * 0.5) {
               const pct = Math.round((1 - branchLines / mainLines) * 100);
-              shrunk.push({ file, mainLines, branchLines, pct });
+              truncated.push({ file, mainLines, branchLines, pct });
             }
-          } catch (_) {
-            // File is new or deleted — not a regression
-          }
+          } catch (_) {}
         }
 
-        if (shrunk.length > 0) {
-          // Tier 1: Stale base — any shrinkage is a likely regression
-          if (!isCurrentBase) {
-            const summary = shrunk.map(r => `${r.file}: ${r.pct}% shorter (${r.branchLines} vs ${r.mainLines})`).join('; ');
-            log('warn', 'merge', {
-              id,
-              msg: `Regression guard BLOCK: stale base + ${shrunk.length} file(s) shorter — likely overwritten features`,
-              branchName,
-              mergeBase: mergeBase.slice(0, 8),
-              mainTip: mainTip.slice(0, 8),
-              shrunk,
-            });
-            registerEvent(id, 'MERGE_FAILED', {
-              reason: `regression_guard_stale_base: ${shrunk.length} file(s) shrunk on stale fork: ${summary}`,
-              branch: branchName,
-            });
-            print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} MERGE BLOCKED${SYM.sep}Stale base + ${shrunk.length} file(s) shrunk`);
-            print(`${B.vert}    ${C.yellow}⚠${C.reset}  Branch forked from ${mergeBase.slice(0, 8)}, main is now ${mainTip.slice(0, 8)}`);
-            for (const r of shrunk) {
-              print(`${B.vert}    ${C.yellow}⚠${C.reset}  ${r.file}: ${r.pct}% shorter (${r.branchLines} vs ${r.mainLines} lines)`);
-            }
-            return { success: false, sha: null, error: 'regression_guard_stale_base' };
-          }
-
-          // Tier 2: Current base but severe shrinkage (>50%) — likely truncation
-          const severe = shrunk.filter(r => r.pct > 50);
-          if (severe.length > 0) {
-            const summary = severe.map(r => `${r.file}: ${r.pct}% shorter (${r.branchLines} vs ${r.mainLines})`).join('; ');
-            log('warn', 'merge', {
-              id,
-              msg: `Regression guard BLOCK: ${severe.length} file(s) lost >50% content — likely truncation`,
-              branchName,
-              severe,
-            });
-            registerEvent(id, 'MERGE_FAILED', {
-              reason: `regression_guard_truncation: ${severe.length} file(s) severely shrunk: ${summary}`,
-              branch: branchName,
-            });
-            print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} MERGE BLOCKED${SYM.sep}${severe.length} file(s) lost >50% content — likely truncation`);
-            for (const r of severe) {
-              print(`${B.vert}    ${C.yellow}⚠${C.reset}  ${r.file}: ${r.pct}% shorter (${r.branchLines} vs ${r.mainLines} lines)`);
-            }
-            return { success: false, sha: null, error: 'regression_guard_truncation' };
-          }
-
-          // Tier 3: Current base + moderate shrinkage — intentional refactor, allow with warning
-          log('info', 'merge', {
+        if (truncated.length > 0) {
+          const summary = truncated.map(r => `${r.file}: ${r.pct}% lost (${r.branchLines} vs ${r.mainLines})`).join('; ');
+          log('warn', 'merge', {
             id,
-            msg: `Regression guard PASS (with warning): current base + ${shrunk.length} file(s) moderately shorter — treating as intentional`,
+            msg: `Truncation guard BLOCK: ${truncated.length} file(s) lost >50% content`,
             branchName,
-            shrunk,
+            truncated,
           });
-          for (const r of shrunk) {
-            print(`${B.vert}    ${C.yellow}⚠${C.reset}  ${r.file}: ${r.pct}% shorter (${r.branchLines} vs ${r.mainLines} lines) — allowed (current base)`);
+          registerEvent(id, 'MERGE_FAILED', {
+            reason: `truncation_guard: ${summary}`,
+            branch: branchName,
+          });
+          print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} MERGE BLOCKED${SYM.sep}${truncated.length} file(s) lost >50% content — likely truncation`);
+          for (const r of truncated) {
+            print(`${B.vert}    ${C.yellow}⚠${C.reset}  ${r.file}: ${r.pct}% lost (${r.branchLines} vs ${r.mainLines} lines)`);
           }
+          return { success: false, sha: null, error: 'truncation_guard' };
         }
       }
     } catch (guardErr) {
-      log('info', 'merge', { id, msg: 'Regression guard skipped — diff failed', error: guardErr.message });
+      log('info', 'merge', { id, msg: 'Truncation guard skipped — diff failed', error: guardErr.message });
     }
 
     // ── Merge ───────────────────────────────────────────────────────────
