@@ -7,7 +7,6 @@ to: kira
 priority: normal
 created: "2026-04-15T00:39:28.000Z"
 status: STAGED
-brief_id: "104"
 branch: "slice/104-error-display"
 completed: "2026-04-15T00:39:28.000Z"
 estimated_human_hours: 0.75

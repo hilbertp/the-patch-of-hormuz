@@ -7,7 +7,6 @@ to: kira
 priority: normal
 created: "2026-04-15T05:30:00.000Z"
 status: STAGED
-brief_id: "105"
 branch: "slice/105-nog-active-panel"
 completed: "2026-04-15T05:30:00.000Z"
 estimated_human_hours: 1.0

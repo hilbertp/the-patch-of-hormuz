@@ -51,6 +51,27 @@ O'Brien does NOT own:
 
 ---
 
+## Creating slices
+
+Always use the slice creator service. Never write frontmatter by hand.
+
+```
+node bridge/new-slice.js \
+  --title "..." \
+  --goal  "..." \
+  --priority normal|high|critical \
+  [--to rom|leeta] \
+  [--references "NNN"] \
+  [--timeout 20] \
+  [--body-file /path/to/body.md]
+```
+
+This guarantees all required fields. The file is written to bridge/staged/{id}-STAGED.md.
+After creation, review and fill in the ## Tasks and ## Success criteria sections if
+you used the default template (no --body-file).
+
+---
+
 ## Slice Authoring Standards
 
 - Always use `node bridge/new-slice.js` — never write frontmatter by hand

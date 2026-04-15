@@ -7,7 +7,6 @@ to: kira
 priority: normal
 created: "2026-04-15T00:47:47.000Z"
 status: STAGED
-brief_id: "107"
 branch: "slice/107-queue-panel-fixes"
 completed: "2026-04-15T00:47:47.000Z"
 estimated_human_hours: 1.0
