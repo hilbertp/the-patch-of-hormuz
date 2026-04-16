@@ -142,14 +142,14 @@ function writeRegisterEvent(event) {
 }
 
 // ── Title/goal fallback ─────────────────────────────────────────────────────
-// First try the COMMISSIONED register event, then fall back to {id}-SLICE.md.
+// First try the COMMISSIONED register event, then fall back to {id}-ARCHIVED.md.
 function getTitleAndGoal(id, commissioned) {
   if (commissioned[id]?.title) {
     return { title: commissioned[id].title, goal: commissioned[id].goal ?? null };
   }
   try {
-    const slicePath = path.join(QUEUE_DIR, `${id}-SLICE.md`);
-    const content = fs.readFileSync(slicePath, 'utf8');
+    const archivedPath = path.join(QUEUE_DIR, `${id}-ARCHIVED.md`);
+    const content = fs.readFileSync(archivedPath, 'utf8');
     const fm = parseFrontmatter(content);
     return { title: fm.title ?? null, goal: fm.goal ?? null };
   } catch (_) {
@@ -626,10 +626,10 @@ const server = http.createServer(async (req, res) => {
   const queueContentMatch = pathname.match(/^\/api\/queue\/(\d+)\/content$/);
   if (queueContentMatch && req.method === 'GET') {
     const id = queueContentMatch[1];
-    // SLICE.md is the original prompt given to O'Brien — show it first.
+    // ARCHIVED.md is the original prompt given to O'Brien — show it first.
     // Fall back to PENDING (same content, still in queue) then STAGED, then DONE report.
     const candidates = [
-      path.join(QUEUE_DIR, `${id}-SLICE.md`),
+      path.join(QUEUE_DIR, `${id}-ARCHIVED.md`),
       path.join(QUEUE_DIR, `${id}-PENDING.md`),
       path.join(STAGED_DIR, `${id}-STAGED.md`),
       path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`),
