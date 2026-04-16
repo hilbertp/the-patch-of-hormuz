@@ -3224,6 +3224,21 @@ function poll() {
     // Skip if already reviewed (evaluator has run).
     if (hasReviewEvent(doneId)) continue;
 
+    // Rom slice-broken fast path (BR invariant #9):
+    // If Rom's DONE report contains "## Rom Escalation — Slice Broken",
+    // route directly to STAGED for O'Brien rework — skip Nog entirely.
+    try {
+      const doneContent = fs.readFileSync(donePath, 'utf-8');
+      if (/^## Rom Escalation — Slice Broken\s*$/m.test(doneContent)) {
+        fs.renameSync(donePath, path.join(STAGED_DIR, `${doneId}-STAGED.md`));
+        registerEvent(doneId, 'ROM_ESCALATE', { reason: 'slice-broken fast path' });
+        log('info', 'state', { id: doneId, from: 'DONE', to: 'STAGED', reason: 'rom_escalate' });
+        continue;
+      }
+    } catch (err) {
+      log('warn', 'evaluator', { id: doneId, msg: 'Failed to read DONE file for Rom escalation check', error: err.message });
+    }
+
     // Rename DONE → EVALUATING to claim it.
     const evaluatingPath = path.join(QUEUE_DIR, `${doneId}-EVALUATING.md`);
     try {
