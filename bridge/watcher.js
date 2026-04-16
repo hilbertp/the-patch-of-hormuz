@@ -2947,16 +2947,21 @@ function crashRecovery() {
  * Exported so the watcher can call it from bridge/next-id.js.
  */
 function nextSliceId(queueDir) {
-  let files;
-  try {
-    files = fs.readdirSync(queueDir);
-  } catch (_) {
-    return '001';
-  }
+  const stagedDir = path.join(path.dirname(queueDir), 'staged');
+  const ids = [];
 
-  const ids = files
-    .map(f => { const m = f.match(/^(\d+)-/); return m ? parseInt(m[1], 10) : null; })
-    .filter(n => n !== null);
+  for (const dir of [queueDir, stagedDir]) {
+    let files;
+    try {
+      files = fs.readdirSync(dir);
+    } catch (_) {
+      continue;
+    }
+    for (const f of files) {
+      const m = f.match(/^(\d+)-/);
+      if (m) ids.push(parseInt(m[1], 10));
+    }
+  }
 
   if (ids.length === 0) return '001';
   return String(Math.max(...ids) + 1).padStart(3, '0');

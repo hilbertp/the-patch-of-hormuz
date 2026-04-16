@@ -141,9 +141,12 @@ function main() {
     process.exit(1);
   }
 
-  // Assign ID
+  // Assign ID, ensuring no collision with existing staged files
   fs.mkdirSync(STAGED_DIR, { recursive: true });
   fields.id = nextSliceId(QUEUE_DIR);
+  while (fs.existsSync(path.join(STAGED_DIR, `${fields.id}-STAGED.md`))) {
+    fields.id = String(parseInt(fields.id, 10) + 1).padStart(3, '0');
+  }
 
   // Build file content
   const frontmatter = buildFrontmatter(fields);
