@@ -13,7 +13,8 @@
  *     --goal  "One sentence describing the outcome." \
  *     --priority normal|high|critical \
  *     [--to rom|leeta]         (default: rom) \
- *     [--references "095"]     (comma-separated IDs this slice depends on) \
+ *     [--depends-on "095,096"] (comma-separated IDs this slice depends on, informational only) \
+ *     [--amendment "slice/095-fix-title"]  (exact branch name to reuse for amendment) \
  *     [--timeout 20]           (inactivity timeout in minutes, default: 20) \
  *     [--body-file /path/to/body.md]   (optional markdown body, or pipe via stdin)
  *
@@ -88,7 +89,8 @@ function buildFrontmatter(fields) {
   lines.push(`to: ${fields.to}`);
   lines.push(`priority: ${fields.priority}`);
   lines.push(`created: "${fields.created}"`);
-  if (fields.references) lines.push(`references: "${fields.references}"`);
+  if (fields.depends_on) lines.push(`depends_on: "${fields.depends_on}"`);
+  if (fields.amendment) lines.push(`amendment: "${fields.amendment}"`);
   if (fields.timeout_min) lines.push(`timeout_min: ${fields.timeout_min}`);
   lines.push(`status: STAGED`);
   lines.push('---');
@@ -127,7 +129,8 @@ function main() {
     goal:       args.goal       || '',
     to,
     priority,
-    references: args.references || null,
+    depends_on: args['depends-on'] || null,
+    amendment:  args.amendment    || null,
     timeout_min: isNaN(timeoutMin) ? 20 : timeoutMin,
     created:    new Date().toISOString(),
   };
@@ -137,7 +140,7 @@ function main() {
   if (errors.length > 0) {
     console.error('ERROR: Slice not created — validation failed:\n');
     errors.forEach(e => console.error(`  • ${e}`));
-    console.error('\nUsage: node bridge/new-slice.js --title "..." --goal "..." [--to rom|leeta] [--priority normal|high|critical] [--references "095"] [--timeout 20] [--body-file body.md]');
+    console.error('\nUsage: node bridge/new-slice.js --title "..." --goal "..." [--to rom|leeta] [--priority normal|high|critical] [--depends-on "095,096"] [--amendment "slice/095-fix"] [--timeout 20] [--body-file body.md]');
     process.exit(1);
   }
 

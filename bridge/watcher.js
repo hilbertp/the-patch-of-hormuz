@@ -1317,9 +1317,9 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
   // Amendments:  checkout existing branch → invoke Rom on that branch
   // ──────────────────────────────────────────────────────────────────────────
   const sliceMeta = parseFrontmatter(sliceContent) || {};
-  const isAmendment = sliceMeta.references && sliceMeta.references !== 'null';
+  const isAmendment = !!(sliceMeta.amendment || (sliceMeta.references && sliceMeta.references !== 'null'));
   const sliceBranch = isAmendment
-    ? (sliceMeta.branch || `slice/${sliceMeta.root_commission_id || id}`)
+    ? (sliceMeta.amendment || sliceMeta.branch || `slice/${sliceMeta.root_commission_id || id}`)
     : `slice/${id}`;
 
   // ── WORKTREE-BASED BRANCH LIFECYCLE ──────────────────────────────────────
@@ -2357,7 +2357,7 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     'to: rom',
     'priority: normal',
     `created: "${new Date().toISOString()}"`,
-    `references: "${id}"`,
+    `amendment: "${branchName || ''}"`,
     'timeout_min: null',
     'type: amendment',
     `root_commission_id: "${rootId}"`,
@@ -2603,14 +2603,14 @@ function poll() {
         try {
           const content = fs.readFileSync(path.join(QUEUE_DIR, a), 'utf-8');
           const meta = parseFrontmatter(content);
-          return meta && (meta.type === 'amendment' || (meta.references && meta.references !== 'null'));
+          return meta && (meta.type === 'amendment' || !!meta.amendment || (meta.references && meta.references !== 'null'));
         } catch (_) { return false; }
       })();
       const isAmendmentB = (() => {
         try {
           const content = fs.readFileSync(path.join(QUEUE_DIR, b), 'utf-8');
           const meta = parseFrontmatter(content);
-          return meta && (meta.type === 'amendment' || (meta.references && meta.references !== 'null'));
+          return meta && (meta.type === 'amendment' || !!meta.amendment || (meta.references && meta.references !== 'null'));
         } catch (_) { return false; }
       })();
       // Amendments sort before fresh slices
