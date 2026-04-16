@@ -527,6 +527,9 @@
     padding: 20px 24px;
     margin-bottom: 24px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    min-height: 493px;
   }
 
   .section-title {
@@ -537,6 +540,7 @@
   }
 
   .history-list {
+    flex: 1;
     display: flex;
     flex-direction: column;
   }
@@ -627,14 +631,16 @@
 
   .history-details-btn:hover { color: #1d4ed8; }
 
-  .history-pagination {
+  #history-pagination {
+    margin-top: 4px;
+    border-top: 1px solid #f3f4f6;
+    padding: 10px 12px 4px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 12px 4px;
-    border-top: 1px solid #f3f4f6;
-    margin-top: 4px;
+    min-height: 44px;
   }
+  #history-pagination.hidden { visibility: hidden; }
   .history-pg-btn {
     background: none;
     border: none;
@@ -1809,8 +1815,8 @@
     <div class="panel-history">
       <div class="slice-history" style="margin-bottom:0">
         <div class="section-title">History</div>
-        <div class="history-list" id="history-list">
-        </div>
+        <div class="history-list" id="history-list"></div>
+        <div id="history-pagination" class="hidden"></div>
       </div>
     </div>
 
@@ -2314,8 +2320,9 @@
   }
 
   function renderHistoryPage() {
-    const container = document.getElementById('history-list');
-    if (!container) return;
+    const listEl = document.getElementById('history-list');
+    const pageEl = document.getElementById('history-pagination');
+    if (!listEl || !pageEl) return;
 
     const total = cachedHistoryAllRows.length;
     const totalPages = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE));
@@ -2325,7 +2332,9 @@
     cachedHistoryItems = rows;
 
     if (total === 0) {
-      container.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:24px 0;font-size:14px">No completed slices yet.</div>';
+      listEl.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:24px 0;font-size:14px">No completed slices yet.</div>';
+      pageEl.classList.add('hidden');
+      pageEl.innerHTML = '';
       return;
     }
 
@@ -2334,7 +2343,7 @@
       const sprint = getSprintForId(c.id);
       const sprintLabel = sprint ? `Sprint ${sprint}` : '';
       const isExpanded = historyExpandedSet.has(c.id);
-      const chevron = isExpanded ? '\u25be' : '\u25b8';
+      const chevron = isExpanded ? '▼' : '▶';
       const desc = c.goal || c.title || '';
       // First sentence of goal/description
       const firstSentence = desc.split(/\.\s/)[0] + (desc.includes('.') ? '.' : '');
@@ -2349,10 +2358,10 @@
 
       return `<div class="history-row" data-history-id="${eid}" style="${rowStyle}">
         <div class="history-row-main">
-          <span class="history-row-id">#${eid}</span>
+          <span class="history-chevron" id="history-chevron-${eid}" onclick="toggleHistoryExpand('${eid}')">${chevron}</span>
           <span class="sprint-badge">${escHtml(sprintLabel)}</span>
+          <span class="history-row-id">#${eid}</span>
           <span class="history-row-title">${escHtml(c.title || '')}</span>
-          <span class="history-chevron" onclick="toggleHistoryExpand('${eid}')">${chevron}</span>
           ${statusHtml}
         </div>${errorReasonHtml}
         <div class="history-expand ${isExpanded ? 'open' : ''}" id="history-expand-${eid}">
@@ -2362,17 +2371,22 @@
       </div>`;
     }).join('');
 
-    // Pagination controls
-    const newerDisabled = historyPage <= 1;
-    const olderDisabled = historyPage >= totalPages;
-    const paginationHtml = totalPages > 1 ? `
-      <div class="history-pagination">
+    listEl.innerHTML = rowsHtml;
+
+    // Pagination footer
+    if (totalPages > 1) {
+      const newerDisabled = historyPage <= 1;
+      const olderDisabled = historyPage >= totalPages;
+      pageEl.classList.remove('hidden');
+      pageEl.innerHTML = `
         <button class="history-pg-btn" onclick="historyGoPage(${historyPage - 1})" ${newerDisabled ? 'disabled' : ''}>&#8592; newer</button>
         <span class="history-pg-info">page ${historyPage} of ${totalPages} &middot; ${total} entries</span>
         <button class="history-pg-btn" onclick="historyGoPage(${historyPage + 1})" ${olderDisabled ? 'disabled' : ''}>older &#8594;</button>
-      </div>` : '';
-
-    container.innerHTML = rowsHtml + paginationHtml;
+      `;
+    } else {
+      pageEl.classList.add('hidden');
+      pageEl.innerHTML = '';
+    }
   }
 
   function historyGoPage(page) {
@@ -2385,11 +2399,11 @@
 
   function toggleHistoryExpand(id) {
     const expand = document.getElementById('history-expand-' + id);
-    const chevron = document.querySelector(`.history-row[data-history-id="${id}"] .history-chevron`);
+    const chevron = document.getElementById('history-chevron-' + id);
     if (!expand) return;
     const isOpen = expand.classList.contains('open');
     expand.classList.toggle('open', !isOpen);
-    if (chevron) chevron.textContent = isOpen ? '\u25b8' : '\u25be';
+    if (chevron) chevron.textContent = isOpen ? '▼' : '▶';
     if (isOpen) historyExpandedSet.delete(id);
     else historyExpandedSet.add(id);
   }
@@ -2433,36 +2447,54 @@
     historyDetailOpen = true;
   }
 
+  function parseNogReviews(body) {
+    const sections = [];
+    const re = /^## Nog Review — Round (\d+)([\s\S]*?)(?=^## Nog Review — Round |\s*$)/gm;
+    let m;
+    while ((m = re.exec(body)) !== null) {
+      sections.push({ round: m[1], content: m[2].trim() });
+    }
+    return sections;
+  }
+
   async function renderHistoryDetailBody(item) {
     const container = document.getElementById('history-detail-body');
 
     // Try to fetch full slice content from the API
+    let body = null;
     try {
       const res = await fetch(`/api/queue/${item.id}/content`);
       if (res.ok) {
         const data = await res.json();
-        container.innerHTML = renderRenderedTab(data.body);
-        return;
+        body = data.body;
       }
     } catch (_) {}
 
-    // Fallback: render what we have from the register data
     let html = '';
-    if (item.goal) {
-      html += `<div class="slice-rendered-section">
-        <div class="slice-rendered-section-label">Objective</div>
-        <div class="slice-rendered-section-content"><p>${escHtml(item.goal)}</p></div>
-      </div>`;
+
+    // ── Original prompt section ──
+    html += '<div class="slice-rendered-section"><div class="slice-rendered-section-label">Original prompt</div><div class="slice-rendered-section-content">';
+    if (body) {
+      html += renderRenderedTab(body);
+    } else if (item.goal) {
+      html += `<p>${escHtml(item.goal)}</p>`;
+    } else {
+      html += '<p style="color:#9ca3af">No content available for this slice.</p>';
     }
-    if (item.title) {
-      html += `<div class="slice-rendered-section">
-        <div class="slice-rendered-section-label">Title</div>
-        <div class="slice-rendered-section-content"><p>${escHtml(item.title)}</p></div>
-      </div>`;
+    html += '</div></div>';
+
+    // ── Nog review thread section ──
+    html += '<div class="slice-rendered-section"><div class="slice-rendered-section-label">Nog review thread</div><div class="slice-rendered-section-content">';
+    const nogSections = body ? parseNogReviews(body) : [];
+    if (nogSections.length > 0) {
+      for (const s of nogSections) {
+        html += `<div style="margin-bottom:12px"><strong>Round ${escHtml(s.round)}</strong><div>${marked.parse(s.content)}</div></div>`;
+      }
+    } else {
+      html += '<p style="color:#9ca3af">No Nog review recorded.</p>';
     }
-    if (!html) {
-      html = '<div style="color:#9ca3af;text-align:center;padding:40px 0">No content available for this slice.</div>';
-    }
+    html += '</div></div>';
+
     container.innerHTML = html;
   }
 

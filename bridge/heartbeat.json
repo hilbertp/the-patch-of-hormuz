@@ -1,16 +1,16 @@
 {
-  "ts": "2026-04-16T00:53:38.458Z",
-  "status": "evaluating",
-  "current_slice": "118",
-  "current_slice_title": null,
-  "current_slice_goal": "Watcher uses git worktrees for slice execution; PROJECT_DIR stays on main permanently; dashboard never shows stale branch files.",
-  "slice_elapsed_seconds": 54,
-  "last_activity_ts": null,
-  "processed_total": 3,
+  "ts": "2026-04-15T21:47:04.177Z",
+  "status": "processing",
+  "current_slice": "112",
+  "current_slice_title": "F-06 Amendment — History panel: remove server cap + paginate to 200",
+  "current_slice_goal": "History panel shows all completed slices (up to 200), paginated 10 per page with ← newer · page N of M · X entries · older → controls.",
+  "slice_elapsed_seconds": 28,
+  "last_activity_ts": "2026-04-15T21:46:35.232Z",
+  "processed_total": 0,
   "queue": {
-    "waiting": 0,
-    "active": 0,
-    "done": 14,
-    "error": 8
+    "waiting": 1,
+    "active": 1,
+    "done": 13,
+    "error": 7
   }
 }

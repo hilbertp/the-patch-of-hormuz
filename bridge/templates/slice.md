@@ -1,21 +1,21 @@
 ---
 <!-- id: Zero-padded three-digit string matching the filename, e.g. "007". Must be quoted. -->
 id: ""
-<!-- title: Short human-readable title for this brief. -->
+<!-- title: Short human-readable title for this slice. -->
 title: ""
-<!-- goal: One sentence describing what Sisko gets when this brief succeeds.
+<!-- goal: One sentence describing what Sisko gets when this slice succeeds.
      Outcome-focused ("X will be possible / visible / working"), not technical.
-     Displayed in the watcher terminal. Required for new briefs. -->
+     Displayed in the watcher terminal. Required for new slices. -->
 goal: ""
 from: kira
 to: obrien
 <!-- priority: low | normal | high | spike -->
 priority: normal
-<!-- created: ISO 8601 timestamp when you wrote this brief. -->
+<!-- created: ISO 8601 timestamp when you wrote this slice. -->
 created: ""
-<!-- references: Direct parent brief ID as a quoted string, e.g. "003". null for originals. Watcher ignores this. -->
+<!-- references: Direct parent slice ID as a quoted string, e.g. "003". null for originals. Watcher ignores this. -->
 references: null
-<!-- timeout_min: Per-brief timeout override in minutes. null = global default (15 min). -->
+<!-- timeout_min: Per-slice timeout override in minutes. null = global default (15 min). -->
 timeout_min: null
 ---
 
@@ -25,7 +25,7 @@ timeout_min: null
 
 ## Context
 
-<!-- Background O'Brien needs. Reference file paths or prior brief IDs — O'Brien can look them up.
+<!-- Background O'Brien needs. Reference file paths or prior slice IDs — O'Brien can look them up.
      The watcher injects nothing. Don't rely on O'Brien inferring context that isn't here or on disk. -->
 
 ## Tasks
