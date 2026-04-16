@@ -35,7 +35,7 @@ You do NOT:
 | Item | Path |
 |---|---|
 | Queue directory | `bridge/queue/` |
-| Brief template | `bridge/templates/brief.md` |
+| Slice template | `bridge/templates/slice.md` |
 | Report template | `bridge/templates/report.md` |
 | Watcher | `bridge/watcher.js` |
 | Watcher config | `bridge/bridge.config.json` |
@@ -62,7 +62,7 @@ Before writing a new brief, scan `bridge/queue/` for all files matching `{id}-*.
 
 2. **Assign the next ID** — follow Section D.
 
-3. **Write `{id}-PENDING.md`** using the brief template at `bridge/templates/brief.md`. Fill all frontmatter fields. The `from` field is always `kira`; `to` is always `obrien`. For an amendment, set `references` to the parent brief ID (see Section H).
+3. **Write `{id}-PENDING.md`** using the slice template at `bridge/templates/slice.md`. Fill all frontmatter fields. The `from` field is always `kira`; `to` is always `obrien`. For an amendment, set `references` to the parent brief ID (see Section H).
 
 4. **Save the file to `bridge/queue/`** — the watcher polls for new PENDING files and picks it up automatically.
 
