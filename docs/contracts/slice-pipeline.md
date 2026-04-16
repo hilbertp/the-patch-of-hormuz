@@ -112,7 +112,7 @@ The BR has 8 business states. The filesystem uses 7 suffixes. The mapping is:
 | 2 | QUEUED       | `-QUEUED.md`        | `bridge/queue/`          | Legacy `-PENDING.md` dual-read for migration.   |
 | 3 | IN_PROGRESS  | `-IN_PROGRESS.md`   | `bridge/queue/`          | Watcher has spawned Rom in a worktree.          |
 | 4 | DONE         | `-DONE.md`          | `bridge/queue/`          | Rom's completion report appended.               |
-| 5 | IN_REVIEW    | `-REVIEWED.md`      | `bridge/queue/`          | **Naming divergence** — see §12.                |
+| 5 | IN_REVIEW    | `-IN_REVIEW.md`     | `bridge/queue/`          | Legacy `-REVIEWED.md` dual-read for migration.  |
 | 6 | ACCEPTED     | `-ACCEPTED.md`      | `bridge/queue/`          | Nog has appended a PASS verdict.                |
 | 7 | MERGED       | (commit on `main`)  | n/a                      | Merge commit; file keeps `-ACCEPTED.md` until archive. |
 | 8 | ARCHIVED     | `-ARCHIVED.md`      | `bridge/queue/`          | Terminal read-only state. Branch + worktree pruned. |
@@ -131,7 +131,7 @@ Each transition is performed by exactly one actor. The primitive is either an at
 | STAGED → QUEUED                        | Ops Center server | On `POST /approve`, server writes `queue/{id}-QUEUED.md`. Emits `HUMAN_APPROVAL`. |
 | QUEUED → IN_PROGRESS                   | Watcher         | Picks lowest-ID `-QUEUED.md` (or legacy `-PENDING.md`), `renameSync` → `-IN_PROGRESS.md`, creates worktree, spawns Rom. Emits `COMMISSIONED`. |
 | IN_PROGRESS → DONE                     | Rom (via watcher) | Rom appends his report to the slice file; watcher `renameSync` → `-DONE.md`. Emits `DONE`. |
-| DONE → IN_REVIEW                       | Watcher         | `renameSync` → `-REVIEWED.md`, spawns Nog.                                                  |
+| DONE → IN_REVIEW                       | Watcher         | `renameSync` → `-IN_REVIEW.md`, spawns Nog.                                                 |
 | IN_REVIEW → ACCEPTED                   | Nog (via watcher) | Nog appends PASS verdict; watcher `renameSync` → `-ACCEPTED.md`. Emits `NOG_PASS` + `ACCEPTED` + `REVIEW_RECEIVED`. |
 | IN_REVIEW → QUEUED  *(reject, rework)* | Nog (via watcher) | Nog appends rejection block; watcher writes `-QUEUED.md`. Round counter + 1. Emits `REVIEWED` + `REVIEW_RECEIVED`. |
 | IN_PROGRESS → STAGED  *(slice-broken fast path)* | Rom → O'Brien | Rom appends an **escalation block** (see §10). Watcher `renameSync` → `staged/{id}-STAGED.md`. Round counter **not** incremented (§9). |
@@ -239,6 +239,20 @@ O'Brien, on picking the slice back up in STAGED, reads the full history (origina
 
 ---
 
+## 10.1. Rejection-round sidecar (`handleAmendment` / `handleNogReturn`)
+
+When Nog rejects a slice with verdict `AMENDMENT_NEEDED` (or `RETURN`), the watcher performs two actions:
+
+1. **Terminal sidecar rename.** The current round's evaluating file (`${id}-EVALUATING.md`) is renamed to `${id}-IN_REVIEW.md`. This file is a historical terminal artefact of that review round — it is no longer active in the pipeline and will not be picked up again. (Legacy files may still use the `-REVIEWED.md` suffix; both are accepted on read.)
+
+2. **Amendment slice spawn.** A new amendment slice is written at `${nextId}-QUEUED.md` (per slice 146's naming), containing the failed criteria, amendment instructions, and the original acceptance criteria. This new slice re-enters the pipeline at state 2 (QUEUED) and is picked up by the watcher in the normal poll loop.
+
+**BR-invariant divergence.** This pattern splits the slice across two IDs: the original `${id}` (now terminated at `-IN_REVIEW.md`) and the amendment `${nextId}` (a fresh QUEUED file). BR invariant #1 ("one file per slice") expects a single file to track the full lifecycle. The current implementation instead creates a sidecar chain: `id → nextId → nextNextId`, linked by the `root_commission_id` frontmatter field.
+
+A future slice will converge this to the append-only pattern described in §8, where Nog's rejection is appended to the original slice file and the same ID re-enters the queue — eliminating the sidecar chain. Until then, the `root_commission_id` field and the `countReviewedCycles()` function (which counts `REVIEWED` register events across IDs sharing a root) provide the cross-ID linkage.
+
+---
+
 ## 11. Pre-merge safety (retired)
 
 *Retired in slice 144.*
@@ -267,9 +281,9 @@ Both firings forced an additive-stub workaround instead of a clean deletion. The
 The BR explicitly says these are flagged for triage and **not** part of the requirements:
 
 1. **~~State-name divergence: QUEUED vs. `-PENDING.md`.~~** Resolved in slice 146. On-disk suffix is now `-QUEUED.md`. All write sites produce `-QUEUED.md` with `status: QUEUED`. Read sites dual-accept both `-QUEUED.md` and legacy `-PENDING.md` for in-flight migration.
-2. **State-name divergence: IN_REVIEW vs. `-REVIEWED.md`.** BR state 5 is "IN_REVIEW"; the on-disk suffix is `-REVIEWED.md`. The name implies completion rather than "being reviewed." Target: rename to `-IN_REVIEW.md`.
+2. **~~State-name divergence: IN_REVIEW vs. `-REVIEWED.md`.~~** Resolved in slice 147. On-disk suffix is now `-IN_REVIEW.md`. All write sites produce `-IN_REVIEW.md`. Legacy `-REVIEWED.md` files are dual-read for migration.
 3. **`ARCHIVED` name collision** (BR §Known code divergences). `bridge/watcher.js` around line 1826 reused `-ARCHIVED.md` as a "parked-during-review" suffix before Nog evaluates, colliding with the terminal ARCHIVED state. **Fixed in slice 145** — parked suffix renamed to `-PARKED.md`. Legacy slices retain `-ARCHIVED.md` as the parked suffix with fallback reads in both the watcher and dashboard server.
-4. **Undocumented `-REVIEWED.md` sidecar** (BR §Known code divergences, line ~2446). Possibly a leftover sidecar artefact; either document its role or remove.
+4. **~~Undocumented `-REVIEWED.md` sidecar~~** (BR §Known code divergences). Documented in slice 147 — see §10.1 "Rejection-round sidecar." The sidecar (now `-IN_REVIEW.md`) is the terminal artefact of a rejected review round. Full converge to append-only pattern deferred to a future slice.
 
 These are candidates for their own slices. None are blocking.
 

@@ -2389,18 +2389,18 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
  * handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions,
  *                 cycle, branchName, evaluatingPath, sliceContent, durationMs)
  *
- * AMENDMENT_NEEDED verdict: register event, rename EVALUATING → REVIEWED, write amendment QUEUED.
+ * AMENDMENT_NEEDED verdict: register event, rename EVALUATING → IN_REVIEW, write amendment QUEUED.
  */
 function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions, cycle, branchName, evaluatingPath, sliceContent, durationMs) {
   registerEvent(id, 'REVIEWED', { verdict: 'AMENDMENT_NEEDED', reason, failed_criteria: failedCriteria, cycle: cycle + 1, root_commission_id: rootId });
   log('info', 'evaluator', { id, verdict: 'AMENDMENT_NEEDED', cycle: cycle + 1, rootId, durationMs });
 
-  const reviewedPath = path.join(QUEUE_DIR, `${id}-REVIEWED.md`);
+  const inReviewPath = path.join(QUEUE_DIR, `${id}-IN_REVIEW.md`);
   try {
-    fs.renameSync(evaluatingPath, reviewedPath);
-    log('info', 'state', { id, from: 'EVALUATING', to: 'REVIEWED' });
+    fs.renameSync(evaluatingPath, inReviewPath);
+    log('info', 'state', { id, from: 'EVALUATING', to: 'IN_REVIEW' });
   } catch (err) {
-    log('warn', 'evaluator', { id, msg: 'Failed to rename EVALUATING to REVIEWED', error: err.message });
+    log('warn', 'evaluator', { id, msg: 'Failed to rename EVALUATING to IN_REVIEW', error: err.message });
   }
 
   // Write amendment slice QUEUED.
@@ -2878,12 +2878,12 @@ function invokeNog(id) {
  * RETURN verdict from Nog: create amendment slice for O'Brien.
  */
 function handleNogReturn(id, rootId, round, branchName, evaluatingPath, sliceContent, summary, durationMs) {
-  const reviewedPath = path.join(QUEUE_DIR, `${id}-REVIEWED.md`);
+  const inReviewPath = path.join(QUEUE_DIR, `${id}-IN_REVIEW.md`);
   try {
-    fs.renameSync(evaluatingPath, reviewedPath);
-    log('info', 'state', { id, from: 'EVALUATING', to: 'REVIEWED', reason: 'nog_return' });
+    fs.renameSync(evaluatingPath, inReviewPath);
+    log('info', 'state', { id, from: 'EVALUATING', to: 'IN_REVIEW', reason: 'nog_return' });
   } catch (err) {
-    log('warn', 'nog', { id, msg: 'Failed to rename EVALUATING to REVIEWED', error: err.message });
+    log('warn', 'nog', { id, msg: 'Failed to rename EVALUATING to IN_REVIEW', error: err.message });
   }
 
   // Write amendment slice QUEUED.
