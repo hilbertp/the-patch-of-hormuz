@@ -634,7 +634,7 @@ const server = http.createServer(async (req, res) => {
       path.join(STAGED_DIR, `${id}-STAGED.md`),
       path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`),
       path.join(QUEUE_DIR, `${id}-ACCEPTED.md`),
-      path.join(QUEUE_DIR, `${id}-BRIEF.md`),
+      path.join(QUEUE_DIR, `${id}-ARCHIVED.md`),
       path.join(QUEUE_DIR, `${id}-DONE.md`),
     ];
     let found = null;
