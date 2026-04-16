@@ -1754,18 +1754,6 @@
           <div id="pipeline-mission-stage" class="active-slice-stage"></div>
         </div>
 
-        <!-- Error display (shown when active slice is in ERROR state) -->
-        <div id="error-display" style="display:none">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <div id="error-display-badge" class="active-slice-id" style="display:none"></div>
-            <span id="error-display-tag" class="tag tag-error" style="font-size:0.75em">error</span>
-          </div>
-          <div id="error-display-title" class="active-slice-title" style="margin-bottom:2px"></div>
-          <div id="error-display-reason" style="color:#dc2626;font-weight:500;font-size:0.92em;margin-top:4px"></div>
-          <div id="error-display-output" style="color:#6b7280;font-size:0.82em;margin-top:6px;white-space:pre-wrap;max-height:80px;overflow:auto;font-family:monospace;background:#f3f4f6;border-radius:4px;padding:6px 8px"></div>
-          <button id="error-dismiss-btn" style="margin-top:10px;padding:4px 14px;font-size:0.82em;border:1px solid #d1d5db;border-radius:4px;background:#fff;cursor:pointer;color:#374151">Dismiss</button>
-        </div>
-
         <!-- Idle state content -->
         <div id="mission-idle-text" class="active-slice-idle">
           <div class="active-slice-idle-primary">All clear</div>
@@ -1954,11 +1942,7 @@
 </div>
 
 <script>
-  // ── Error display state ─────────────────────────────────────────────────
-  const dismissedErrors = new Set();   // IDs the user has dismissed this session
-  let currentErrorData  = null;        // cached error detail from API
-  let currentErrorId    = null;        // which slice ID the cached error is for
-
+  // ── Error reason labels (used in History panel) ─────────────────────────
   const REASON_LABELS = {
     inactivity_timeout: 'Inactivity timeout',
     timeout:            'Process timed out',
@@ -1974,23 +1958,6 @@
   function humanReason(raw) {
     return REASON_LABELS[raw] || raw || 'Unknown error';
   }
-
-  async function fetchErrorDetail(id) {
-    try {
-      const res = await fetch(`/api/bridge/errors/${id}`);
-      if (!res.ok) return null;
-      return await res.json();
-    } catch (_) { return null; }
-  }
-
-  // Wire up dismiss button once
-  document.getElementById('error-dismiss-btn').addEventListener('click', () => {
-    if (currentErrorId) dismissedErrors.add(currentErrorId);
-    document.getElementById('error-display').style.display = 'none';
-    document.getElementById('mission-idle-text').style.display = '';
-    currentErrorData = null;
-    currentErrorId = null;
-  });
 
   // Elapsed time: computed from a fixed start timestamp, no re-anchoring
   let sliceStartTime = null;
@@ -2115,10 +2082,6 @@
       }
     }
 
-    // Detect ERROR state: most recent errored slice not yet dismissed
-    const errorSlice = slices.find(b => b.state === 'ERROR' && !dismissedErrors.has(b.id));
-    const showError = !activeStageKey && errorSlice;
-
     const badgeEl     = document.getElementById('mission-id-badge');
     const textEl      = document.getElementById('mission-active-content');
     const idleEl      = document.getElementById('mission-idle-text');
@@ -2126,48 +2089,8 @@
     const titleEl     = document.getElementById('pipeline-mission-title');
     const timerBlock  = document.getElementById('active-timer-block');
     const progressBar = document.getElementById('active-progress-bar');
-    const errorEl     = document.getElementById('error-display');
 
-    if (showError) {
-      // Hide normal active-build elements
-      badgeEl.style.display     = 'none';
-      textEl.style.display      = 'none';
-      idleEl.style.display      = 'none';
-      elapsedEl.style.display   = 'none';
-      progressBar.style.display = 'none';
-      sliceStartTime = null;
-      lastSliceId    = null;
-
-      // Populate error display
-      const eid = errorSlice.id;
-      document.getElementById('error-display-badge').textContent = `#${escHtml(eid)}`;
-      document.getElementById('error-display-badge').style.display = '';
-      document.getElementById('error-display-title').textContent = errorSlice.title || '\u2014';
-      errorEl.style.display = '';
-
-      // Fetch error details (only once per error ID)
-      if (currentErrorId !== eid) {
-        currentErrorId = eid;
-        currentErrorData = null;
-        document.getElementById('error-display-reason').textContent = 'Loading error details\u2026';
-        document.getElementById('error-display-output').textContent = '';
-        fetchErrorDetail(eid).then(detail => {
-          if (currentErrorId !== eid) return; // stale
-          currentErrorData = detail;
-          if (detail && !detail.error) {
-            document.getElementById('error-display-reason').textContent = humanReason(detail.reason);
-            const output = detail.lastOutput
-              ? (detail.lastOutput.length > 200 ? '\u2026' + detail.lastOutput.slice(-200) : detail.lastOutput)
-              : 'No output captured';
-            document.getElementById('error-display-output').textContent = output;
-          } else {
-            document.getElementById('error-display-reason').textContent = 'Error details not available';
-            document.getElementById('error-display-output').textContent = '';
-          }
-        });
-      }
-    } else if (activeStageKey && mission) {
-      errorEl.style.display = 'none';
+    if (activeStageKey && mission) {
       badgeEl.textContent  = `Slice ${escHtml(mission.id)}`;
       badgeEl.style.display = '';
       titleEl.textContent  = mission.title || '\u2014';
@@ -2197,7 +2120,6 @@
         timerBlock.style.display = 'none';
       }
     } else {
-      errorEl.style.display   = 'none';
       badgeEl.style.display   = 'none';
       textEl.style.display    = 'none';
       idleEl.style.display    = '';
@@ -2375,12 +2297,12 @@
   const HISTORY_PAGE_SIZE = 10;
 
   function renderHistoryPanel(recent) {
-    // Only show merged/DONE items (filter out errors and in-progress)
+    // Show merged/DONE items and ERROR items (filter out in-progress)
     cachedHistoryAllRows = (recent || [])
       .filter(c => !/^merge:/i.test(c.title ?? ''))
       .filter(c => {
         const outcome = c.outcome ?? 'DONE';
-        return outcome === 'DONE' || c.reviewStatus === 'accepted';
+        return outcome === 'DONE' || outcome === 'ERROR' || c.reviewStatus === 'accepted';
       });
 
     // Clamp page to valid range
@@ -2416,15 +2338,23 @@
       const desc = c.goal || c.title || '';
       // First sentence of goal/description
       const firstSentence = desc.split(/\.\s/)[0] + (desc.includes('.') ? '.' : '');
+      const isError = (c.outcome ?? 'DONE') === 'ERROR';
+      const rowStyle = isError ? 'border-left:3px solid #dc2626;' : '';
+      const statusHtml = isError
+        ? `<span class="tag tag-error" style="font-size:0.72em">error</span>`
+        : `<span class="history-row-status">merged</span>`;
+      const errorReasonHtml = isError && c.reason
+        ? `<div style="color:#dc2626;font-size:0.82em;margin-top:2px">${escHtml(humanReason(c.reason))}</div>`
+        : '';
 
-      return `<div class="history-row" data-history-id="${eid}">
+      return `<div class="history-row" data-history-id="${eid}" style="${rowStyle}">
         <div class="history-row-main">
           <span class="history-row-id">#${eid}</span>
           <span class="sprint-badge">${escHtml(sprintLabel)}</span>
           <span class="history-row-title">${escHtml(c.title || '')}</span>
           <span class="history-chevron" onclick="toggleHistoryExpand('${eid}')">${chevron}</span>
-          <span class="history-row-status">merged</span>
-        </div>
+          ${statusHtml}
+        </div>${errorReasonHtml}
         <div class="history-expand ${isExpanded ? 'open' : ''}" id="history-expand-${eid}">
           <span class="history-expand-desc">${escHtml(firstSentence)}</span>
           <button class="history-details-btn" onclick="openHistoryDetail('${eid}')">Details ›</button>
