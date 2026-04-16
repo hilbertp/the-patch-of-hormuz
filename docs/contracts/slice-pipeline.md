@@ -109,7 +109,7 @@ The BR has 8 business states. The filesystem uses 7 suffixes. The mapping is:
 | # | BR state     | On-disk suffix      | Location                 | Notes                                           |
 |---|--------------|---------------------|--------------------------|-------------------------------------------------|
 | 1 | STAGED       | `-STAGED.md`        | `bridge/staged/`         | Awaiting Philipp's approval in the Ops Center.  |
-| 2 | QUEUED       | `-PENDING.md`       | `bridge/queue/`          | **Naming divergence** — see §12.                |
+| 2 | QUEUED       | `-QUEUED.md`        | `bridge/queue/`          | Legacy `-PENDING.md` dual-read for migration.   |
 | 3 | IN_PROGRESS  | `-IN_PROGRESS.md`   | `bridge/queue/`          | Watcher has spawned Rom in a worktree.          |
 | 4 | DONE         | `-DONE.md`          | `bridge/queue/`          | Rom's completion report appended.               |
 | 5 | IN_REVIEW    | `-REVIEWED.md`      | `bridge/queue/`          | **Naming divergence** — see §12.                |
@@ -128,12 +128,12 @@ Each transition is performed by exactly one actor. The primitive is either an at
 | From → To                              | Actor           | Primitive                                                                                   |
 |----------------------------------------|-----------------|---------------------------------------------------------------------------------------------|
 | — → STAGED                             | O'Brien         | `new-slice.js` writes `bridge/staged/{id}-STAGED.md`.                                       |
-| STAGED → QUEUED                        | Ops Center server | On `POST /approve`, server `renameSync`s `staged/{id}-STAGED.md` → `queue/{id}-PENDING.md`. Emits `HUMAN_APPROVAL`. |
-| QUEUED → IN_PROGRESS                   | Watcher         | Picks lowest-ID `-PENDING.md`, `renameSync` → `-IN_PROGRESS.md`, creates worktree, spawns Rom. Emits `COMMISSIONED`. |
+| STAGED → QUEUED                        | Ops Center server | On `POST /approve`, server writes `queue/{id}-QUEUED.md`. Emits `HUMAN_APPROVAL`. |
+| QUEUED → IN_PROGRESS                   | Watcher         | Picks lowest-ID `-QUEUED.md` (or legacy `-PENDING.md`), `renameSync` → `-IN_PROGRESS.md`, creates worktree, spawns Rom. Emits `COMMISSIONED`. |
 | IN_PROGRESS → DONE                     | Rom (via watcher) | Rom appends his report to the slice file; watcher `renameSync` → `-DONE.md`. Emits `DONE`. |
 | DONE → IN_REVIEW                       | Watcher         | `renameSync` → `-REVIEWED.md`, spawns Nog.                                                  |
 | IN_REVIEW → ACCEPTED                   | Nog (via watcher) | Nog appends PASS verdict; watcher `renameSync` → `-ACCEPTED.md`. Emits `NOG_PASS` + `ACCEPTED` + `REVIEW_RECEIVED`. |
-| IN_REVIEW → QUEUED  *(reject, rework)* | Nog (via watcher) | Nog appends rejection block; watcher `renameSync` → `-PENDING.md`. Round counter + 1. Emits `REVIEWED` + `REVIEW_RECEIVED`. |
+| IN_REVIEW → QUEUED  *(reject, rework)* | Nog (via watcher) | Nog appends rejection block; watcher writes `-QUEUED.md`. Round counter + 1. Emits `REVIEWED` + `REVIEW_RECEIVED`. |
 | IN_PROGRESS → STAGED  *(slice-broken fast path)* | Rom → O'Brien | Rom appends an **escalation block** (see §10). Watcher `renameSync` → `staged/{id}-STAGED.md`. Round counter **not** incremented (§9). |
 | IN_REVIEW → STAGED  *(6th rejection)*  | Nog → O'Brien   | After a 6th Nog rejection, watcher `renameSync` → `staged/{id}-STAGED.md` for O'Brien rework. |
 | ACCEPTED → MERGED                      | Watcher         | `git merge --no-ff slice/{id}` on `main`, then `git push origin main`. Emits `MERGED` (or `MERGE_FAILED` on guard trip). |
@@ -213,7 +213,7 @@ Each round is visible in a single `cat {id}-*.md`.
 
 ## 9. Rejection round counter
 
-The counter lives on the slice file itself, not in memory or the register. The watcher determines the current round by counting `## Nog Review — Round N` headings in the file. The cap is 5; on the 6th reject, the watcher routes the slice back to `bridge/staged/` for O'Brien rework instead of back to `bridge/queue/{id}-PENDING.md`.
+The counter lives on the slice file itself, not in memory or the register. The watcher determines the current round by counting `## Nog Review — Round N` headings in the file. The cap is 5; on the 6th reject, the watcher routes the slice back to `bridge/staged/` for O'Brien rework instead of back to `bridge/queue/{id}-QUEUED.md`.
 
 The **Rom slice-broken fast path** (§10) is explicitly exempt — when Rom escalates, the round counter is not incremented and the 6-round cap does not apply.
 
@@ -266,7 +266,7 @@ Both firings forced an additive-stub workaround instead of a clean deletion. The
 
 The BR explicitly says these are flagged for triage and **not** part of the requirements:
 
-1. **State-name divergence: QUEUED vs. `-PENDING.md`.** BR state 2 is "QUEUED"; the on-disk suffix is `-PENDING.md`. Target: rename the suffix to `-QUEUED.md`, or update the BR if the implementation name is preferred.
+1. **~~State-name divergence: QUEUED vs. `-PENDING.md`.~~** Resolved in slice 146. On-disk suffix is now `-QUEUED.md`. All write sites produce `-QUEUED.md` with `status: QUEUED`. Read sites dual-accept both `-QUEUED.md` and legacy `-PENDING.md` for in-flight migration.
 2. **State-name divergence: IN_REVIEW vs. `-REVIEWED.md`.** BR state 5 is "IN_REVIEW"; the on-disk suffix is `-REVIEWED.md`. The name implies completion rather than "being reviewed." Target: rename to `-IN_REVIEW.md`.
 3. **`ARCHIVED` name collision** (BR §Known code divergences). `bridge/watcher.js` around line 1826 reused `-ARCHIVED.md` as a "parked-during-review" suffix before Nog evaluates, colliding with the terminal ARCHIVED state. **Fixed in slice 145** — parked suffix renamed to `-PARKED.md`. Legacy slices retain `-ARCHIVED.md` as the parked suffix with fallback reads in both the watcher and dashboard server.
 4. **Undocumented `-REVIEWED.md` sidecar** (BR §Known code divergences, line ~2446). Possibly a leftover sidecar artefact; either document its role or remove.

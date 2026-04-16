@@ -345,7 +345,7 @@ function getQueueSnapshot(queueDir) {
   } catch (_) {
     return { waiting: 0, in_progress: 0, completed: 0, failed: 0, awaiting_review: 0 };
   }
-  const waiting     = files.filter(f => f.endsWith('-PENDING.md')).length;
+  const waiting     = files.filter(f => f.endsWith('-QUEUED.md') || f.endsWith('-PENDING.md')).length;
   const in_progress = files.filter(f => f.endsWith('-IN_PROGRESS.md')).length;
   const completed   = files.filter(f => f.endsWith('-DONE.md')).length;
   const failed      = files.filter(f => f.endsWith('-ERROR.md')).length;
@@ -1711,10 +1711,10 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
           const resetAt      = new Date(rateLimitUntil).toLocaleTimeString();
 
           try {
-            // Requeue: write back as PENDING (preserving all frontmatter).
+            // Requeue: write back as QUEUED (preserving all frontmatter).
             const ipContent = fs.readFileSync(inProgressPath, 'utf8');
-            const updated   = updateFrontmatter(ipContent, { status: 'PENDING' });
-            fs.writeFileSync(pendingPath, updated, 'utf8');
+            const updated   = updateFrontmatter(ipContent, { status: 'QUEUED' });
+            fs.writeFileSync(path.join(QUEUE_DIR, `${id}-QUEUED.md`), updated, 'utf8');
             try { fs.renameSync(inProgressPath, path.join(TRASH_DIR, path.basename(inProgressPath) + '.ratelimit')); } catch (_) {}
             log('warn', 'rate_limit', {
               id,
@@ -1745,7 +1745,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
 
         // ── API error recovery ────────────────────────────────────────────────
         // If the crash was caused by a transient Anthropic API error (HTTP 5xx),
-        // move the slice back to PENDING for automatic retry instead of losing it.
+        // move the slice back to QUEUED for automatic retry instead of losing it.
         // A retry-count embedded in the frontmatter limits retries to MAX_API_RETRIES.
         const MAX_API_RETRIES = 3;
         const isApiError = reason === 'crash' && stdout &&
@@ -1761,14 +1761,14 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
           } catch (_) {}
 
           if (retryCount < MAX_API_RETRIES) {
-            // Bump retry count in frontmatter, rename back to PENDING
+            // Bump retry count in frontmatter, rename back to QUEUED
             try {
               const ipContent = fs.readFileSync(inProgressPath, 'utf8');
               const updated  = updateFrontmatter(ipContent, {
-                status: 'PENDING',
+                status: 'QUEUED',
                 _api_retry_count: String(retryCount + 1),
               });
-              fs.writeFileSync(pendingPath, updated, 'utf8');
+              fs.writeFileSync(path.join(QUEUE_DIR, `${id}-QUEUED.md`), updated, 'utf8');
               // inProgressPath will be cleaned up below (renamed → SLICE via normal flow
               // won't happen since we're returning early; move to trash explicitly)
               try { fs.renameSync(inProgressPath, path.join(TRASH_DIR, path.basename(inProgressPath) + '.api-retry')); } catch (_) {}
@@ -1822,7 +1822,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
 
       // Park the original slice so Nog's evaluation task can find the
       // success criteria.  Rename IN_PROGRESS → PARKED (intermediate hold).
-      // The PARKED suffix is inert — the poll loop only looks for PENDING files.
+      // The PARKED suffix is inert — the poll loop only looks for QUEUED/PENDING files.
       const parkedPath = path.join(QUEUE_DIR, `${id}-PARKED.md`);
       if (fs.existsSync(inProgressPath)) {
         try {
@@ -2389,7 +2389,7 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
  * handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions,
  *                 cycle, branchName, evaluatingPath, sliceContent, durationMs)
  *
- * AMENDMENT_NEEDED verdict: register event, rename EVALUATING → REVIEWED, write amendment PENDING.
+ * AMENDMENT_NEEDED verdict: register event, rename EVALUATING → REVIEWED, write amendment QUEUED.
  */
 function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions, cycle, branchName, evaluatingPath, sliceContent, durationMs) {
   registerEvent(id, 'REVIEWED', { verdict: 'AMENDMENT_NEEDED', reason, failed_criteria: failedCriteria, cycle: cycle + 1, root_commission_id: rootId });
@@ -2403,7 +2403,7 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     log('warn', 'evaluator', { id, msg: 'Failed to rename EVALUATING to REVIEWED', error: err.message });
   }
 
-  // Write amendment slice PENDING.
+  // Write amendment slice QUEUED.
   const nextId = nextSliceId(QUEUE_DIR);
   const failedList = (failedCriteria || []).map((c, i) => `${i + 1}. ${c}`).join('\n');
   const amendmentContent = [
@@ -2453,12 +2453,12 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     '3. DONE report includes branch name in frontmatter.',
   ].join('\n');
 
-  const amendmentPendingPath = path.join(QUEUE_DIR, `${nextId}-PENDING.md`);
+  const amendmentQueuedPath = path.join(QUEUE_DIR, `${nextId}-QUEUED.md`);
   try {
-    fs.writeFileSync(amendmentPendingPath, amendmentContent);
-    log('info', 'evaluator', { id, msg: `Wrote amendment slice ${nextId}-PENDING.md`, nextId, cycle: cycle + 1, rootId });
+    fs.writeFileSync(amendmentQueuedPath, amendmentContent);
+    log('info', 'evaluator', { id, msg: `Wrote amendment slice ${nextId}-QUEUED.md`, nextId, cycle: cycle + 1, rootId });
   } catch (err) {
-    log('warn', 'evaluator', { id, msg: 'Failed to write amendment slice PENDING', error: err.message });
+    log('warn', 'evaluator', { id, msg: 'Failed to write amendment slice QUEUED', error: err.message });
   }
 
   callReviewAPI(id, 'AMENDMENT_NEEDED', reason);
@@ -2471,7 +2471,7 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
 /**
  * handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs)
  *
- * STUCK verdict: register event, rename EVALUATING → STUCK, no new PENDING.
+ * STUCK verdict: register event, rename EVALUATING → STUCK, no new QUEUED.
  */
 function handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs) {
   registerEvent(id, 'STUCK', { reason: 'amendment cap reached', cycle, branch: branchName });
@@ -2886,7 +2886,7 @@ function handleNogReturn(id, rootId, round, branchName, evaluatingPath, sliceCon
     log('warn', 'nog', { id, msg: 'Failed to rename EVALUATING to REVIEWED', error: err.message });
   }
 
-  // Write amendment slice PENDING.
+  // Write amendment slice QUEUED.
   const nextId = nextSliceId(QUEUE_DIR);
   const amendmentContent = [
     '---',
@@ -2904,7 +2904,7 @@ function handleNogReturn(id, rootId, round, branchName, evaluatingPath, sliceCon
     `amendment_cycle: ${round}`,
     `branch: "${branchName || ''}"`,
     `round: ${round}`,
-    'status: PENDING',
+    'status: QUEUED',
     '---',
     '',
     '## Objective',
@@ -2938,12 +2938,12 @@ function handleNogReturn(id, rootId, round, branchName, evaluatingPath, sliceCon
     '3. DONE report includes branch name in frontmatter.',
   ].join('\n');
 
-  const amendmentPendingPath = path.join(QUEUE_DIR, `${nextId}-PENDING.md`);
+  const amendmentQueuedPath = path.join(QUEUE_DIR, `${nextId}-QUEUED.md`);
   try {
-    fs.writeFileSync(amendmentPendingPath, amendmentContent);
-    log('info', 'nog', { id, msg: `Wrote Nog amendment slice ${nextId}-PENDING.md`, nextId, round, rootId });
+    fs.writeFileSync(amendmentQueuedPath, amendmentContent);
+    log('info', 'nog', { id, msg: `Wrote Nog amendment slice ${nextId}-QUEUED.md`, nextId, round, rootId });
   } catch (err) {
-    log('warn', 'nog', { id, msg: 'Failed to write Nog amendment slice PENDING', error: err.message });
+    log('warn', 'nog', { id, msg: 'Failed to write Nog amendment slice QUEUED', error: err.message });
   }
 }
 
@@ -2980,7 +2980,7 @@ function hasNogReviewEvent(id) {
  *   "timeout"             — process was killed after exceeding the timeout
  *   "crash"               — process exited non-zero; exit_code included
  *   "no_report"           — process exited 0 but wrote no DONE file
- *   "invalid_slice"   — PENDING file failed frontmatter validation
+ *   "invalid_slice"   — QUEUED file failed frontmatter validation
  *
  * @param {string}      errorPath  Absolute path for the ERROR file.
  * @param {string}      id         Slice ID.
@@ -3120,10 +3120,10 @@ function poll() {
     return;
   }
 
-  // Scan both DONE and PENDING up front so counts are available for logging.
+  // Scan both DONE and QUEUED/PENDING up front so counts are available for logging.
   const doneFiles = files.filter(f => f.endsWith('-DONE.md')).sort();
   const pendingFiles = files
-    .filter(f => f.endsWith('-PENDING.md'))
+    .filter(f => f.endsWith('-QUEUED.md') || f.endsWith('-PENDING.md'))
     .sort((a, b) => {
       // Priority sorting: amendments (rejections) jump the queue.
       // Read frontmatter to check for amendment_cycle or references field.
@@ -3237,7 +3237,7 @@ function poll() {
     return;
   }
 
-  // === Priority 2: Commission next PENDING (only if no DONE files to evaluate) ===
+  // === Priority 2: Commission next QUEUED slice (only if no DONE files to evaluate) ===
   if (pendingFiles.length === 0) {
     // ALL_COMPLETE check: pipeline is idle after processing at least one slice this session.
     const hasInProgress = files.some(f => f.endsWith('-IN_PROGRESS.md'));
@@ -3266,15 +3266,15 @@ function poll() {
   const pendingFile = pendingFiles[0];
   const pendingPath = path.join(QUEUE_DIR, pendingFile);
 
-  // Derive the slice ID from the filename (e.g. "003-PENDING.md" → "003").
-  const id = pendingFile.replace('-PENDING.md', '');
+  // Derive the slice ID from the filename (e.g. "003-QUEUED.md" → "003").
+  const id = pendingFile.replace(/-(?:QUEUED|PENDING)\.md$/, '');
 
   // Read slice content.
   let sliceContent;
   try {
     sliceContent = fs.readFileSync(pendingPath, 'utf-8');
   } catch (err) {
-    log('error', 'error', { id, msg: 'Failed to read PENDING file', error: err.message });
+    log('error', 'error', { id, msg: 'Failed to read QUEUED file', error: err.message });
     return;
   }
 
@@ -3302,10 +3302,10 @@ function poll() {
   // are present and non-empty. Required: id, title, from, to, priority, created.
   //
   // If validation fails:
-  //   - Do NOT rename to IN_PROGRESS (file stays as PENDING for inspection)
+  //   - Do NOT rename to IN_PROGRESS (file stays as QUEUED/PENDING for inspection)
   //   - Write an ERROR report immediately
   //   - Log with reason "invalid_slice"
-  //   - Remove the PENDING file so the poll loop doesn't re-process it forever
+  //   - Remove the QUEUED/PENDING file so the poll loop doesn't re-process it forever
   //   - Continue the poll loop (do not crash)
   // ---------------------------------------------------------------------------
   const REQUIRED_FIELDS = ['id', 'title', 'from', 'to', 'priority', 'created'];
@@ -3329,7 +3329,7 @@ function poll() {
     print(`  ${C.red}${SYM.cross}${C.reset} Slice ${errId} rejected${SYM.dash}Missing required fields: ${missingFields.join(', ')}`);
 
     writeErrorFile(errPath, errId, 'invalid_slice', null, '', '', { missingFields });
-    log('info', 'state', { id: errId, from: 'PENDING', to: 'ERROR', reason: 'invalid_slice' });
+    log('info', 'state', { id: errId, from: 'QUEUED', to: 'ERROR', reason: 'invalid_slice' });
     registerEvent(errId, 'ERROR', { reason: 'invalid_slice', missingFields });
     appendKiraEvent({
       event: 'ERROR',
@@ -3340,22 +3340,22 @@ function poll() {
       details: `Slice ${errId} errored: invalid_slice`,
     });
 
-    // Remove the invalid PENDING file so it doesn't loop indefinitely.
+    // Remove the invalid QUEUED/PENDING file so it doesn't loop indefinitely.
     try { fs.renameSync(pendingPath, path.join(TRASH_DIR, path.basename(pendingPath) + '.invalid')); } catch (_) {}
 
     return; // Continue poll loop on next tick.
   }
 
-  // Atomic rename: PENDING → IN_PROGRESS.
+  // Atomic rename: QUEUED → IN_PROGRESS.
   try {
     fs.renameSync(pendingPath, inProgressPath);
   } catch (err) {
-    log('error', 'error', { id, msg: 'Failed to rename PENDING to IN_PROGRESS', error: err.message });
+    log('error', 'error', { id, msg: 'Failed to rename QUEUED to IN_PROGRESS', error: err.message });
     return;
   }
 
   log('info', 'pickup', { id, title, msg: 'Slice picked up', file: pendingFile });
-  log('info', 'state', { id, from: 'PENDING', to: 'IN_PROGRESS' });
+  log('info', 'state', { id, from: 'QUEUED', to: 'IN_PROGRESS' });
 
   // Register: embed full slice body so success criteria are always recoverable.
   registerCommissioned(id, { title, goal, body: sliceContent });
@@ -3378,7 +3378,7 @@ function poll() {
  * Runs at startup before entering the poll loop. Scans the queue directory for
  * orphaned IN_PROGRESS files left behind by a prior crash and resolves each:
  *
- *   {id}-IN_PROGRESS alone            → rename back to PENDING (re-queue)
+ *   {id}-IN_PROGRESS alone            → rename back to QUEUED (re-queue)
  *   {id}-IN_PROGRESS + DONE exists    → delete IN_PROGRESS (already complete)
  *   {id}-IN_PROGRESS + ERROR exists   → delete IN_PROGRESS (already failed)
  *   {id}-IN_PROGRESS + ACCEPTED exists → delete IN_PROGRESS (already evaluated)
@@ -3498,17 +3498,17 @@ function crashRecovery() {
       }
     } else {
       // No resolution file — slice was interrupted mid-flight. Re-queue it.
-      const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
+      const queuedPath = path.join(QUEUE_DIR, `${id}-QUEUED.md`);
       try {
-        fs.renameSync(inProgressPath, pendingPath);  // atomic rename
+        fs.renameSync(inProgressPath, queuedPath);  // atomic rename
         log('info', 'startup_recovery', {
           id,
-          msg: 'Orphaned IN_PROGRESS renamed to PENDING (re-queued)',
+          msg: 'Orphaned IN_PROGRESS renamed to QUEUED (re-queued)',
           action: 're-queued',
         });
         actions.push({ id, type: 'requeued' });
       } catch (err) {
-        log('warn', 'startup_recovery', { id, msg: 'Failed to rename orphaned IN_PROGRESS to PENDING', error: err.message });
+        log('warn', 'startup_recovery', { id, msg: 'Failed to rename orphaned IN_PROGRESS to QUEUED', error: err.message });
       }
     }
   }
