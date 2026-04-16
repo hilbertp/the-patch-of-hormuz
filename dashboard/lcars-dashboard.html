@@ -527,6 +527,9 @@
     padding: 20px 24px;
     margin-bottom: 24px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    min-height: 493px;
   }
 
   .section-title {
@@ -537,6 +540,7 @@
   }
 
   .history-list {
+    flex: 1;
     display: flex;
     flex-direction: column;
   }
@@ -627,14 +631,16 @@
 
   .history-details-btn:hover { color: #1d4ed8; }
 
-  .history-pagination {
+  #history-pagination {
+    margin-top: 4px;
+    border-top: 1px solid #f3f4f6;
+    padding: 10px 12px 4px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 12px 4px;
-    border-top: 1px solid #f3f4f6;
-    margin-top: 4px;
+    min-height: 44px;
   }
+  #history-pagination.hidden { visibility: hidden; }
   .history-pg-btn {
     background: none;
     border: none;
@@ -1809,8 +1815,8 @@
     <div class="panel-history">
       <div class="slice-history" style="margin-bottom:0">
         <div class="section-title">History</div>
-        <div class="history-list" id="history-list">
-        </div>
+        <div class="history-list" id="history-list"></div>
+        <div id="history-pagination" class="hidden"></div>
       </div>
     </div>
 
@@ -2314,8 +2320,9 @@
   }
 
   function renderHistoryPage() {
-    const container = document.getElementById('history-list');
-    if (!container) return;
+    const listEl = document.getElementById('history-list');
+    const pageEl = document.getElementById('history-pagination');
+    if (!listEl || !pageEl) return;
 
     const total = cachedHistoryAllRows.length;
     const totalPages = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE));
@@ -2325,7 +2332,9 @@
     cachedHistoryItems = rows;
 
     if (total === 0) {
-      container.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:24px 0;font-size:14px">No completed slices yet.</div>';
+      listEl.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:24px 0;font-size:14px">No completed slices yet.</div>';
+      pageEl.classList.add('hidden');
+      pageEl.innerHTML = '';
       return;
     }
 
@@ -2362,17 +2371,22 @@
       </div>`;
     }).join('');
 
-    // Pagination controls
-    const newerDisabled = historyPage <= 1;
-    const olderDisabled = historyPage >= totalPages;
-    const paginationHtml = totalPages > 1 ? `
-      <div class="history-pagination">
+    listEl.innerHTML = rowsHtml;
+
+    // Pagination footer
+    if (totalPages > 1) {
+      const newerDisabled = historyPage <= 1;
+      const olderDisabled = historyPage >= totalPages;
+      pageEl.classList.remove('hidden');
+      pageEl.innerHTML = `
         <button class="history-pg-btn" onclick="historyGoPage(${historyPage - 1})" ${newerDisabled ? 'disabled' : ''}>&#8592; newer</button>
         <span class="history-pg-info">page ${historyPage} of ${totalPages} &middot; ${total} entries</span>
         <button class="history-pg-btn" onclick="historyGoPage(${historyPage + 1})" ${olderDisabled ? 'disabled' : ''}>older &#8594;</button>
-      </div>` : '';
-
-    container.innerHTML = rowsHtml + paginationHtml;
+      `;
+    } else {
+      pageEl.classList.add('hidden');
+      pageEl.innerHTML = '';
+    }
   }
 
   function historyGoPage(page) {
