@@ -1,0 +1,17 @@
+{
+  "name": "@ds9/wormhole",
+  "version": "1.0.0",
+  "description": "MCP server for permissionless macOS workspace writes",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/security.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  }
+}
