@@ -454,7 +454,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (action === 'approve' || action === 'amend' || action === 'slice') {
+    if (action === 'approve' || action === 'slice') {
       try {
         let content = fs.readFileSync(filePath, 'utf8');
         content = updateFrontmatter(content, { status: 'PENDING' });
@@ -504,7 +504,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (action === 'amend') {
+    if (action === 'update-body') {
       const payload = await readJsonBody(req);
       if (!payload || typeof payload.body !== 'string') {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -535,12 +535,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (action === 'amend') {
+    if (action === 'reject') {
       try {
         let content = fs.readFileSync(filePath, 'utf8');
         content = updateFrontmatter(content, { status: 'REJECTED' });
         try { fs.renameSync(filePath, path.join(TRASH_DIR, `${id}-REJECTED.md`)); } catch (_) { fs.writeFileSync(path.join(TRASH_DIR, `${id}-REJECTED.md`), content, 'utf8'); }
-        writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'amended' });
+        writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'rejected' });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {
