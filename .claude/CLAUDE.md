@@ -75,6 +75,16 @@ Always write a DONE file — even for PARTIAL or BLOCKED. Never write an ERROR f
 
 ---
 
+## Code-write enforcement
+
+Two layers prevent O'Brien from editing or committing project source files on main.
+
+**Layer 1 — Pre-commit hook** (`scripts/hooks/pre-commit`): Rejects any commit in the main working tree unless the environment variable `DS9_WATCHER_MERGE=1` is set. Worktree commits (Rom, Leeta) are unaffected. Installed via `scripts/install-hooks.sh` which sets `core.hooksPath` to `scripts/hooks`.
+
+**Layer 2 — Filesystem lock** (`scripts/lock-main.sh` / `scripts/unlock-main.sh`): Makes `dashboard/`, `docs/contracts/`, `bridge/*.js`, `package.json`, `README.md`, and `CLAUDE.md` read-only. O'Brien's Write/Edit tool calls against these paths fail with "Permission denied." The watcher's merge path calls `unlock-main.sh` before merging and `lock-main.sh` after (in a finally block), so merged code syncs correctly. Philipp activates Layer 2 by running `scripts/lock-main.sh` once after merge.
+
+---
+
 ## The watcher injects nothing
 
 When invoked via `claude -p`, you receive only: brief content + the path to write your report. No system preamble, no role description, no project history. This file is your anchor. Read it at the start of every brief.

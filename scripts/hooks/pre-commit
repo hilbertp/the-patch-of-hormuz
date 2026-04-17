@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# pre-commit hook — blocks commits in the main working tree unless
+# DS9_WATCHER_MERGE=1 is set. Worktree commits (Rom, Leeta) pass freely.
+#
+# Installed via: scripts/install-hooks.sh (sets core.hooksPath)
+
+set -euo pipefail
+
+# Determine if we are in the main working tree or a worktree.
+# In the main repo, --git-dir and --git-common-dir resolve to the same path.
+# In a worktree they differ (.git/worktrees/<name> vs .git).
+GIT_DIR_ABS=$(cd "$(git rev-parse --git-dir 2>/dev/null)" && pwd)
+GIT_COMMON_ABS=$(cd "$(git rev-parse --git-common-dir 2>/dev/null)" && pwd)
+
+if [ "$GIT_DIR_ABS" != "$GIT_COMMON_ABS" ]; then
+  # We are inside a worktree — allow commit unconditionally.
+  exit 0
+fi
+
+# Main working tree — only the watcher merge path may commit.
+if [ "${DS9_WATCHER_MERGE:-}" = "1" ]; then
+  exit 0
+fi
+
+echo ""
+echo "pre-commit: commits on main must come from the watcher merge path. O'Brien: commission a slice instead."
+echo ""
+exit 1

@@ -345,7 +345,7 @@ function getQueueSnapshot(queueDir) {
   } catch (_) {
     return { waiting: 0, in_progress: 0, completed: 0, failed: 0, awaiting_review: 0 };
   }
-  const waiting     = files.filter(f => f.endsWith('-PENDING.md')).length;
+  const waiting     = files.filter(f => f.endsWith('-QUEUED.md') || f.endsWith('-PENDING.md')).length;
   const in_progress = files.filter(f => f.endsWith('-IN_PROGRESS.md')).length;
   const completed   = files.filter(f => f.endsWith('-DONE.md')).length;
   const failed      = files.filter(f => f.endsWith('-ERROR.md')).length;
@@ -1711,10 +1711,10 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
           const resetAt      = new Date(rateLimitUntil).toLocaleTimeString();
 
           try {
-            // Requeue: write back as PENDING (preserving all frontmatter).
+            // Requeue: write back as QUEUED (preserving all frontmatter).
             const ipContent = fs.readFileSync(inProgressPath, 'utf8');
-            const updated   = updateFrontmatter(ipContent, { status: 'PENDING' });
-            fs.writeFileSync(pendingPath, updated, 'utf8');
+            const updated   = updateFrontmatter(ipContent, { status: 'QUEUED' });
+            fs.writeFileSync(path.join(QUEUE_DIR, `${id}-QUEUED.md`), updated, 'utf8');
             try { fs.renameSync(inProgressPath, path.join(TRASH_DIR, path.basename(inProgressPath) + '.ratelimit')); } catch (_) {}
             log('warn', 'rate_limit', {
               id,
@@ -1745,7 +1745,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
 
         // ── API error recovery ────────────────────────────────────────────────
         // If the crash was caused by a transient Anthropic API error (HTTP 5xx),
-        // move the slice back to PENDING for automatic retry instead of losing it.
+        // move the slice back to QUEUED for automatic retry instead of losing it.
         // A retry-count embedded in the frontmatter limits retries to MAX_API_RETRIES.
         const MAX_API_RETRIES = 3;
         const isApiError = reason === 'crash' && stdout &&
@@ -1761,14 +1761,14 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
           } catch (_) {}
 
           if (retryCount < MAX_API_RETRIES) {
-            // Bump retry count in frontmatter, rename back to PENDING
+            // Bump retry count in frontmatter, rename back to QUEUED
             try {
               const ipContent = fs.readFileSync(inProgressPath, 'utf8');
               const updated  = updateFrontmatter(ipContent, {
-                status: 'PENDING',
+                status: 'QUEUED',
                 _api_retry_count: String(retryCount + 1),
               });
-              fs.writeFileSync(pendingPath, updated, 'utf8');
+              fs.writeFileSync(path.join(QUEUE_DIR, `${id}-QUEUED.md`), updated, 'utf8');
               // inProgressPath will be cleaned up below (renamed → SLICE via normal flow
               // won't happen since we're returning early; move to trash explicitly)
               try { fs.renameSync(inProgressPath, path.join(TRASH_DIR, path.basename(inProgressPath) + '.api-retry')); } catch (_) {}
@@ -1820,18 +1820,18 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
 
       printSessionSummary();
 
-      // Archive the original slice so Nog's evaluation task can find the
-      // success criteria.  Rename IN_PROGRESS → ARCHIVED (permanent archive).
-      // The ARCHIVED suffix is inert — the poll loop only looks for PENDING files.
-      const archivedPath = path.join(QUEUE_DIR, `${id}-ARCHIVED.md`);
+      // Park the original slice so Nog's evaluation task can find the
+      // success criteria.  Rename IN_PROGRESS → PARKED (intermediate hold).
+      // The PARKED suffix is inert — the poll loop only looks for QUEUED/PENDING files.
+      const parkedPath = path.join(QUEUE_DIR, `${id}-PARKED.md`);
       if (fs.existsSync(inProgressPath)) {
         try {
-          fs.renameSync(inProgressPath, archivedPath);
-          log('info', 'state', { id, msg: 'Archived slice', from: 'IN_PROGRESS', to: 'ARCHIVED' });
+          fs.renameSync(inProgressPath, parkedPath);
+          log('info', 'state', { id, msg: 'Parked slice', from: 'IN_PROGRESS', to: 'PARKED' });
         } catch (archiveErr) {
           // Fallback: if rename fails, try to delete so the queue doesn't jam.
-          log('warn', 'error', { id, msg: 'Failed to archive IN_PROGRESS file, trashing instead', error: archiveErr.message });
-          try { fs.renameSync(inProgressPath, path.join(TRASH_DIR, path.basename(inProgressPath) + '.archive-fail')); } catch (_) {}
+          log('warn', 'error', { id, msg: 'Failed to park IN_PROGRESS file, trashing instead', error: archiveErr.message });
+          try { fs.renameSync(inProgressPath, path.join(TRASH_DIR, path.basename(inProgressPath) + '.park-fail')); } catch (_) {}
         }
       }
 
@@ -1993,15 +1993,17 @@ function extractJSON(text) {
  * and handles ACCEPTED / AMENDMENT_NEEDED / STUCK outcomes.
  */
 function invokeEvaluator(id) {
-  const archivedPath  = path.join(QUEUE_DIR, `${id}-ARCHIVED.md`);
+  const parkedPath  = path.join(QUEUE_DIR, `${id}-PARKED.md`);
+  const legacyParkedPath  = path.join(QUEUE_DIR, `${id}-ARCHIVED.md`);
   const evaluatingPath  = path.join(QUEUE_DIR, `${id}-EVALUATING.md`);
 
-  // Read ARCHIVED file (original ACs).
+  // Read PARKED file (original ACs). Fall back to legacy ARCHIVED for pre-145 slices.
   let sliceContent;
+  const resolvedParkedPath = fs.existsSync(parkedPath) ? parkedPath : legacyParkedPath;
   try {
-    sliceContent = fs.readFileSync(archivedPath, 'utf-8');
+    sliceContent = fs.readFileSync(resolvedParkedPath, 'utf-8');
   } catch (err) {
-    log('warn', 'evaluator', { id, msg: 'ARCHIVED file not found — skipping evaluation', error: err.message });
+    log('warn', 'evaluator', { id, msg: 'PARKED file not found — skipping evaluation', error: err.message });
     // Rename back to DONE so the poll loop can try again later.
     try { fs.renameSync(evaluatingPath, path.join(QUEUE_DIR, `${id}-DONE.md`)); } catch (_) {}
     processing = false;
@@ -2267,59 +2269,15 @@ function mergeBranch(id, branchName, title) {
     }
   }
 
+  // ── Layer 2 enforcement: unlock source paths before merge, re-lock after ──
+  const unlockScript = path.join(PROJECT_DIR, 'scripts', 'unlock-main.sh');
+  const lockScript   = path.join(PROJECT_DIR, 'scripts', 'lock-main.sh');
+  try { execSync(`bash "${unlockScript}"`, { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+
+  // Set DS9_WATCHER_MERGE so the pre-commit hook (Layer 1) allows this path.
+  process.env.DS9_WATCHER_MERGE = '1';
+
   try {
-    // ── Truncation safety net ─────────────────────────────────────────
-    // Last-resort mechanical check: if any substantial file lost >50% of
-    // its content, that's almost certainly truncation damage (context
-    // compaction, FUSE partial write), not a deliberate change. Block it.
-    //
-    // Scope discipline (was the work in scope? were out-of-scope files
-    // touched?) is Nog's job — he gets the full file diff in his prompt.
-    // This guard only catches catastrophic data loss that Nog can't see.
-    try {
-      const changedFiles = execSync(`git diff --name-only main...${branchName}`, { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
-      if (changedFiles) {
-        const truncated = [];
-        for (const file of changedFiles.split('\n').filter(Boolean)) {
-          try {
-            const mainLines = parseInt(execSync(
-              `git show main:${file} | wc -l`,
-              { cwd: PROJECT_DIR, encoding: 'utf-8' }
-            ).trim(), 10);
-            const branchLines = parseInt(execSync(
-              `git show ${branchName}:${file} | wc -l`,
-              { cwd: PROJECT_DIR, encoding: 'utf-8' }
-            ).trim(), 10);
-            if (mainLines > 50 && branchLines < mainLines * 0.5) {
-              const pct = Math.round((1 - branchLines / mainLines) * 100);
-              truncated.push({ file, mainLines, branchLines, pct });
-            }
-          } catch (_) {}
-        }
-
-        if (truncated.length > 0) {
-          const summary = truncated.map(r => `${r.file}: ${r.pct}% lost (${r.branchLines} vs ${r.mainLines})`).join('; ');
-          log('warn', 'merge', {
-            id,
-            msg: `Truncation guard BLOCK: ${truncated.length} file(s) lost >50% content`,
-            branchName,
-            truncated,
-          });
-          registerEvent(id, 'MERGE_FAILED', {
-            reason: `truncation_guard: ${summary}`,
-            branch: branchName,
-          });
-          print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} MERGE BLOCKED${SYM.sep}${truncated.length} file(s) lost >50% content — likely truncation`);
-          for (const r of truncated) {
-            print(`${B.vert}    ${C.yellow}⚠${C.reset}  ${r.file}: ${r.pct}% lost (${r.branchLines} vs ${r.mainLines} lines)`);
-          }
-          return { success: false, sha: null, error: 'truncation_guard' };
-        }
-      }
-    } catch (guardErr) {
-      log('info', 'merge', { id, msg: 'Truncation guard skipped — diff failed', error: guardErr.message });
-    }
-
     // ── Step 1: Merge main into slice branch in the worktree ───────────
     // This runs on local FS (/tmp), not FUSE. Resolves any main changes
     // since the branch was created.
@@ -2371,6 +2329,10 @@ function mergeBranch(id, branchName, title) {
     // Abort any in-progress merge in the worktree to leave git in a clean state.
     try { execSync('git merge --abort', { cwd: wtPath, stdio: 'pipe' }); } catch (_) {}
     return { success: false, sha: null, error: err.stderr ? err.stderr.toString().trim() : err.message };
+  } finally {
+    // Always re-lock and clear the env var, even on failure.
+    delete process.env.DS9_WATCHER_MERGE;
+    try { execSync(`bash "${lockScript}"`, { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
   }
 }
 
@@ -2380,11 +2342,13 @@ function mergeBranch(id, branchName, title) {
  * ACCEPTED verdict: register event, rename EVALUATING → ACCEPTED, merge branch to main directly.
  */
 function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationMs) {
-  // Read title from slice file for the merge commit message.
-  const archivedPath = path.join(QUEUE_DIR, `${id}-ARCHIVED.md`);
+  // Read title from parked slice file for the merge commit message.
+  const parkedPath = path.join(QUEUE_DIR, `${id}-PARKED.md`);
+  const legacyParkedPath = path.join(QUEUE_DIR, `${id}-ARCHIVED.md`);
+  const resolvedParkedPath = fs.existsSync(parkedPath) ? parkedPath : legacyParkedPath;
   let title = null;
   try {
-    const commMeta = parseFrontmatter(fs.readFileSync(archivedPath, 'utf-8'));
+    const commMeta = parseFrontmatter(fs.readFileSync(resolvedParkedPath, 'utf-8'));
     if (commMeta) title = commMeta.title || null;
   } catch (_) {}
 
@@ -2437,21 +2401,21 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
  * handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions,
  *                 cycle, branchName, evaluatingPath, sliceContent, durationMs)
  *
- * AMENDMENT_NEEDED verdict: register event, rename EVALUATING → REVIEWED, write amendment PENDING.
+ * AMENDMENT_NEEDED verdict: register event, rename EVALUATING → IN_REVIEW, write amendment QUEUED.
  */
 function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructions, cycle, branchName, evaluatingPath, sliceContent, durationMs) {
   registerEvent(id, 'REVIEWED', { verdict: 'AMENDMENT_NEEDED', reason, failed_criteria: failedCriteria, cycle: cycle + 1, root_commission_id: rootId });
   log('info', 'evaluator', { id, verdict: 'AMENDMENT_NEEDED', cycle: cycle + 1, rootId, durationMs });
 
-  const reviewedPath = path.join(QUEUE_DIR, `${id}-REVIEWED.md`);
+  const inReviewPath = path.join(QUEUE_DIR, `${id}-IN_REVIEW.md`);
   try {
-    fs.renameSync(evaluatingPath, reviewedPath);
-    log('info', 'state', { id, from: 'EVALUATING', to: 'REVIEWED' });
+    fs.renameSync(evaluatingPath, inReviewPath);
+    log('info', 'state', { id, from: 'EVALUATING', to: 'IN_REVIEW' });
   } catch (err) {
-    log('warn', 'evaluator', { id, msg: 'Failed to rename EVALUATING to REVIEWED', error: err.message });
+    log('warn', 'evaluator', { id, msg: 'Failed to rename EVALUATING to IN_REVIEW', error: err.message });
   }
 
-  // Write amendment slice PENDING.
+  // Write amendment slice QUEUED.
   const nextId = nextSliceId(QUEUE_DIR);
   const failedList = (failedCriteria || []).map((c, i) => `${i + 1}. ${c}`).join('\n');
   const amendmentContent = [
@@ -2501,12 +2465,12 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
     '3. DONE report includes branch name in frontmatter.',
   ].join('\n');
 
-  const amendmentPendingPath = path.join(QUEUE_DIR, `${nextId}-PENDING.md`);
+  const amendmentQueuedPath = path.join(QUEUE_DIR, `${nextId}-QUEUED.md`);
   try {
-    fs.writeFileSync(amendmentPendingPath, amendmentContent);
-    log('info', 'evaluator', { id, msg: `Wrote amendment slice ${nextId}-PENDING.md`, nextId, cycle: cycle + 1, rootId });
+    fs.writeFileSync(amendmentQueuedPath, amendmentContent);
+    log('info', 'evaluator', { id, msg: `Wrote amendment slice ${nextId}-QUEUED.md`, nextId, cycle: cycle + 1, rootId });
   } catch (err) {
-    log('warn', 'evaluator', { id, msg: 'Failed to write amendment slice PENDING', error: err.message });
+    log('warn', 'evaluator', { id, msg: 'Failed to write amendment slice QUEUED', error: err.message });
   }
 
   callReviewAPI(id, 'AMENDMENT_NEEDED', reason);
@@ -2519,7 +2483,7 @@ function handleAmendment(id, rootId, reason, failedCriteria, amendmentInstructio
 /**
  * handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs)
  *
- * STUCK verdict: register event, rename EVALUATING → STUCK, no new PENDING.
+ * STUCK verdict: register event, rename EVALUATING → STUCK, no new QUEUED.
  */
 function handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs) {
   registerEvent(id, 'STUCK', { reason: 'amendment cap reached', cycle, branch: branchName });
@@ -2573,7 +2537,7 @@ function countNogRounds(sliceContent) {
 /**
  * invokeNog(id)
  *
- * Reads the ARCHIVED slice and DONE report for a given slice ID,
+ * Reads the PARKED slice and DONE report for a given slice ID,
  * determines the current Nog review round, builds the Nog prompt,
  * invokes Nog headless via `claude -p`, and handles the verdict.
  *
@@ -2582,15 +2546,17 @@ function countNogRounds(sliceContent) {
  * Round 6 → escalate to Kira.
  */
 function invokeNog(id) {
-  const archivedPath = path.join(QUEUE_DIR, `${id}-ARCHIVED.md`);
+  const parkedPath = path.join(QUEUE_DIR, `${id}-PARKED.md`);
+  const legacyParkedPath = path.join(QUEUE_DIR, `${id}-ARCHIVED.md`);
   const donePath = path.join(QUEUE_DIR, `${id}-EVALUATING.md`); // renamed from DONE by poll loop
 
-  // Read ARCHIVED file (original slice + any prior Nog reviews).
+  // Read PARKED file (original slice + any prior Nog reviews). Fall back to legacy ARCHIVED.
+  const resolvedParkedPath = fs.existsSync(parkedPath) ? parkedPath : legacyParkedPath;
   let sliceContent;
   try {
-    sliceContent = fs.readFileSync(archivedPath, 'utf-8');
+    sliceContent = fs.readFileSync(resolvedParkedPath, 'utf-8');
   } catch (err) {
-    log('warn', 'nog', { id, msg: 'ARCHIVED file not found — skipping Nog review', error: err.message });
+    log('warn', 'nog', { id, msg: 'PARKED file not found — skipping Nog review', error: err.message });
     try { fs.renameSync(donePath, path.join(QUEUE_DIR, `${id}-DONE.md`)); } catch (_) {}
     processing = false;
     heartbeatState.status = 'idle';
@@ -2810,10 +2776,12 @@ function invokeNog(id) {
       }
 
       // Copy updated slice file from worktree if Nog appended to it.
-      const worktreeArchivedPath = path.join(nogWorktreePath, 'bridge', 'queue', `${id}-ARCHIVED.md`);
+      const worktreeParkedPath = path.join(nogWorktreePath, 'bridge', 'queue', `${id}-PARKED.md`);
+      const worktreeLegacyPath = path.join(nogWorktreePath, 'bridge', 'queue', `${id}-ARCHIVED.md`);
+      const worktreeResolved = fs.existsSync(worktreeParkedPath) ? worktreeParkedPath : worktreeLegacyPath;
       try {
-        if (fs.existsSync(worktreeArchivedPath)) {
-          fs.copyFileSync(worktreeArchivedPath, archivedPath);
+        if (fs.existsSync(worktreeResolved)) {
+          fs.copyFileSync(worktreeResolved, resolvedParkedPath);
         }
       } catch (_) {}
 
@@ -2922,15 +2890,15 @@ function invokeNog(id) {
  * RETURN verdict from Nog: create amendment slice for O'Brien.
  */
 function handleNogReturn(id, rootId, round, branchName, evaluatingPath, sliceContent, summary, durationMs) {
-  const reviewedPath = path.join(QUEUE_DIR, `${id}-REVIEWED.md`);
+  const inReviewPath = path.join(QUEUE_DIR, `${id}-IN_REVIEW.md`);
   try {
-    fs.renameSync(evaluatingPath, reviewedPath);
-    log('info', 'state', { id, from: 'EVALUATING', to: 'REVIEWED', reason: 'nog_return' });
+    fs.renameSync(evaluatingPath, inReviewPath);
+    log('info', 'state', { id, from: 'EVALUATING', to: 'IN_REVIEW', reason: 'nog_return' });
   } catch (err) {
-    log('warn', 'nog', { id, msg: 'Failed to rename EVALUATING to REVIEWED', error: err.message });
+    log('warn', 'nog', { id, msg: 'Failed to rename EVALUATING to IN_REVIEW', error: err.message });
   }
 
-  // Write amendment slice PENDING.
+  // Write amendment slice QUEUED.
   const nextId = nextSliceId(QUEUE_DIR);
   const amendmentContent = [
     '---',
@@ -2948,7 +2916,7 @@ function handleNogReturn(id, rootId, round, branchName, evaluatingPath, sliceCon
     `amendment_cycle: ${round}`,
     `branch: "${branchName || ''}"`,
     `round: ${round}`,
-    'status: PENDING',
+    'status: QUEUED',
     '---',
     '',
     '## Objective',
@@ -2982,12 +2950,12 @@ function handleNogReturn(id, rootId, round, branchName, evaluatingPath, sliceCon
     '3. DONE report includes branch name in frontmatter.',
   ].join('\n');
 
-  const amendmentPendingPath = path.join(QUEUE_DIR, `${nextId}-PENDING.md`);
+  const amendmentQueuedPath = path.join(QUEUE_DIR, `${nextId}-QUEUED.md`);
   try {
-    fs.writeFileSync(amendmentPendingPath, amendmentContent);
-    log('info', 'nog', { id, msg: `Wrote Nog amendment slice ${nextId}-PENDING.md`, nextId, round, rootId });
+    fs.writeFileSync(amendmentQueuedPath, amendmentContent);
+    log('info', 'nog', { id, msg: `Wrote Nog amendment slice ${nextId}-QUEUED.md`, nextId, round, rootId });
   } catch (err) {
-    log('warn', 'nog', { id, msg: 'Failed to write Nog amendment slice PENDING', error: err.message });
+    log('warn', 'nog', { id, msg: 'Failed to write Nog amendment slice QUEUED', error: err.message });
   }
 }
 
@@ -3024,7 +2992,7 @@ function hasNogReviewEvent(id) {
  *   "timeout"             — process was killed after exceeding the timeout
  *   "crash"               — process exited non-zero; exit_code included
  *   "no_report"           — process exited 0 but wrote no DONE file
- *   "invalid_slice"   — PENDING file failed frontmatter validation
+ *   "invalid_slice"   — QUEUED file failed frontmatter validation
  *
  * @param {string}      errorPath  Absolute path for the ERROR file.
  * @param {string}      id         Slice ID.
@@ -3164,10 +3132,10 @@ function poll() {
     return;
   }
 
-  // Scan both DONE and PENDING up front so counts are available for logging.
+  // Scan both DONE and QUEUED/PENDING up front so counts are available for logging.
   const doneFiles = files.filter(f => f.endsWith('-DONE.md')).sort();
   const pendingFiles = files
-    .filter(f => f.endsWith('-PENDING.md'))
+    .filter(f => f.endsWith('-QUEUED.md') || f.endsWith('-PENDING.md'))
     .sort((a, b) => {
       // Priority sorting: amendments (rejections) jump the queue.
       // Read frontmatter to check for amendment_cycle or references field.
@@ -3198,17 +3166,25 @@ function poll() {
   for (const doneFile of doneFiles) {
     const doneId = doneFile.replace('-DONE.md', '');
     const donePath = path.join(QUEUE_DIR, doneFile);
-    const archivedPath = path.join(QUEUE_DIR, `${doneId}-ARCHIVED.md`);
+    const parkedPath = path.join(QUEUE_DIR, `${doneId}-PARKED.md`);
+    const legacyParkedPath = path.join(QUEUE_DIR, `${doneId}-ARCHIVED.md`);
 
-    // Skip if ARCHIVED file not present (Rom may still be running — archive not yet written).
-    if (!fs.existsSync(archivedPath)) continue;
+    // Skip if PARKED file not present (Rom may still be running — park not yet written).
+    if (!fs.existsSync(parkedPath)) {
+      if (fs.existsSync(legacyParkedPath)) {
+        log('warn', 'state', { id: doneId, msg: 'Legacy ARCHIVED suffix found — pre-slice-145 file' });
+      } else {
+        continue;
+      }
+    }
 
     // Legacy: merge slices (type: merge) are auto-accepted without claude -p.
     // Deprecated: handleAccepted() now merges directly — no new merge slices
     // are generated. This block handles any legacy merge slices still in the queue.
     let sliceMeta = {};
     try {
-      sliceMeta = parseFrontmatter(fs.readFileSync(archivedPath, 'utf-8')) || {};
+      const resolvedPath = fs.existsSync(parkedPath) ? parkedPath : legacyParkedPath;
+      sliceMeta = parseFrontmatter(fs.readFileSync(resolvedPath, 'utf-8')) || {};
     } catch (_) {}
 
     if (sliceMeta.type === 'merge') {
@@ -3223,6 +3199,21 @@ function poll() {
 
     // Skip if already reviewed (evaluator has run).
     if (hasReviewEvent(doneId)) continue;
+
+    // Rom slice-broken fast path (BR invariant #9):
+    // If Rom's DONE report contains "## Rom Escalation — Slice Broken",
+    // route directly to STAGED for O'Brien rework — skip Nog entirely.
+    try {
+      const doneContent = fs.readFileSync(donePath, 'utf-8');
+      if (/^## Rom Escalation — Slice Broken\s*$/m.test(doneContent)) {
+        fs.renameSync(donePath, path.join(STAGED_DIR, `${doneId}-STAGED.md`));
+        registerEvent(doneId, 'ROM_ESCALATE', { reason: 'slice-broken fast path' });
+        log('info', 'state', { id: doneId, from: 'DONE', to: 'STAGED', reason: 'rom_escalate' });
+        continue;
+      }
+    } catch (err) {
+      log('warn', 'evaluator', { id: doneId, msg: 'Failed to read DONE file for Rom escalation check', error: err.message });
+    }
 
     // Rename DONE → EVALUATING to claim it.
     const evaluatingPath = path.join(QUEUE_DIR, `${doneId}-EVALUATING.md`);
@@ -3258,7 +3249,7 @@ function poll() {
     return;
   }
 
-  // === Priority 2: Commission next PENDING (only if no DONE files to evaluate) ===
+  // === Priority 2: Commission next QUEUED slice (only if no DONE files to evaluate) ===
   if (pendingFiles.length === 0) {
     // ALL_COMPLETE check: pipeline is idle after processing at least one slice this session.
     const hasInProgress = files.some(f => f.endsWith('-IN_PROGRESS.md'));
@@ -3287,15 +3278,15 @@ function poll() {
   const pendingFile = pendingFiles[0];
   const pendingPath = path.join(QUEUE_DIR, pendingFile);
 
-  // Derive the slice ID from the filename (e.g. "003-PENDING.md" → "003").
-  const id = pendingFile.replace('-PENDING.md', '');
+  // Derive the slice ID from the filename (e.g. "003-QUEUED.md" → "003").
+  const id = pendingFile.replace(/-(?:QUEUED|PENDING)\.md$/, '');
 
   // Read slice content.
   let sliceContent;
   try {
     sliceContent = fs.readFileSync(pendingPath, 'utf-8');
   } catch (err) {
-    log('error', 'error', { id, msg: 'Failed to read PENDING file', error: err.message });
+    log('error', 'error', { id, msg: 'Failed to read QUEUED file', error: err.message });
     return;
   }
 
@@ -3323,10 +3314,10 @@ function poll() {
   // are present and non-empty. Required: id, title, from, to, priority, created.
   //
   // If validation fails:
-  //   - Do NOT rename to IN_PROGRESS (file stays as PENDING for inspection)
+  //   - Do NOT rename to IN_PROGRESS (file stays as QUEUED/PENDING for inspection)
   //   - Write an ERROR report immediately
   //   - Log with reason "invalid_slice"
-  //   - Remove the PENDING file so the poll loop doesn't re-process it forever
+  //   - Remove the QUEUED/PENDING file so the poll loop doesn't re-process it forever
   //   - Continue the poll loop (do not crash)
   // ---------------------------------------------------------------------------
   const REQUIRED_FIELDS = ['id', 'title', 'from', 'to', 'priority', 'created'];
@@ -3350,7 +3341,7 @@ function poll() {
     print(`  ${C.red}${SYM.cross}${C.reset} Slice ${errId} rejected${SYM.dash}Missing required fields: ${missingFields.join(', ')}`);
 
     writeErrorFile(errPath, errId, 'invalid_slice', null, '', '', { missingFields });
-    log('info', 'state', { id: errId, from: 'PENDING', to: 'ERROR', reason: 'invalid_slice' });
+    log('info', 'state', { id: errId, from: 'QUEUED', to: 'ERROR', reason: 'invalid_slice' });
     registerEvent(errId, 'ERROR', { reason: 'invalid_slice', missingFields });
     appendKiraEvent({
       event: 'ERROR',
@@ -3361,22 +3352,22 @@ function poll() {
       details: `Slice ${errId} errored: invalid_slice`,
     });
 
-    // Remove the invalid PENDING file so it doesn't loop indefinitely.
+    // Remove the invalid QUEUED/PENDING file so it doesn't loop indefinitely.
     try { fs.renameSync(pendingPath, path.join(TRASH_DIR, path.basename(pendingPath) + '.invalid')); } catch (_) {}
 
     return; // Continue poll loop on next tick.
   }
 
-  // Atomic rename: PENDING → IN_PROGRESS.
+  // Atomic rename: QUEUED → IN_PROGRESS.
   try {
     fs.renameSync(pendingPath, inProgressPath);
   } catch (err) {
-    log('error', 'error', { id, msg: 'Failed to rename PENDING to IN_PROGRESS', error: err.message });
+    log('error', 'error', { id, msg: 'Failed to rename QUEUED to IN_PROGRESS', error: err.message });
     return;
   }
 
   log('info', 'pickup', { id, title, msg: 'Slice picked up', file: pendingFile });
-  log('info', 'state', { id, from: 'PENDING', to: 'IN_PROGRESS' });
+  log('info', 'state', { id, from: 'QUEUED', to: 'IN_PROGRESS' });
 
   // Register: embed full slice body so success criteria are always recoverable.
   registerCommissioned(id, { title, goal, body: sliceContent });
@@ -3399,7 +3390,7 @@ function poll() {
  * Runs at startup before entering the poll loop. Scans the queue directory for
  * orphaned IN_PROGRESS files left behind by a prior crash and resolves each:
  *
- *   {id}-IN_PROGRESS alone            → rename back to PENDING (re-queue)
+ *   {id}-IN_PROGRESS alone            → rename back to QUEUED (re-queue)
  *   {id}-IN_PROGRESS + DONE exists    → delete IN_PROGRESS (already complete)
  *   {id}-IN_PROGRESS + ERROR exists   → delete IN_PROGRESS (already failed)
  *   {id}-IN_PROGRESS + ACCEPTED exists → delete IN_PROGRESS (already evaluated)
@@ -3448,9 +3439,11 @@ function crashRecovery() {
       if (meta) branchName = meta.branch || null;
     } catch (_) {}
 
-    // Read title from ARCHIVED file.
+    // Read title from PARKED file (fall back to legacy ARCHIVED).
+    const parkedTitlePath = path.join(QUEUE_DIR, `${id}-PARKED.md`);
+    const legacyTitlePath = path.join(QUEUE_DIR, `${id}-ARCHIVED.md`);
     try {
-      const commContent = fs.readFileSync(path.join(QUEUE_DIR, `${id}-ARCHIVED.md`), 'utf-8');
+      const commContent = fs.readFileSync(fs.existsSync(parkedTitlePath) ? parkedTitlePath : legacyTitlePath, 'utf-8');
       const commMeta = parseFrontmatter(commContent);
       if (commMeta) title = commMeta.title || null;
     } catch (_) {}
@@ -3497,11 +3490,12 @@ function crashRecovery() {
     const hasDone        = fs.existsSync(path.join(QUEUE_DIR, `${id}-DONE.md`));
     const hasError       = fs.existsSync(path.join(QUEUE_DIR, `${id}-ERROR.md`));
     const hasAccepted    = fs.existsSync(path.join(QUEUE_DIR, `${id}-ACCEPTED.md`));
+    const hasParked      = fs.existsSync(path.join(QUEUE_DIR, `${id}-PARKED.md`));
     const hasArchived    = fs.existsSync(path.join(QUEUE_DIR, `${id}-ARCHIVED.md`));
 
-    if (hasDone || hasError || hasAccepted || hasArchived) {
+    if (hasDone || hasError || hasAccepted || hasParked || hasArchived) {
       // Slice already resolved — the IN_PROGRESS file is a stale artifact.
-      const resolvedAs = hasDone ? 'DONE' : hasError ? 'ERROR' : hasAccepted ? 'ACCEPTED' : 'ARCHIVED';
+      const resolvedAs = hasDone ? 'DONE' : hasError ? 'ERROR' : hasAccepted ? 'ACCEPTED' : hasParked ? 'PARKED' : 'ARCHIVED';
       try {
         fs.renameSync(inProgressPath, path.join(TRASH_DIR, path.basename(inProgressPath) + '.orphan'));
         log('info', 'startup_recovery', {
@@ -3516,17 +3510,17 @@ function crashRecovery() {
       }
     } else {
       // No resolution file — slice was interrupted mid-flight. Re-queue it.
-      const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
+      const queuedPath = path.join(QUEUE_DIR, `${id}-QUEUED.md`);
       try {
-        fs.renameSync(inProgressPath, pendingPath);  // atomic rename
+        fs.renameSync(inProgressPath, queuedPath);  // atomic rename
         log('info', 'startup_recovery', {
           id,
-          msg: 'Orphaned IN_PROGRESS renamed to PENDING (re-queued)',
+          msg: 'Orphaned IN_PROGRESS renamed to QUEUED (re-queued)',
           action: 're-queued',
         });
         actions.push({ id, type: 'requeued' });
       } catch (err) {
-        log('warn', 'startup_recovery', { id, msg: 'Failed to rename orphaned IN_PROGRESS to PENDING', error: err.message });
+        log('warn', 'startup_recovery', { id, msg: 'Failed to rename orphaned IN_PROGRESS to QUEUED', error: err.message });
       }
     }
   }

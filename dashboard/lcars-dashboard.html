@@ -2396,12 +2396,13 @@
   const HISTORY_PAGE_SIZE = 10;
 
   function renderHistoryPanel(recent) {
-    // Show merged/DONE items and ERROR items (filter out in-progress)
+    // Show only slices that have reached a terminal state: accepted by Nog (merged) or ERROR.
+    // DONE-but-still-in-Nog-review stays in the Nog lane, not history.
     cachedHistoryAllRows = (recent || [])
       .filter(c => !/^merge:/i.test(c.title ?? ''))
       .filter(c => {
         const outcome = c.outcome ?? 'DONE';
-        return outcome === 'DONE' || outcome === 'ERROR' || c.reviewStatus === 'accepted';
+        return outcome === 'ERROR' || c.reviewStatus === 'accepted';
       });
 
     // Clamp page to valid range
