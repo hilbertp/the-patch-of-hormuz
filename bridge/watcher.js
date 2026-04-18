@@ -2695,7 +2695,7 @@ function invokeNog(id) {
     sliceFileContents: sliceContent,
     doneReportContents,
     gitDiff,
-    slicePath: archivedPath,
+    slicePath: resolvedParkedPath,
   });
 
   log('info', 'nog', { id, round, branchName, msg: 'Invoking Nog code review' });
