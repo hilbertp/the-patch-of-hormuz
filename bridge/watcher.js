@@ -56,12 +56,14 @@ const TRASH_DIR      = path.resolve(QUEUE_DIR, '..', 'trash');
 const WORKTREE_BASE  = '/tmp/ds9-worktrees';
 const LOGS_DIR       = path.resolve(__dirname, 'logs');
 const ESCALATIONS_DIR = path.resolve(__dirname, 'kira-escalations');
+const CONTROL_DIR    = path.resolve(__dirname, 'control');
 
-// Ensure queue + trash + logs + escalations directories exist.
+// Ensure queue + trash + logs + escalations + control directories exist.
 fs.mkdirSync(QUEUE_DIR, { recursive: true });
 fs.mkdirSync(TRASH_DIR, { recursive: true });
 fs.mkdirSync(LOGS_DIR, { recursive: true });
 fs.mkdirSync(ESCALATIONS_DIR, { recursive: true });
+fs.mkdirSync(CONTROL_DIR, { recursive: true });
 
 // Deprecation check: timeoutMs was the old wall-clock timeout. It is now ignored.
 // Log once at startup if found in the config file.
@@ -2676,6 +2678,12 @@ function invokeNog(id) {
 
     registerEvent(id, 'NOG_ESCALATION', { round, branch: branchName });
 
+    // Emit MAX_ROUNDS_EXHAUSTED terminal event for UI1 history rendering.
+    registerEvent(id, 'MAX_ROUNDS_EXHAUSTED', {
+      round: 5,
+      reason: 'Rom exhausted 5 rounds without Nog sign-off',
+    });
+
     // Rename to STUCK.
     const stuckPath = path.join(QUEUE_DIR, `${id}-STUCK.md`);
     try {
@@ -2685,9 +2693,12 @@ function invokeNog(id) {
       log('warn', 'nog', { id, msg: 'Failed to rename to STUCK', error: err.message });
     }
 
+    // Clean up worktree for the exhausted slice.
+    try { cleanupWorktree(id, branchName); } catch (_) {}
+
     updateTimesheet(id, { result: 'STUCK', cycle: round, ts_result: new Date().toISOString() });
 
-    print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} NOG ESCALATION${SYM.sep}Slice ${id} failed 5 Nog rounds — escalated to Kira`);
+    print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} MAX_ROUNDS_EXHAUSTED${SYM.sep}Slice ${id} exhausted 5 Nog rounds — escalated to Kira`);
     print(`${B.bl}${B.sng.repeat(W - 1)}`);
     print('');
 
@@ -2828,7 +2839,7 @@ function invokeNog(id) {
         updatedSliceContent = fs.readFileSync(resolvedParkedPath, 'utf-8');
       } catch (_) {}
 
-      if (!verdict || !['PASS', 'RETURN'].includes(verdict)) {
+      if (!verdict || !['PASS', 'RETURN', 'ESCALATE'].includes(verdict)) {
         // Missing or unparseable verdict — treat as RETURN.
         log('warn', 'nog', { id, msg: 'Nog verdict unreadable — treating as RETURN', verdict, durationMs });
 
@@ -2846,6 +2857,55 @@ function invokeNog(id) {
         handleNogReturn(id, rootId, round, branchName, donePath, updatedSliceContent, 'Nog verdict unreadable — manual review required', durationMs);
 
         print(`${B.vert}    ${C.yellow}${SYM.cross}${C.reset} Nog verdict UNREADABLE${SYM.sep}treated as RETURN (round ${round})`);
+        print(`${B.bl}${B.sng.repeat(W - 1)}`);
+        print('');
+
+        processing = false;
+        heartbeatState.status = 'idle';
+        heartbeatState.current_slice = null;
+        heartbeatState.current_slice_goal = null;
+        heartbeatState.pickupTime = null;
+        heartbeatState.processed_total += 1;
+        writeHeartbeat();
+        return;
+      }
+
+      if (verdict === 'ESCALATE') {
+        // Nog determined ACs cannot be satisfied as written — escalate to O'Brien.
+        log('warn', 'nog', { id, verdict: 'ESCALATE', round, durationMs, summary });
+
+        registerEvent(id, 'ESCALATED_TO_OBRIEN', {
+          round,
+          reason: summary || 'Nog determined acceptance criteria cannot be satisfied as written',
+        });
+
+        appendKiraEvent({
+          event: 'ESCALATED_TO_OBRIEN',
+          slice_id: id,
+          root_id: rootId !== id ? rootId : null,
+          cycle: round,
+          branch: branchName || null,
+          details: `Nog escalated slice ${id} to O'Brien: ${summary || 'ACs cannot be satisfied'}`,
+        });
+
+        // Terminal state — rename to STUCK, clean up worktree.
+        const escalateStuckPath = path.join(QUEUE_DIR, `${id}-STUCK.md`);
+        try {
+          fs.renameSync(donePath, escalateStuckPath);
+          log('info', 'state', { id, from: 'EVALUATING', to: 'STUCK', reason: 'nog_escalate' });
+        } catch (renameErr) {
+          log('warn', 'nog', { id, msg: 'Failed to rename to STUCK after ESCALATE', error: renameErr.message });
+        }
+
+        try { cleanupWorktree(id, branchName); } catch (_) {}
+
+        // Clean up NOG.md verdict file.
+        try { fs.renameSync(nogVerdictPath, path.join(TRASH_DIR, `${id}-NOG.md.escalate`)); } catch (_) {}
+
+        updateTimesheet(id, { result: 'STUCK', cycle: round, ts_result: new Date().toISOString() });
+
+        print(`${B.vert}    ${C.cyan}${SYM.cross}${C.reset} Nog ESCALATE${SYM.sep}Round ${round}${summary ? SYM.dash + summary : ''}`);
+        print(`${B.vert}    Escalated to O'Brien — ACs cannot be satisfied as written`);
         print(`${B.bl}${B.sng.repeat(W - 1)}`);
         print('');
 
@@ -3151,11 +3211,176 @@ function writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra) {
 }
 
 // ---------------------------------------------------------------------------
+// Control file processing — return-to-stage and other UI-initiated actions
+// ---------------------------------------------------------------------------
+
+/**
+ * Terminal file suffixes for slices eligible for return-to-stage.
+ * Maps suffix → the terminal event name that produced it.
+ */
+const TERMINAL_SUFFIXES = [
+  { suffix: '-ACCEPTED.md', event: 'ACCEPTED' },
+  { suffix: '-STUCK.md',    event: 'MAX_ROUNDS_EXHAUSTED' },
+  { suffix: '-ERROR.md',    event: 'ERROR' },
+];
+
+/**
+ * handleReturnToStage(sliceId)
+ *
+ * Validates the slice is in a terminal state, emits RETURN_TO_STAGE, and
+ * moves the slice file back into bridge/staged/ with status: STAGED.
+ * Returns { ok, error } for the caller to log.
+ */
+function handleReturnToStage(sliceId) {
+  const id = String(sliceId);
+
+  // Reject if currently active (IN_PROGRESS or EVALUATING).
+  const activeSuffixes = ['-IN_PROGRESS.md', '-EVALUATING.md', '-IN_REVIEW.md'];
+  for (const s of activeSuffixes) {
+    if (fs.existsSync(path.join(QUEUE_DIR, `${id}${s}`))) {
+      return { ok: false, error: `Slice ${id} is currently active (${s.replace(/^-|\.md$/g, '')}) — cannot return to stage` };
+    }
+  }
+
+  // Also reject QUEUED/PENDING (not yet started).
+  if (fs.existsSync(path.join(QUEUE_DIR, `${id}-QUEUED.md`)) ||
+      fs.existsSync(path.join(QUEUE_DIR, `${id}-PENDING.md`))) {
+    return { ok: false, error: `Slice ${id} is QUEUED — cannot return to stage (not terminal)` };
+  }
+
+  // Find the terminal file.
+  let terminalPath = null;
+  let fromEvent = null;
+  for (const { suffix, event } of TERMINAL_SUFFIXES) {
+    const p = path.join(QUEUE_DIR, `${id}${suffix}`);
+    if (fs.existsSync(p)) {
+      terminalPath = p;
+      fromEvent = event;
+      break;
+    }
+  }
+
+  // Also check PARKED (stuck from Nog escalation) — Nog escalation renames to STUCK.
+  // And check staged dir for STAGED files that might be re-returned.
+  if (!terminalPath) {
+    // Check if slice exists at all in any known state.
+    const anyFile = fs.readdirSync(QUEUE_DIR).find(f => f.startsWith(`${id}-`));
+    if (anyFile) {
+      return { ok: false, error: `Slice ${id} is in state ${anyFile} — not a terminal state eligible for return` };
+    }
+    // Check staged dir.
+    const stagedFile = fs.readdirSync(STAGED_DIR).find(f => f.startsWith(`${id}-`));
+    if (stagedFile) {
+      return { ok: false, error: `Slice ${id} is already STAGED` };
+    }
+    return { ok: false, error: `Slice ${id} not found in queue or staged directory` };
+  }
+
+  // Read the terminal file content.
+  let content;
+  try {
+    content = fs.readFileSync(terminalPath, 'utf-8');
+  } catch (err) {
+    return { ok: false, error: `Failed to read terminal file for slice ${id}: ${err.message}` };
+  }
+
+  // Also check the register for the most recent terminal event (more accurate fromEvent).
+  try {
+    const lines = fs.readFileSync(REGISTER_FILE, 'utf-8').trim().split('\n').filter(Boolean);
+    const terminalEvents = ['MERGED', 'MAX_ROUNDS_EXHAUSTED', 'ESCALATED_TO_OBRIEN', 'ERROR', 'STUCK', 'NOG_ESCALATION'];
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const entry = JSON.parse(lines[i]);
+        if (entry.id === id && terminalEvents.includes(entry.event)) {
+          fromEvent = entry.event;
+          break;
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  // Emit RETURN_TO_STAGE register event.
+  registerEvent(id, 'RETURN_TO_STAGE', {
+    from_event: fromEvent,
+    reason: 'manual',
+  });
+
+  // Update frontmatter status to STAGED and move to staged dir.
+  const updatedContent = updateFrontmatter(content, { status: 'STAGED' });
+  const stagedPath = path.join(STAGED_DIR, `${id}-STAGED.md`);
+  try {
+    fs.writeFileSync(stagedPath, updatedContent);
+    fs.unlinkSync(terminalPath);
+    log('info', 'control', { id, from: fromEvent, to: 'STAGED', msg: `Return-to-stage: moved slice ${id} from ${fromEvent} to STAGED` });
+  } catch (err) {
+    return { ok: false, error: `Failed to move slice ${id} to staged: ${err.message}` };
+  }
+
+  print(`  ${C.cyan}${SYM.back}${C.reset} Return-to-stage${SYM.sep}Slice ${id} (was ${fromEvent})${SYM.arrow}STAGED`);
+
+  return { ok: true };
+}
+
+/**
+ * processControlFiles()
+ *
+ * Scans bridge/control/ for JSON control files and processes each action.
+ * Control files are consumed (moved to trash) after processing.
+ * Called at the start of each poll cycle.
+ */
+function processControlFiles() {
+  let files;
+  try {
+    files = fs.readdirSync(CONTROL_DIR).filter(f => f.endsWith('.json'));
+  } catch (_) {
+    return;
+  }
+
+  for (const file of files) {
+    const filePath = path.join(CONTROL_DIR, file);
+    let request;
+    try {
+      request = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    } catch (err) {
+      log('warn', 'control', { file, msg: 'Malformed control file — skipping', error: err.message });
+      try { fs.renameSync(filePath, path.join(TRASH_DIR, file + '.malformed')); } catch (_) {}
+      continue;
+    }
+
+    const action = request.action;
+    const sliceId = request.slice_id;
+
+    if (!action || !sliceId) {
+      log('warn', 'control', { file, msg: 'Control file missing action or slice_id', request });
+      try { fs.renameSync(filePath, path.join(TRASH_DIR, file + '.invalid')); } catch (_) {}
+      continue;
+    }
+
+    if (action === 'return_to_stage') {
+      const result = handleReturnToStage(sliceId);
+      if (!result.ok) {
+        log('warn', 'control', { file, action, sliceId, msg: result.error });
+      } else {
+        log('info', 'control', { file, action, sliceId, msg: 'return_to_stage completed' });
+      }
+    } else {
+      log('warn', 'control', { file, msg: `Unknown control action: ${action}`, action, sliceId });
+    }
+
+    // Consume the control file regardless of success/failure.
+    try { fs.renameSync(filePath, path.join(TRASH_DIR, file + '.processed')); } catch (_) {}
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Poll cycle
 // ---------------------------------------------------------------------------
 
 function poll() {
   if (processing) return;
+
+  // Process control files (return-to-stage, etc.) before dispatch.
+  processControlFiles();
 
   // Rate limit gate: pause dispatch until the API limit resets.
   if (rateLimitUntil) {
@@ -3292,6 +3517,16 @@ function poll() {
       writeHeartbeat();
       invokeEvaluator(doneId);
     } else {
+      // Emit ROM_WAITING_FOR_NOG: Rom is idle-blocked while Nog reviews.
+      const resolvedParked = fs.existsSync(parkedPath) ? parkedPath : legacyParkedPath;
+      let waitRound = 1;
+      try {
+        const parkedContent = fs.readFileSync(resolvedParked, 'utf-8');
+        const nogRounds = (parkedContent.match(/^## Nog Review — Round \d+/gm) || []).length;
+        waitRound = nogRounds + 1;
+      } catch (_) {}
+      registerEvent(doneId, 'ROM_WAITING_FOR_NOG', { round: waitRound });
+
       heartbeatState.status = 'nog_review';
       writeHeartbeat();
       invokeNog(doneId);
