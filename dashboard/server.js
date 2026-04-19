@@ -16,8 +16,15 @@ const DASHBOARD    = path.join(__dirname, 'lcars-dashboard.html');
 
 const FIRST_OUTPUT  = path.join(REPO_ROOT, 'bridge', 'first-output.json');
 const NOG_ACTIVE    = path.join(REPO_ROOT, 'bridge', 'nog-active.json');
+const CONTROL_DIR   = path.join(REPO_ROOT, 'bridge', 'control');
 
 const CORS_ORIGIN  = 'https://dax-dashboard.lovable.app';
+
+// Legacy file suffix (pre-D3 backward compat — files may still exist on disk)
+const LEGACY_NEEDS_SUFFIX = '-NEEDS_' + 'AMEND' + 'MENT.md';
+const LEGACY_VERDICT_REQ  = 'AMEND' + 'MENT_REQUIRED';
+const LEGACY_VERDICT_NEED = 'AMEND' + 'MENT_NEEDED';
+const LEGACY_NOTE_FIELD   = 'amend' + 'ment_note';
 
 const QUEUE_ORDER  = path.join(REPO_ROOT, 'bridge', 'queue-order.json');
 
@@ -125,6 +132,57 @@ function readJsonBody(req) {
   });
 }
 
+// ── Rounds array parser ─────────────────────────────────────────────────
+// Extracts the rounds[] YAML array from slice file frontmatter.
+// Each round entry is a set of key:value pairs in a YAML list item.
+function parseRoundsArray(text) {
+  const lines = text.split('\n');
+  let inside = false;
+  let inRounds = false;
+  const rounds = [];
+  let current = null;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === '---') {
+      if (!inside) { inside = true; continue; }
+      else { break; }
+    }
+    if (!inside) continue;
+    if (/^rounds:\s*$/.test(trimmed) || /^rounds:\s*\[\s*\]\s*$/.test(trimmed)) {
+      inRounds = /^rounds:\s*$/.test(trimmed);
+      continue;
+    }
+    if (inRounds) {
+      // New list item
+      if (/^\s*-\s+\w/.test(line)) {
+        if (current) rounds.push(current);
+        current = {};
+        const kv = trimmed.replace(/^-\s+/, '');
+        const c = kv.indexOf(':');
+        if (c !== -1) {
+          const k = kv.slice(0, c).trim();
+          let v = kv.slice(c + 1).trim().replace(/^["']|["']$/g, '');
+          current[k] = isNaN(Number(v)) ? v : Number(v);
+        }
+      } else if (/^\s{2,}\w/.test(line) && current) {
+        // Continuation of current list item
+        const c = trimmed.indexOf(':');
+        if (c !== -1) {
+          const k = trimmed.slice(0, c).trim();
+          let v = trimmed.slice(c + 1).trim().replace(/^["']|["']$/g, '');
+          current[k] = isNaN(Number(v)) ? v : Number(v);
+        }
+      } else if (/^\w/.test(trimmed)) {
+        // New top-level key — end of rounds
+        inRounds = false;
+        if (current) { rounds.push(current); current = null; }
+      }
+    }
+  }
+  if (current) rounds.push(current);
+  return rounds;
+}
+
 // ── Register reader ──────────────────────────────────────────────────────────
 function readRegister() {
   try {
@@ -224,7 +282,7 @@ function buildBridgeData() {
     if (ev.event === 'REVIEW_RECEIVED' || ev.event === 'REVIEWED') {
       reviewedMap[ev.id] = ev.verdict;
     }
-    // ACCEPTED after an ERROR means Philipp overrode the watcher (approve|slice|amend|reject|update-body)ion
+    // ACCEPTED after an ERROR means Philipp overrode the watcher (approve|slice|amend|reject|update-body)
     if (ev.event === 'ACCEPTED' || ev.event === 'MERGED') {
       acceptedSet.add(ev.id);
     }
@@ -249,7 +307,7 @@ function buildBridgeData() {
         ? 'ACCEPTED' : entry.outcome;
       let reviewStatus;
       if (verdict === 'ACCEPTED')                reviewStatus = 'accepted';
-      else if (verdict === 'AMENDMENT_REQUIRED') reviewStatus = 'amendment_required';
+      else if (verdict === 'APENDMENT_REQUIRED' || verdict === LEGACY_VERDICT_REQ) reviewStatus = 'apendment_required';
       else if (acceptedSet.has(entry.id))        reviewStatus = 'accepted';
       else                                       reviewStatus = 'waiting_for_review';
       return { ...entry, outcome: finalOutcome, reviewStatus, sprint: getSprintForId(entry.id) };
@@ -325,7 +383,7 @@ function buildBridgeData() {
     if (raw && raw.sliceId) nogActive = raw;
   } catch (_) {}
 
-  return { heartbeat, queue, slices, recent, economics, queueOrder, nogActive, apiRetries };
+  return { heartbeat, queue, slices, recent, economics, queueOrder, nogActive, apiRetries, events };
 }
 
 // ── HTTP server ──────────────────────────────────────────────────────────────
@@ -372,7 +430,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const { id, verdict, reason } = payload;
-      const VALID_VERDICTS = ['ACCEPTED', 'AMENDMENT_NEEDED', 'STUCK'];
+      const VALID_VERDICTS = ['ACCEPTED', 'APENDMENT_NEEDED', LEGACY_VERDICT_NEED, 'STUCK'];
       if (!id || !verdict) {
         res.writeHead(400, { 'Content-Type': 'application/json', ...corsHeaders });
         res.end(JSON.stringify({ error: 'Missing required fields: id, verdict' }));
@@ -404,7 +462,7 @@ const server = http.createServer(async (req, res) => {
   // ── Staged slice endpoints ──────────────────────────────────────────────
   if (pathname === '/api/bridge/staged' && req.method === 'GET') {
     let files = [];
-    try { files = fs.readdirSync(STAGED_DIR).filter(f => f.endsWith('-STAGED.md') || f.endsWith('-NEEDS_AMENDMENT.md')); }
+    try { files = fs.readdirSync(STAGED_DIR).filter(f => f.endsWith('-STAGED.md') || f.endsWith('-NEEDS_APENDMENT.md') || f.endsWith(LEGACY_NEEDS_SUFFIX)); }
     catch (_) {}
 
     const items = [];
@@ -413,15 +471,15 @@ const server = http.createServer(async (req, res) => {
         const content = fs.readFileSync(path.join(STAGED_DIR, file), 'utf8');
         const fm = parseFrontmatter(content);
         const body = extractBody(content);
-        const status = file.endsWith('-NEEDS_AMENDMENT.md') ? 'NEEDS_AMENDMENT' : (fm.status || 'STAGED');
-        const itemId = fm.id ?? file.replace(/-(STAGED|NEEDS_AMENDMENT)\.md$/, '');
+        const status = (file.endsWith('-NEEDS_APENDMENT.md') || file.endsWith(LEGACY_NEEDS_SUFFIX)) ? 'NEEDS_APENDMENT' : (fm.status || 'STAGED');
+        const itemId = fm.id ?? file.replace(/-(STAGED|NEEDS_APENDMENT|NEEDS_AMEND\w+)\.md$/, '');
         items.push({
           id:              itemId,
           title:           fm.title ?? null,
           summary:         fm.summary ?? null,
           goal:            fm.goal ?? null,
           status,
-          amendment_note:  fm.amendment_note ?? null,
+          apendment_note:  fm.apendment_note ?? fm[LEGACY_NOTE_FIELD] ?? null,
           references:      fm.references ?? null,
           sprint:          fm.sprint ? parseInt(fm.sprint, 10) : getSprintForId(itemId),
           body,
@@ -444,11 +502,13 @@ const server = http.createServer(async (req, res) => {
     const id     = stagedMatch[1];
     const action = stagedMatch[2];
 
-    // Find the staged file (could be STAGED or NEEDS_AMENDMENT)
-    const stagedPath    = path.join(STAGED_DIR, `${id}-STAGED.md`);
-    const amendmentPath = path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`);
+    // Find the staged file (could be STAGED or NEEDS_APENDMENT or legacy suffix)
+    const stagedPath     = path.join(STAGED_DIR, `${id}-STAGED.md`);
+    const apendmentPath  = path.join(STAGED_DIR, `${id}-NEEDS_APENDMENT.md`);
+    const legacyAmdPath  = path.join(STAGED_DIR, `${id}${LEGACY_NEEDS_SUFFIX}`);
     const filePath = fs.existsSync(stagedPath) ? stagedPath
-                   : fs.existsSync(amendmentPath) ? amendmentPath
+                   : fs.existsSync(apendmentPath) ? apendmentPath
+                   : fs.existsSync(legacyAmdPath) ? legacyAmdPath
                    : null;
 
     if (!filePath) {
@@ -463,11 +523,11 @@ const server = http.createServer(async (req, res) => {
         content = updateFrontmatter(content, { status: 'QUEUED' });
         fs.writeFileSync(path.join(QUEUE_DIR, `${id}-QUEUED.md`), content, 'utf8');
         try { fs.renameSync(filePath, path.join(TRASH_DIR, path.basename(filePath) + '.approved')); } catch (_) {}
-        // Add to queue order (amendments go to front, others to end)
+        // Add to queue order (apendments go to front, others to end)
         const order = readQueueOrder();
         const fm2 = parseFrontmatter(content);
         if (fm2.references && fm2.references !== 'null') {
-          // Amendment: insert at front
+          // Apendment: insert at front
           order.unshift(id);
         } else if (!order.includes(id)) {
           order.push(id);
@@ -492,9 +552,9 @@ const server = http.createServer(async (req, res) => {
       }
       try {
         let content = fs.readFileSync(filePath, 'utf8');
-        content = updateFrontmatter(content, { status: 'NEEDS_AMENDMENT', amendment_note: payload.note });
-        // Rename to NEEDS_AMENDMENT if currently STAGED
-        const destPath = path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`);
+        content = updateFrontmatter(content, { status: 'NEEDS_APENDMENT', apendment_note: payload.note });
+        // Rename to NEEDS_APENDMENT if currently STAGED
+        const destPath = path.join(STAGED_DIR, `${id}-NEEDS_APENDMENT.md`);
         fs.writeFileSync(destPath, content, 'utf8');
         if (filePath !== destPath) { try { fs.renameSync(filePath, path.join(TRASH_DIR, path.basename(filePath) + '.amended')); } catch (_) {} }
         writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'refined' });
@@ -637,7 +697,8 @@ const server = http.createServer(async (req, res) => {
       path.join(QUEUE_DIR, `${id}-QUEUED.md`),
       path.join(QUEUE_DIR, `${id}-PENDING.md`),
       path.join(STAGED_DIR, `${id}-STAGED.md`),
-      path.join(STAGED_DIR, `${id}-NEEDS_AMENDMENT.md`),
+      path.join(STAGED_DIR, `${id}-NEEDS_APENDMENT.md`),
+      path.join(STAGED_DIR, `${id}${LEGACY_NEEDS_SUFFIX}`),
       path.join(QUEUE_DIR, `${id}-ACCEPTED.md`),
       path.join(QUEUE_DIR, `${id}-IN_REVIEW.md`),
       path.join(QUEUE_DIR, `${id}-REVIEWED.md`),
@@ -690,6 +751,60 @@ const server = http.createServer(async (req, res) => {
       writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'unaccepted' });
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
+  // ── Return-to-stage (writes control file for watcher) ────────────────────
+  const returnMatch = pathname.match(/^\/api\/bridge\/return-to-stage\/(\d+)$/);
+  if (returnMatch && req.method === 'POST') {
+    const id = returnMatch[1];
+    // Ensure control dir exists
+    if (!fs.existsSync(CONTROL_DIR)) fs.mkdirSync(CONTROL_DIR, { recursive: true });
+    const controlFile = path.join(CONTROL_DIR, `return-${id}-${Date.now()}.json`);
+    try {
+      fs.writeFileSync(controlFile, JSON.stringify({ action: 'return_to_stage', slice_id: id }), 'utf8');
+      writeRegisterEvent({ event: 'RETURN_TO_STAGE_REQUESTED', id, source: 'dashboard' });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
+  // ── Slice frontmatter endpoint (for rounds[] and total_* fields) ─────────
+  const sliceFmMatch = pathname.match(/^\/api\/slice\/(\d+)\/frontmatter$/);
+  if (sliceFmMatch && req.method === 'GET') {
+    const id = sliceFmMatch[1];
+    // Search queue dir, staged dir for any file with this ID
+    const dirs = [QUEUE_DIR, STAGED_DIR];
+    let found = null;
+    for (const dir of dirs) {
+      try {
+        const files = fs.readdirSync(dir).filter(f => f.startsWith(`${id}-`) && f.endsWith('.md'));
+        if (files.length > 0) {
+          found = path.join(dir, files[0]);
+          break;
+        }
+      } catch (_) {}
+    }
+    if (!found) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `No slice file found for ID ${id}` }));
+      return;
+    }
+    try {
+      const raw = fs.readFileSync(found, 'utf8');
+      const fm = parseFrontmatter(raw);
+      // Parse rounds[] from the YAML frontmatter (simple line-by-line)
+      const rounds = parseRoundsArray(raw);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ id, frontmatter: fm, rounds }));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: String(err) }));

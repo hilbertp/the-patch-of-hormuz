@@ -13,7 +13,7 @@ Philipp commissions a slice, walks away, and comes back later. The dashboard mus
 
 1. **Where is my slice?** — which lifecycle stage, who owns it right now, how long they've held it.
 2. **Is anything stuck or broken?** — stale stages, errors, watcher down.
-3. **What happened while I was gone?** — completed slices, amendments, timing.
+3. **What happened while I was gone?** — completed slices, apendments, timing.
 
 Everything else is secondary. Economics, ROI, human-equivalent hours — those are nice-to-have panels that earn their place only after the primary questions are answered.
 
@@ -75,7 +75,7 @@ This is the centerpiece. It replaces the current "Mission Lifecycle Pipeline" se
 │            └────────────-┘                               │
 │                                                         │
 │  Commissioned 14:22 · Entered IN PROGRESS 14:25         │
-│  No amendments yet                                      │
+│  No apendments yet                                      │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -103,7 +103,7 @@ This is the centerpiece. It replaces the current "Mission Lifecycle Pipeline" se
 
 These thresholds are configurable (could live in bridge.config.json).
 
-**Amendment cycle:** If a slice is rejected and enters amendment, the pipeline shows a loopback arrow between REV and IP with a counter: "Amendment 1", "Amendment 2", etc.
+**Apendment cycle:** If a slice is rejected and enters apendment, the pipeline shows a loopback arrow between REV and IP with a counter: "Apendment 1", "Apendment 2", etc.
 
 **What it shows when no slice is active:**
 
@@ -113,7 +113,7 @@ These thresholds are configurable (could live in bridge.config.json).
 │                                                         │
 │  Last completed: Slice 5 — Watcher terminal overhaul    │
 │  Completed 2026-04-06 at 07:10 · Duration: 18m 22s     │
-│  Result: ACCEPTED (no amendments)                       │
+│  Result: ACCEPTED (no apendments)                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -128,13 +128,13 @@ Replaces the current "Commission History" table. The key change: this is organiz
 | Slice | Slice number | Derived from commission title/metadata |
 | Title | Human-readable description | Commission frontmatter `title` |
 | Result | MERGED / REJECTED / ERROR / IN PROGRESS | Derived from final event in register |
-| Amendments | Count of reject→retry cycles | Count of REJECTED events per slice |
+| Apendments | Count of reject→retry cycles | Count of REJECTED events per slice |
 | Duration | Wall-clock time from COMMISSIONED to MERGED | Register timestamps |
 | Stages | Mini inline pipeline (dots showing which stages had delays) | Register stage events |
 
 Rows are sorted newest-first. The active slice (if any) appears at the top with a highlighted row. Completed slices below in reverse chronological order.
 
-**No more individual commission rows.** Commissions are implementation details. Philipp thinks in slices. The merge commission, the initial work commission, the amendment commission — those all belong to one slice.
+**No more individual commission rows.** Commissions are implementation details. Philipp thinks in slices. The merge commission, the initial work commission, the apendment commission — those all belong to one slice.
 
 ### D. Crew manifest
 
@@ -186,7 +186,7 @@ This is the critical section. The current data layer cannot support the redesign
 Key additions vs. current:
 - **`slice` field** — groups commissions under their parent slice
 - **`owner` field** — who triggered this transition
-- **`event` expanded** — all 10 lifecycle stages, plus REJECTED and AMENDMENT
+- **`event` expanded** — all 10 lifecycle stages, plus REJECTED and APENDMENT
 - Every transition is a separate line, enabling duration calculation per stage
 
 ### 4.2 Commission frontmatter
@@ -215,7 +215,7 @@ Key additions vs. current:
       "stageEnteredAt": "2026-04-07T14:25:00Z",
       "stageElapsedSeconds": 734,
       "commissionedAt": "2026-04-07T14:22:00Z",
-      "amendments": 0,
+      "apendments": 0,
       "commissions": ["020"],
       "events": [
         {"ts":"...","event":"COMMISSIONED","owner":"kira"},
@@ -331,7 +331,7 @@ This redesign cannot ship as one commission. It has backend prerequisites.
 
 **Phase 4 — Polish (O'Brien, 1 commission)**
 1. Stuck detection thresholds + visual warnings (ship with defaults, tune in production)
-2. Amendment cycle loopback visualization with reject reason on hover/tap
+2. Apendment cycle loopback visualization with reject reason on hover/tap
 3. "Last completed slice" display for idle state
 4. Responsive breakpoint testing
 
@@ -356,4 +356,4 @@ The redesign changes information architecture and data wiring, not the visual la
 | Stuck thresholds | "Let's try, we need to see in real usage" | Ship with proposed defaults (O'Brien: 15m/30m, Kira: 5m/15m). Tune based on observed patterns. |
 | Economics panel | Keep it, wire to real token burn + human-hours data | Panel redesigned in Section 5.1. Three cost layers: AI burn, simulated human team, Philipp's actual hours. Token tracking skill needed per role. |
 | Slice numbering | Implementation detail — team solves internally | Will use `slice` field in commission frontmatter. Dax/O'Brien figure out the schema. |
-| Amendment visibility | Rejection always has a clear reason from Kira | Dashboard shows amendment count + reject reason. Kira's REJECTED event in register includes `reason` field. Visible on hover/tap in the pipeline. |
+| Apendment visibility | Rejection always has a clear reason from Kira | Dashboard shows apendment count + reject reason. Kira's REJECTED event in register includes `reason` field. Visible on hover/tap in the pipeline. |

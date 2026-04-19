@@ -1109,18 +1109,18 @@
     color: #374151;
   }
 
-  .staged-amendment-state {
+  .staged-apendment-state {
     margin-top: 16px;
     font-family: system-ui, -apple-system, sans-serif;
     font-size: 13px;
     color: #9ca3af;
   }
 
-  .staged-amendment-state .staged-amendment-label {
+  .staged-apendment-state .staged-apendment-label {
     margin-bottom: 4px;
   }
 
-  .staged-amendment-state .staged-amendment-body {
+  .staged-apendment-state .staged-apendment-body {
     font-style: italic;
     color: #6b7280;
   }
@@ -1681,6 +1681,317 @@
     color: #dc2626;
   }
 
+  /* ── ROUND BADGE ───────────────────────────────────────── */
+  .round-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .round-badge.r1   { background: #dcfce7; color: #166534; }
+  .round-badge.r2-4 { background: #fef3c7; color: #92400e; }
+  .round-badge.r5   { background: #fef2f2; color: #991b1b; }
+
+  /* ── TERMINAL OUTCOME PILLS ──────────────────────────── */
+  .outcome-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .outcome-merged       { background: #dcfce7; color: #166534; }
+  .outcome-max-rounds   { background: #fef3c7; color: #92400e; }
+  .outcome-escalated    { background: #dbeafe; color: #1e40af; }
+  .outcome-error        { background: #fef2f2; color: #991b1b; }
+
+  /* ── PAUSE BUTTON (disabled, UI2) ────────────────────── */
+  .pause-build-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #9ca3af;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: not-allowed;
+    opacity: 0.6;
+    position: relative;
+  }
+  .pause-build-btn .pause-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 0;
+    background: #1f2937;
+    color: #e5e7eb;
+    font-size: 11px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    z-index: 10;
+  }
+  .pause-build-btn:hover .pause-tooltip { display: block; }
+
+  /* ── PAUSED FOOTER (CSS only, UI2 wires behavior) ──── */
+  .paused-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 16px;
+  }
+  .paused-footer .resume-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #16a34a;
+    background: #f0fdf4;
+    border: 1px solid #16a34a;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .paused-footer .abort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #dc2626;
+    background: #fef2f2;
+    border: 1px solid #dc2626;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  /* ── BLOCKED-IDLE STATE ──────────────────────────────── */
+  .blocked-idle-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #f59e0b;
+    margin-top: 6px;
+  }
+  .blocked-idle-indicator .blocked-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f59e0b;
+    animation: blocked-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes blocked-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  /* ── RETURN-TO-STAGE BUTTON ──────────────────────────── */
+  .return-to-stage-btn {
+    background: none;
+    border: 1px solid #f59e0b;
+    font-size: 12px;
+    font-weight: 500;
+    color: #92400e;
+    cursor: pointer;
+    padding: 3px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-family: system-ui, -apple-system, sans-serif;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .return-to-stage-btn:hover { background: #fef3c7; }
+
+  /* ── HISTORY TABLE HEADER ────────────────────────────── */
+  .history-table-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0 8px;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 11px;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .history-table-header .col-chevron { width: 18px; flex-shrink: 0; }
+  .history-table-header .col-id { width: 36px; flex-shrink: 0; }
+  .history-table-header .col-title { flex: 1; min-width: 0; }
+  .history-table-header .col-round { width: 28px; text-align: center; flex-shrink: 0; }
+  .history-table-header .col-outcome { width: 80px; text-align: center; flex-shrink: 0; }
+  .history-table-header .col-duration { width: 56px; text-align: right; flex-shrink: 0; }
+  .history-table-header .col-tokens { width: 56px; text-align: right; flex-shrink: 0; }
+  .history-table-header .col-cost { width: 50px; text-align: right; flex-shrink: 0; }
+
+  .history-row-main .col-chevron { width: 18px; flex-shrink: 0; text-align: center; }
+  .history-row-main .col-id { width: 36px; flex-shrink: 0; }
+  .history-row-main .col-title { flex: 1; min-width: 0; word-break: break-word; }
+  .history-row-main .col-round { width: 28px; text-align: center; flex-shrink: 0; font-size: 11px; color: #6b7280; }
+  .history-row-main .col-outcome { width: 80px; text-align: center; flex-shrink: 0; }
+  .history-row-main .col-duration { width: 56px; text-align: right; flex-shrink: 0; font-size: 11px; color: #6b7280; font-variant-numeric: tabular-nums; }
+  .history-row-main .col-tokens { width: 56px; text-align: right; flex-shrink: 0; font-size: 11px; color: #6b7280; font-variant-numeric: tabular-nums; }
+  .history-row-main .col-cost { width: 50px; text-align: right; flex-shrink: 0; font-size: 11px; color: #6b7280; font-variant-numeric: tabular-nums; }
+
+  /* ── DETAIL OVERLAY — ROUNDS + TIMELINE ──────────────── */
+  .detail-totals-bar {
+    display: flex;
+    gap: 16px;
+    padding: 12px 16px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: #374151;
+  }
+  .detail-totals-bar .total-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .detail-totals-bar .total-label {
+    color: #9ca3af;
+    font-weight: 500;
+  }
+  .detail-totals-bar .total-value {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .apendment-round-block {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .apendment-round-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: #f9fafb;
+    cursor: pointer;
+    user-select: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+  }
+  .apendment-round-header:hover { background: #f3f4f6; }
+  .apendment-round-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    font-weight: 400;
+    color: #6b7280;
+  }
+  .apendment-round-body {
+    padding: 12px 14px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 13px;
+    color: #374151;
+    line-height: 1.6;
+  }
+
+  .event-timeline {
+    margin-top: 20px;
+  }
+  .event-timeline-item {
+    display: flex;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 12px;
+    align-items: flex-start;
+  }
+  .event-timeline-item:last-child { border-bottom: none; }
+  .event-timeline-ts {
+    color: #9ca3af;
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .event-timeline-type {
+    font-weight: 600;
+    color: #374151;
+    flex-shrink: 0;
+    min-width: 140px;
+  }
+  .event-timeline-detail {
+    color: #6b7280;
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+  }
+  .event-timeline-error-block {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 4px;
+    font-family: monospace;
+    font-size: 11px;
+    color: #991b1b;
+    white-space: pre-wrap;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+
+  /* ── TOAST ───────────────────────────────────────────── */
+  .return-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #16a34a;
+    color: #ffffff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    z-index: 1100;
+    animation: toast-in 0.25s ease;
+  }
+
+  /* ── NOG PANEL — enriched states ─────────────────────── */
+  .nog-return-reason {
+    font-size: 12px;
+    color: #dc2626;
+    margin-top: 4px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .nog-verdict-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .nog-verdict-badge.pass   { background: #dcfce7; color: #166534; }
+  .nog-verdict-badge.return { background: #fef3c7; color: #92400e; }
+
   /* ── UTILITY (referenced by JS) ────────────────────────── */
   .blink { }
   .section-label { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 16px; }
@@ -1793,12 +2104,24 @@
         </div>
 
         <!-- Active state content -->
-        <div id="mission-active-content" style="display:none">
-          <div id="mission-id-badge" class="active-slice-id"></div>
+        <div id="mission-active-content" style="display:none;cursor:pointer" onclick="openActiveSliceDetail()">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div id="mission-id-badge" class="active-slice-id"></div>
+            <span id="rom-round-badge" class="round-badge r1" style="display:none">R1</span>
+          </div>
           <div id="pipeline-mission-title" class="active-slice-title"></div>
-          <div id="invocation-gap-indicator" style="display:none;color:#f59e42;font-size:0.82em;margin-top:4px">Invoking Rom — waiting for first response…</div>
+          <div id="rom-build-status" style="font-size:0.82em;margin-top:4px;color:#6b7280"></div>
           <div id="pipeline-mission-goal" class="active-slice-stage" style="opacity:0.65;font-size:0.82em;margin-top:2px"></div>
-          <div id="pipeline-mission-stage" class="active-slice-stage"></div>
+        </div>
+
+        <!-- Blocked-idle state (ROM_WAITING_FOR_NOG) -->
+        <div id="mission-blocked-content" style="display:none">
+          <div id="blocked-id-badge" class="active-slice-id"></div>
+          <div id="blocked-title" class="active-slice-title"></div>
+          <div class="blocked-idle-indicator">
+            <span class="blocked-dot"></span>
+            <span id="blocked-label">Blocked &middot; Waiting for Nog</span>
+          </div>
         </div>
 
         <!-- Idle state content -->
@@ -1807,10 +2130,19 @@
           <div class="active-slice-idle-secondary">No active build, nothing pending</div>
         </div>
 
-        <!-- Footer: builder + stop button (only during active) -->
+        <!-- Footer: builder + pause button (only during active) -->
         <div class="active-slice-footer" id="active-slice-footer" style="display:none">
           <span class="active-slice-builder">Rom &middot; Backend Engineer</span>
-          <button class="stop-build-btn" id="stop-build-btn" onclick="showStopConfirm()">&#9632; Stop Build</button>
+          <button class="pause-build-btn" disabled>
+            &#9208; Pause
+            <span class="pause-tooltip">Pause/resume coming in UI2</span>
+          </button>
+        </div>
+
+        <!-- Paused footer (CSS-ready for UI2, not reachable yet) -->
+        <div class="paused-footer" id="paused-footer" style="display:none">
+          <button class="resume-btn" disabled>&#9654; Resume</button>
+          <button class="abort-btn" disabled>&#10005; Abort</button>
         </div>
       </div>
       <div class="active-slice-aside" id="active-slice-aside"></div>
@@ -1823,10 +2155,11 @@
         <div class="postbuild-lane" id="nog-lane">
           <div class="postbuild-lane-header">
             <span class="postbuild-lane-name">Nog &mdash; Evaluator</span>
-            <span class="postbuild-badge" id="nog-badge">coming soon</span>
+            <span class="postbuild-badge" id="nog-badge" style="display:none"></span>
           </div>
-          <div class="postbuild-lane-desc" id="nog-lane-desc">anti-patterns &middot; style &middot; linting &middot; conventions</div>
+          <div class="postbuild-lane-desc" id="nog-lane-desc">Checking ACs satisfied &middot; anti-patterns &middot; style &middot; linting</div>
           <div class="postbuild-lane-active-info" id="nog-active-info" style="display:none"></div>
+          <div id="nog-idle-msg" style="color:#9ca3af;font-style:italic;font-size:13px;margin-top:6px">Waiting for Rom &middot; no slice under review</div>
         </div>
         <div class="postbuild-arrow">&darr;</div>
         <div class="postbuild-lane">
@@ -1856,6 +2189,16 @@
     <div class="panel-history">
       <div class="slice-history" style="margin-bottom:0">
         <div class="section-title">History</div>
+        <div class="history-table-header">
+          <span class="col-chevron"></span>
+          <span class="col-id">#</span>
+          <span class="col-title">Title</span>
+          <span class="col-round">R</span>
+          <span class="col-outcome">Outcome</span>
+          <span class="col-duration">Time</span>
+          <span class="col-tokens">Tokens</span>
+          <span class="col-cost">Cost</span>
+        </div>
         <div class="history-list" id="history-list"></div>
         <div id="history-pagination" class="hidden"></div>
       </div>
@@ -1900,11 +2243,11 @@
         <div class="crew-function">Builds accepted features end-to-end. Owns the watcher, relay, and server.</div>
       </div>
 
-      <div class="crew-card planned">
+      <div class="crew-card active">
         <div class="crew-number">05</div>
         <div class="crew-name">Nog</div>
         <div class="crew-role">Evaluator</div>
-        <span class="crew-badge badge-planned">planned</span>
+        <span class="crew-badge badge-active">active</span>
         <div class="crew-function">Evaluates Rom's output against acceptance criteria before it ships.</div>
       </div>
 
@@ -2064,40 +2407,67 @@
   // Staged items count — updated by fetchCombinedQueue()
   let stagedItemCount = 0;
 
-  // ── Nog active state (slice 105) ──────────────────────────────────────────
+  // ── Nog active state ──────────────────────────────────────────────────────
   let nogElapsedInterval = null;
+  // Cache the latest register events for use across functions
+  let cachedRegisterEvents = [];
 
-  function updateNogLane(nogActive) {
+  function updateNogLane(nogActive, events) {
     const panel     = document.getElementById('postbuild-panel');
     const lane      = document.getElementById('nog-lane');
     const badge     = document.getElementById('nog-badge');
     const laneDesc  = document.getElementById('nog-lane-desc');
     const activeInfo = document.getElementById('nog-active-info');
+    const idleMsg    = document.getElementById('nog-idle-msg');
     if (!panel || !lane || !badge || !laneDesc || !activeInfo) return;
 
+    // Find latest NOG_RETURN event for context
+    const lastNogReturn = (events || []).filter(e => e.event === 'NOG_RETURN').pop();
+
     if (!nogActive || !nogActive.sliceId) {
-      // Idle — mocked state
+      // Check if we just had a NOG_RETURN (just-fired state)
+      const recentReturn = lastNogReturn && (Date.now() - new Date(lastNogReturn.ts).getTime()) < 120000;
+
       clearInterval(nogElapsedInterval);
       nogElapsedInterval = null;
-      panel.classList.remove('nog-active');
-      panel.style.opacity = '0.5';
-      panel.style.border = '2px dashed #d1d5db';
+      panel.style.opacity = '1';
+      panel.style.border = '1px solid #e5e7eb';
       lane.classList.remove('nog-lane-active');
-      badge.style.display = '';
-      badge.textContent = 'coming soon';
-      laneDesc.style.display = '';
+      badge.style.display = 'none';
       activeInfo.style.display = 'none';
       activeInfo.innerHTML = '';
+
+      if (recentReturn && lastNogReturn) {
+        // NOG_RETURN just-fired state
+        if (idleMsg) {
+          const round = lastNogReturn.round ?? 1;
+          const reason = lastNogReturn.reason || 'No reason provided';
+          idleMsg.style.display = '';
+          idleMsg.innerHTML = `<span class="nog-verdict-badge return">NOG_RETURN</span> ${escHtml(reason)}<br><span style="color:#9ca3af;font-size:12px">Waiting for Rom to complete round ${round + 1}\u2026</span>`;
+          idleMsg.style.fontStyle = 'normal';
+          idleMsg.style.color = '#374151';
+        }
+        laneDesc.style.display = 'none';
+      } else {
+        // Normal idle
+        if (idleMsg) {
+          idleMsg.style.display = '';
+          idleMsg.textContent = 'Waiting for Rom \u00b7 no slice under review';
+          idleMsg.style.fontStyle = 'italic';
+          idleMsg.style.color = '#9ca3af';
+        }
+        laneDesc.style.display = '';
+      }
       return;
     }
 
-    // Active — unmock Nog lane
-    panel.classList.add('nog-active');
+    // Active — Nog is reviewing
     panel.style.opacity = '1';
-    panel.style.border = '2px solid #e5e7eb';
+    panel.style.border = '1px solid #e5e7eb';
     lane.classList.add('nog-lane-active');
     badge.style.display = 'none';
     laneDesc.style.display = 'none';
+    if (idleMsg) idleMsg.style.display = 'none';
     activeInfo.style.display = '';
 
     const invokedAt = nogActive.invokedAt ? new Date(nogActive.invokedAt) : null;
@@ -2113,36 +2483,54 @@
       return m > 0 ? `${m}m ${String(sec).padStart(2, '0')}s` : `${sec}s`;
     }
 
-    function renderNogActiveInfo() {
-      activeInfo.innerHTML = `
-        <div class="postbuild-lane-slice-title">${escHtml(title)}</div>
-        <div class="postbuild-lane-round">Round ${round} of 5</div>
-        <div class="postbuild-lane-timer-row">
-          <span class="postbuild-lane-identity">Nog &middot; Evaluator</span>
-          <span class="postbuild-lane-elapsed">
-            <span class="postbuild-lane-elapsed-val" id="nog-elapsed-val">${formatNogElapsed()}</span>
-            <span class="postbuild-lane-elapsed-label">elapsed</span>
-          </span>
-        </div>`;
+    // Round badge color class
+    const roundClass = round === 1 ? 'r1' : round >= 5 ? 'r5' : 'r2-4';
+
+    // Previous NOG_RETURN reason for round >= 2
+    const prevReturnForSlice = (events || [])
+      .filter(e => e.event === 'NOG_RETURN' && String(e.id) === String(nogActive.sliceId))
+      .pop();
+
+    let prevReasonHtml = '';
+    if (round >= 2 && prevReturnForSlice) {
+      prevReasonHtml = `<div class="nog-return-reason">${escHtml(prevReturnForSlice.reason || '')}</div>`;
     }
 
-    renderNogActiveInfo();
+    activeInfo.innerHTML = `
+      <div class="postbuild-lane-slice-title">${escHtml(title)}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+        <span class="round-badge ${roundClass}">R${round}</span>
+        <span class="postbuild-lane-round">Round ${round} of 5</span>
+      </div>
+      ${prevReasonHtml}
+      <div class="postbuild-lane-timer-row">
+        <span class="postbuild-lane-identity">Checking ACs satisfied &middot; anti-patterns &middot; style &middot; linting\u2026</span>
+        <span class="postbuild-lane-elapsed">
+          <span class="postbuild-lane-elapsed-val" id="nog-elapsed-val">${formatNogElapsed()}</span>
+          <span class="postbuild-lane-elapsed-label">elapsed</span>
+        </span>
+      </div>`;
 
     // Start elapsed tick if not already running
-    if (!nogElapsedInterval) {
-      nogElapsedInterval = setInterval(() => {
-        const el = document.getElementById('nog-elapsed-val');
-        if (el) el.textContent = formatNogElapsed();
-      }, 1000);
-    }
+    clearInterval(nogElapsedInterval);
+    nogElapsedInterval = setInterval(() => {
+      const el = document.getElementById('nog-elapsed-val');
+      if (el) el.textContent = formatNogElapsed();
+    }, 1000);
   }
 
   function updatePipelineUI(data) {
-    const { heartbeat, queue, slices, recent } = data;
+    const { heartbeat, queue, slices, recent, events } = data;
+    cachedRegisterEvents = events || [];
 
     let activeStageKey = null;
     let mission = null;
     let isBuilding = false;
+    let isBlockedByNog = false;
+
+    // Check if a slice is waiting for Nog (ROM_WAITING_FOR_NOG)
+    const romWaitingEvents = cachedRegisterEvents.filter(e => e.event === 'ROM_WAITING_FOR_NOG');
+    const latestWaiting = romWaitingEvents.length > 0 ? romWaitingEvents[romWaitingEvents.length - 1] : null;
 
     if (heartbeat.status === 'processing' || queue.active > 0) {
       activeStageKey = 'DEVELOPMENT';
@@ -2150,6 +2538,19 @@
       const id = heartbeat.current_slice;
       mission = (id ? slices.find(c => c.id === String(id)) : null)
              ?? slices.find(c => c.state === 'IN_PROGRESS');
+
+      // Check if the active slice is actually waiting for Nog
+      if (mission && latestWaiting && String(latestWaiting.id) === String(mission.id)) {
+        // Check no subsequent COMMISSIONED or IN_PROGRESS for this slice
+        const afterWaiting = cachedRegisterEvents.filter(e =>
+          String(e.id) === String(mission.id) &&
+          (e.event === 'COMMISSIONED' || e.event === 'IN_PROGRESS') &&
+          e.ts > latestWaiting.ts
+        );
+        if (afterWaiting.length === 0) {
+          isBlockedByNog = true;
+        }
+      }
     } else if (queue.waiting > 0) {
       activeStageKey = 'ACCEPTED';
       mission = slices.find(c => c.state === 'PENDING');
@@ -2161,31 +2562,79 @@
       }
     }
 
-    const badgeEl     = document.getElementById('mission-id-badge');
-    const textEl      = document.getElementById('mission-active-content');
-    const idleEl      = document.getElementById('mission-idle-text');
-    const elapsedEl   = document.getElementById('mission-elapsed');
-    const titleEl     = document.getElementById('pipeline-mission-title');
-    const timerBlock  = document.getElementById('active-timer-block');
-    const progressBar = document.getElementById('active-progress-bar');
+    const badgeEl      = document.getElementById('mission-id-badge');
+    const textEl       = document.getElementById('mission-active-content');
+    const blockedEl    = document.getElementById('mission-blocked-content');
+    const idleEl       = document.getElementById('mission-idle-text');
+    const elapsedEl    = document.getElementById('mission-elapsed');
+    const titleEl      = document.getElementById('pipeline-mission-title');
+    const timerBlock   = document.getElementById('active-timer-block');
+    const progressBar  = document.getElementById('active-progress-bar');
+    const footerEl     = document.getElementById('active-slice-footer');
 
-    if (activeStageKey && mission) {
+    // Derive round from register events for this slice
+    function getRound(sliceId) {
+      const commEvents = cachedRegisterEvents.filter(e =>
+        String(e.id) === String(sliceId) && e.event === 'COMMISSIONED'
+      );
+      // Use the round field from the latest COMMISSIONED event if available
+      const latest = commEvents.length > 0 ? commEvents[commEvents.length - 1] : null;
+      if (latest && latest.round) return parseInt(latest.round, 10);
+      return commEvents.length || 1;
+    }
+
+    if (isBlockedByNog && mission) {
+      // Blocked-idle state: Rom waiting for Nog
+      textEl.style.display = 'none';
+      blockedEl.style.display = '';
+      idleEl.style.display = 'none';
+      progressBar.style.display = 'none';
+      timerBlock.style.display = 'none';
+      footerEl.style.display = 'none';
+      document.getElementById('active-slice-aside').innerHTML = '';
+      sliceStartTime = null;
+
+      const round = getRound(mission.id);
+      document.getElementById('blocked-id-badge').textContent = `Slice ${escHtml(mission.id)}`;
+      document.getElementById('blocked-title').textContent = mission.title || '\u2014';
+      document.getElementById('blocked-label').textContent = `Blocked \u00b7 Waiting for Nog \u2014 #${escHtml(mission.id)} in review round R${round}`;
+
+    } else if (activeStageKey && mission) {
+      blockedEl.style.display = 'none';
       badgeEl.textContent  = `Slice ${escHtml(mission.id)}`;
       badgeEl.style.display = '';
       titleEl.textContent  = mission.title || '\u2014';
       const goalEl = document.getElementById('pipeline-mission-goal');
       if (goalEl) goalEl.textContent = mission.goal || '';
-      const stageEl = document.getElementById('pipeline-mission-stage');
-      if (stageEl) stageEl.textContent = activeStageKey;
       textEl.style.display = '';
       idleEl.style.display = 'none';
       document.getElementById('active-slice-aside').innerHTML = '';
       progressBar.style.display = (heartbeat.status === 'processing') ? '' : 'none';
 
-      // Invocation gap indicator: visible only during IN_PROGRESS with no first output yet
-      const gapEl = document.getElementById('invocation-gap-indicator');
-      if (gapEl) {
-        gapEl.style.display = (heartbeat.status === 'processing' && !heartbeat.last_activity_ts) ? '' : 'none';
+      // Round badge
+      const round = getRound(mission.id);
+      const roundBadge = document.getElementById('rom-round-badge');
+      if (roundBadge) {
+        roundBadge.textContent = `R${round}`;
+        roundBadge.className = `round-badge ${round === 1 ? 'r1' : round >= 5 ? 'r5' : 'r2-4'}`;
+        roundBadge.style.display = '';
+      }
+
+      // Build status copy — fix the "Invoking Rom" bug
+      const statusEl = document.getElementById('rom-build-status');
+      if (statusEl) {
+        if (heartbeat.status === 'processing') {
+          const elapsedSecs = heartbeat.slice_elapsed_seconds ?? 0;
+          if (elapsedSecs < 5 && !heartbeat.firstOutputAt) {
+            statusEl.textContent = 'Invoking Rom \u2014 waiting for first response\u2026';
+            statusEl.style.color = '#f59e42';
+          } else {
+            statusEl.textContent = `Rom building round ${round} \u00b7 ${fmtElapsed(elapsedSecs)}`;
+            statusEl.style.color = '#6b7280';
+          }
+        } else {
+          statusEl.textContent = '';
+        }
       }
 
       if (heartbeat.slice_elapsed_seconds != null) {
@@ -2199,21 +2648,26 @@
       } else {
         timerBlock.style.display = 'none';
       }
+
+      // Show footer with pause button
+      footerEl.style.display = '';
+      currentMission = mission;
+
     } else {
+      blockedEl.style.display = 'none';
       badgeEl.style.display   = 'none';
       textEl.style.display    = 'none';
       idleEl.style.display    = '';
-      elapsedEl.style.display = 'none';
       progressBar.style.display = 'none';
-      const gapElIdle = document.getElementById('invocation-gap-indicator');
-      if (gapElIdle) gapElIdle.style.display = 'none';
+      timerBlock.style.display = 'none';
+      footerEl.style.display  = 'none';
       sliceStartTime = null;
       lastSliceId    = null;
+      currentMission = null;
 
       const primaryEl   = idleEl.querySelector('.active-slice-idle-primary');
       const secondaryEl = idleEl.querySelector('.active-slice-idle-secondary');
 
-      // Check if last slice was an error
       const lastError = recent && recent.length > 0 && (recent[0].outcome === 'ERROR');
 
       if (lastError) {
@@ -2225,13 +2679,11 @@
         secondaryEl.style.color = '#fca5a5';
         renderActiveBriefError(last.id);
       } else if (stagedItemCount > 0) {
-        // Idle A — staged items awaiting acceptance
         primaryEl.textContent = `${stagedItemCount} slice${stagedItemCount !== 1 ? 's' : ''} awaiting your approval`;
         primaryEl.className = 'active-slice-idle-primary warning';
         secondaryEl.textContent = 'Accept below to start the next build \u2192';
         document.getElementById('active-slice-aside').innerHTML = '';
       } else if (recent && recent.length > 0) {
-        // Idle B — last completed, nothing staged
         const last = recent[0];
         primaryEl.textContent = `Last: #${last.id} \u2014 ${last.title || 'Untitled'}`;
         primaryEl.className = 'active-slice-idle-primary';
@@ -2247,7 +2699,6 @@
         }
         document.getElementById('active-slice-aside').innerHTML = '';
       } else {
-        // Idle C — no history at all
         primaryEl.textContent = 'All clear';
         primaryEl.className = 'active-slice-idle-primary';
         secondaryEl.textContent = 'No active build, nothing pending';
@@ -2260,8 +2711,6 @@
       }
 
       idleEl.style.display = '';
-
-      // Pipeline stages hidden during idle — they're inside mission-active-content which is display:none
     }
   }
 
@@ -2304,11 +2753,11 @@
       hbEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     }
 
-    // History panel — row-based with chevron expand
-    renderHistoryPanel(data.recent ?? []);
+    // History panel — row-based with chevron expand + legacy compat
+    renderHistoryPanel(data.recent ?? [], data.events ?? []);
 
     // Nog active state
-    updateNogLane(data.nogActive ?? null);
+    updateNogLane(data.nogActive ?? null, data.events ?? []);
 
     // API retry toasts
     processApiRetries(data.apiRetries ?? []);
@@ -2389,28 +2838,183 @@
   }
 
   // ── History panel ─────────────────────────────────────────────────────────
-  // historyExpandedSet declared near toggleHistoryExpand
   let cachedHistoryItems = [];
-  let cachedHistoryAllRows = [];   // full filtered list, pre-pagination
-  let historyPage = 1;             // 1-indexed current page
+  let cachedHistoryAllRows = [];
+  let historyPage = 1;
   const HISTORY_PAGE_SIZE = 10;
 
-  function renderHistoryPanel(recent) {
-    // Show only slices that have reached a terminal state: accepted by Nog (merged) or ERROR.
-    // DONE-but-still-in-Nog-review stays in the Nog lane, not history.
-    cachedHistoryAllRows = (recent || [])
+  // Determine terminal outcome for a slice from register events
+  function classifyTerminalOutcome(sliceId, events) {
+    const TERMINAL_EVENTS = ['MERGED', 'MAX_ROUNDS_EXHAUSTED', 'ESCALATED_TO_OBRIEN', 'ERROR'];
+    const sliceEvents = events.filter(e => String(e.id) === String(sliceId));
+
+    // Find the last terminal event
+    for (let i = sliceEvents.length - 1; i >= 0; i--) {
+      const ev = sliceEvents[i];
+      if (TERMINAL_EVENTS.includes(ev.event)) {
+        // For MERGED, check if it's a final merge (no further NOG events after it)
+        if (ev.event === 'MERGED') {
+          const laterNog = sliceEvents.slice(i + 1).find(e =>
+            e.event === 'NOG_RETURN' || e.event === 'NOG_PASS'
+          );
+          if (!laterNog) return { outcome: 'MERGED', ts: ev.ts };
+        } else {
+          return { outcome: ev.event, ts: ev.ts };
+        }
+      }
+    }
+    return null;
+  }
+
+  // Get the round number at terminal event
+  function getTerminalRound(sliceId, events) {
+    const sliceEvents = events.filter(e => String(e.id) === String(sliceId));
+    // Look for the highest round field
+    let maxRound = 0;
+    for (const ev of sliceEvents) {
+      if (ev.round) maxRound = Math.max(maxRound, parseInt(ev.round, 10));
+    }
+    return maxRound || null;
+  }
+
+  // Fold legacy pre-D3 apendment IDs: find child IDs that point to a parent
+  function foldLegacyApendments(recent, events) {
+    // Build map of root_commission_id -> parent slice ID
+    const childToParent = {};
+    const parentChildren = {};
+    for (const ev of events) {
+      if (ev.root_commission_id && String(ev.id) !== String(ev.root_commission_id)) {
+        childToParent[String(ev.id)] = String(ev.root_commission_id);
+        if (!parentChildren[String(ev.root_commission_id)]) {
+          parentChildren[String(ev.root_commission_id)] = [];
+        }
+        if (!parentChildren[String(ev.root_commission_id)].includes(String(ev.id))) {
+          parentChildren[String(ev.root_commission_id)].push(String(ev.id));
+        }
+      }
+    }
+
+    // Also check recent items for type: "apendment" or root_commission_id
+    for (const r of recent) {
+      if (r.references && r.references !== 'null' && String(r.id) !== String(r.references)) {
+        childToParent[String(r.id)] = String(r.references);
+        if (!parentChildren[String(r.references)]) parentChildren[String(r.references)] = [];
+        if (!parentChildren[String(r.references)].includes(String(r.id))) {
+          parentChildren[String(r.references)].push(String(r.id));
+        }
+      }
+    }
+
+    // Filter out child IDs — they'll be folded into parent rows
+    const childIds = new Set(Object.keys(childToParent));
+    const filtered = recent.filter(r => !childIds.has(String(r.id)));
+
+    // For each parent, sum telemetry from children
+    for (const item of filtered) {
+      const children = parentChildren[String(item.id)] || [];
+      if (children.length === 0) continue;
+      let totalDur = item.durationMs ?? 0;
+      let totalTokIn = item.tokensIn ?? 0;
+      let totalTokOut = item.tokensOut ?? 0;
+      let totalCost = item.costUsd ?? 0;
+      for (const childId of children) {
+        const child = recent.find(r => String(r.id) === childId);
+        if (child) {
+          totalDur += child.durationMs ?? 0;
+          totalTokIn += child.tokensIn ?? 0;
+          totalTokOut += child.tokensOut ?? 0;
+          totalCost += child.costUsd ?? 0;
+        }
+      }
+      item._synthDurationMs = totalDur;
+      item._synthTokensIn = totalTokIn;
+      item._synthTokensOut = totalTokOut;
+      item._synthCostUsd = totalCost;
+      item._childIds = children;
+    }
+
+    return filtered;
+  }
+
+  function renderHistoryPanel(recent, events) {
+    // Fold legacy apendments: one row per slice
+    const folded = foldLegacyApendments(recent, events);
+
+    // Classify terminal outcomes and filter to terminal slices only
+    cachedHistoryAllRows = folded
       .filter(c => !/^merge:/i.test(c.title ?? ''))
-      .filter(c => {
-        const outcome = c.outcome ?? 'DONE';
-        return outcome === 'ERROR' || c.reviewStatus === 'accepted';
+      .map(c => {
+        const terminal = classifyTerminalOutcome(c.id, events);
+        if (terminal) {
+          c._terminalOutcome = terminal.outcome;
+          c._terminalTs = terminal.ts;
+        } else {
+          // Fallback to existing logic
+          const outcome = c.outcome ?? 'DONE';
+          if (outcome === 'ERROR') {
+            c._terminalOutcome = 'ERROR';
+            c._terminalTs = c.completedAt;
+          } else if (c.reviewStatus === 'accepted') {
+            c._terminalOutcome = 'MERGED';
+            c._terminalTs = c.completedAt;
+          } else {
+            return null; // Not terminal, skip
+          }
+        }
+        c._terminalRound = getTerminalRound(c.id, events);
+        return c;
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        const tsA = a._terminalTs ? new Date(a._terminalTs).getTime() : 0;
+        const tsB = b._terminalTs ? new Date(b._terminalTs).getTime() : 0;
+        return tsB - tsA;
       });
 
-    // Clamp page to valid range
     const totalPages = Math.max(1, Math.ceil(cachedHistoryAllRows.length / HISTORY_PAGE_SIZE));
     if (historyPage > totalPages) historyPage = totalPages;
     if (historyPage < 1) historyPage = 1;
 
     renderHistoryPage();
+  }
+
+  function fmtDuration(ms) {
+    if (ms == null || ms <= 0) return '\u2014';
+    const s = Math.round(ms / 1000);
+    if (s < 60) return `${s}s`;
+    return `${Math.floor(s/60)}m`;
+  }
+
+  function fmtTokens(tokIn, tokOut) {
+    const total = (tokIn ?? 0) + (tokOut ?? 0);
+    if (total <= 0) return '\u2014';
+    if (total >= 1000000) return (total / 1000000).toFixed(1) + 'M';
+    if (total >= 1000) return (total / 1000).toFixed(0) + 'k';
+    return String(total);
+  }
+
+  function fmtCost(usd) {
+    if (usd == null || usd <= 0) return '\u2014';
+    return '$' + usd.toFixed(2);
+  }
+
+  function outcomeHtml(outcome) {
+    switch (outcome) {
+      case 'MERGED':
+        return '<span class="outcome-pill outcome-merged">merged</span>';
+      case 'MAX_ROUNDS_EXHAUSTED':
+        return '<span class="outcome-pill outcome-max-rounds">max rounds</span>';
+      case 'ESCALATED_TO_OBRIEN':
+        return '<span class="outcome-pill outcome-escalated">escalated</span>';
+      case 'ERROR':
+        return '<span class="outcome-pill outcome-error">error</span>';
+      default:
+        return `<span class="outcome-pill outcome-merged">${escHtml(outcome)}</span>`;
+    }
+  }
+
+  function isFailureOutcome(outcome) {
+    return outcome === 'MAX_ROUNDS_EXHAUSTED' || outcome === 'ESCALATED_TO_OBRIEN' || outcome === 'ERROR';
   }
 
   function renderHistoryPage() {
@@ -2434,51 +3038,56 @@
 
     const rowsHtml = rows.map(c => {
       const eid = escHtml(c.id);
-      const sprint = getSprintForId(c.id);
-      const sprintLabel = sprint ? `Sprint ${sprint}` : '';
       const isExpanded = historyExpandedSet.has(c.id);
-      const chevron = isExpanded ? '▼' : '▶';
+      const chevron = isExpanded ? '\u25bc' : '\u25b6';
       const desc = c.goal || c.title || '';
-      // First sentence of goal/description
       const firstSentence = desc.split(/\.\s/)[0] + (desc.includes('.') ? '.' : '');
-      const isError = (c.outcome ?? 'DONE') === 'ERROR';
-      const rowStyle = isError ? 'border-left:3px solid #dc2626;' : '';
-      const statusHtml = isError
-        ? `<span class="tag tag-error" style="font-size:0.72em">error</span>`
-        : `<span class="history-row-status">merged</span>`;
-      const errorReasonHtml = isError && c.reason
-        ? `<div style="color:#dc2626;font-size:0.82em;margin-top:2px">${escHtml(humanReason(c.reason))}</div>`
-        : '';
-      const expandDesc = isError && c.reason
-        ? humanReason(c.reason)
-        : firstSentence;
+      const outcome = c._terminalOutcome || 'MERGED';
+      const isFail = isFailureOutcome(outcome);
 
-      return `<div class="history-row" data-history-id="${eid}" style="${rowStyle}">
+      // Use synthesized totals if available (legacy compat), otherwise direct fields
+      const durMs = c._synthDurationMs ?? c.durationMs;
+      const tokIn = c._synthTokensIn ?? c.tokensIn;
+      const tokOut = c._synthTokensOut ?? c.tokensOut;
+      const costUsd = c._synthCostUsd ?? c.costUsd;
+
+      const roundDisplay = c._terminalRound ? `${c._terminalRound}` : '\u2014';
+
+      const expandDesc = isFail && c.reason ? humanReason(c.reason) : firstSentence;
+
+      const returnBtn = isFail
+        ? `<button class="return-to-stage-btn" onclick="returnToStage('${eid}', this)">\u21a9 Return to stage</button>`
+        : '';
+
+      return `<div class="history-row" data-history-id="${eid}">
         <div class="history-row-main">
-          <span class="history-chevron" id="history-chevron-${eid}" onclick="toggleHistoryExpand('${eid}')">${chevron}</span>
-          <span class="sprint-badge">${escHtml(sprintLabel)}</span>
-          <span class="history-row-id">#${eid}</span>
-          <span class="history-row-title">${escHtml(c.title || '')}</span>
-          ${statusHtml}
-        </div>${errorReasonHtml}
+          <span class="col-chevron history-chevron" id="history-chevron-${eid}" onclick="toggleHistoryExpand('${eid}')">${chevron}</span>
+          <span class="col-id history-row-id">#${eid}</span>
+          <span class="col-title history-row-title">${escHtml(c.title || '')}</span>
+          <span class="col-round">${escHtml(roundDisplay)}</span>
+          <span class="col-outcome">${outcomeHtml(outcome)}</span>
+          <span class="col-duration">${fmtDuration(durMs)}</span>
+          <span class="col-tokens">${fmtTokens(tokIn, tokOut)}</span>
+          <span class="col-cost">${fmtCost(costUsd)}</span>
+        </div>
         <div class="history-expand ${isExpanded ? 'open' : ''}" id="history-expand-${eid}">
-          <span class="history-expand-desc" ${isError ? 'style="color:#dc2626"' : ''}>${escHtml(expandDesc)}</span>
-          <button class="history-details-btn" onclick="openHistoryDetail('${eid}')">Details ›</button>
+          <span class="history-expand-desc" ${isFail ? 'style="color:#dc2626"' : ''}>${escHtml(expandDesc)}</span>
+          <button class="history-details-btn" onclick="openHistoryDetail('${eid}')">Details \u203a</button>
+          ${returnBtn}
         </div>
       </div>`;
     }).join('');
 
     listEl.innerHTML = rowsHtml;
 
-    // Pagination footer
     if (totalPages > 1) {
       const newerDisabled = historyPage <= 1;
       const olderDisabled = historyPage >= totalPages;
       pageEl.classList.remove('hidden');
       pageEl.innerHTML = `
-        <button class="history-pg-btn" onclick="historyGoPage(${historyPage - 1})" ${newerDisabled ? 'disabled' : ''}>&#8592; newer</button>
-        <span class="history-pg-info">page ${historyPage} of ${totalPages} &middot; ${total} entries</span>
-        <button class="history-pg-btn" onclick="historyGoPage(${historyPage + 1})" ${olderDisabled ? 'disabled' : ''}>older &#8594;</button>
+        <button class="history-pg-btn" onclick="historyGoPage(${historyPage - 1})" ${newerDisabled ? 'disabled' : ''}>\u2190 newer</button>
+        <span class="history-pg-info">page ${historyPage} of ${totalPages} \u00b7 ${total} entries</span>
+        <button class="history-pg-btn" onclick="historyGoPage(${historyPage + 1})" ${olderDisabled ? 'disabled' : ''}>older \u2192</button>
       `;
     } else {
       pageEl.classList.add('hidden');
@@ -2500,127 +3109,243 @@
     if (!expand) return;
     const isOpen = expand.classList.contains('open');
     expand.classList.toggle('open', !isOpen);
-    if (chevron) chevron.textContent = isOpen ? '▼' : '▶';
+    if (chevron) chevron.textContent = isOpen ? '\u25bc' : '\u25b6';
     if (isOpen) historyExpandedSet.delete(id);
     else historyExpandedSet.add(id);
   }
 
-  // ── History Slicing Detail overlay ───────────────────────────────────────
+  // ── Return to stage ──────────────────────────────────────────────────────
+  async function returnToStage(id, btnEl) {
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Returning\u2026'; }
+    try {
+      const res = await fetch(`/api/bridge/return-to-stage/${id}`, { method: 'POST' });
+      if (res.ok) {
+        // Show success toast
+        const toast = document.createElement('div');
+        toast.className = 'return-toast';
+        toast.textContent = `Slice #${id} returned to stage`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+        fetchBridge();
+        fetchCombinedQueue();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        const errMsg = data.error || 'Failed to return to stage';
+        if (btnEl) {
+          btnEl.textContent = errMsg;
+          btnEl.style.color = '#dc2626';
+          btnEl.style.borderColor = '#dc2626';
+          setTimeout(() => {
+            btnEl.textContent = '\u21a9 Return to stage';
+            btnEl.style.color = '';
+            btnEl.style.borderColor = '';
+            btnEl.disabled = false;
+          }, 3000);
+        }
+      }
+    } catch (err) {
+      if (btnEl) {
+        btnEl.textContent = 'Network error';
+        btnEl.disabled = false;
+        setTimeout(() => { btnEl.textContent = '\u21a9 Return to stage'; }, 2000);
+      }
+    }
+  }
+
+  // ── History Detail overlay ───────────────────────────────────────────────
   let historyDetailOpen = false;
 
   function openHistoryDetail(id) {
-    const item = cachedHistoryItems.find(c => c.id === id);
+    const item = cachedHistoryItems.find(c => c.id === id) ||
+                 cachedHistoryAllRows.find(c => c.id === id);
     if (!item) return;
-
-    const sprint = getSprintForId(id);
-    const dur = item.durationMs != null
-      ? (() => { const s = Math.round(item.durationMs / 1000); return s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`; })()
-      : '\u2014';
-    const totalTokens = (item.tokensIn ?? 0) + (item.tokensOut ?? 0);
-    const tokStr = totalTokens > 0 ? (totalTokens >= 1000 ? (totalTokens / 1000).toFixed(1) + 'k' : String(totalTokens)) : '\u2014';
-    const costStr = item.costUsd != null && item.costUsd > 0 ? '$' + item.costUsd.toFixed(3) : '\u2014';
 
     document.getElementById('history-detail-id').textContent = `#${id}`;
     document.getElementById('history-detail-title').textContent = item.title || 'Untitled';
 
-    const isError = (item.outcome ?? 'DONE') === 'ERROR';
+    const outcome = item._terminalOutcome || 'MERGED';
 
-    // Context bar
+    // Consolidated totals
+    const durMs = item._synthDurationMs ?? item.durationMs;
+    const tokIn = item._synthTokensIn ?? item.tokensIn;
+    const tokOut = item._synthTokensOut ?? item.tokensOut;
+    const costUsd = item._synthCostUsd ?? item.costUsd;
+    const rounds = item._terminalRound || 1;
+
     const ctxItems = [
-      { label: 'Sprint', value: sprint ? `Sprint ${sprint}` : '\u2014' },
-      { label: 'Builder', value: 'O\u2019Brien' },
-      { label: 'Outcome', value: isError ? 'Error' : 'Merged' },
-      { label: 'Duration', value: dur },
-      { label: 'Tokens', value: tokStr },
-      { label: 'Cost', value: costStr },
+      { label: 'Outcome', value: outcome === 'MERGED' ? 'Merged' : outcome === 'ERROR' ? 'Error' : outcome === 'MAX_ROUNDS_EXHAUSTED' ? 'Max rounds' : 'Escalated' },
+      { label: 'Duration', value: fmtDuration(durMs) },
+      { label: 'Tokens', value: fmtTokens(tokIn, tokOut) },
+      { label: 'Cost', value: fmtCost(costUsd) },
+      { label: 'Rounds', value: String(rounds) },
     ];
     document.getElementById('history-detail-context').innerHTML = ctxItems.map((ci, i) =>
       (i > 0 ? '<span class="history-ctx-sep">\u00b7</span>' : '') +
       `<span class="history-ctx-item"><span class="history-ctx-label">${escHtml(ci.label)}:</span> <span class="history-ctx-value">${escHtml(ci.value)}</span></span>`
     ).join('');
 
-    // Body — fetch full slice content if available, otherwise render what we have
     renderHistoryDetailBody(item);
 
     document.getElementById('history-detail-overlay').style.display = '';
     historyDetailOpen = true;
   }
 
-  function parseNogReviews(body) {
-    const sections = [];
-    const re = /^## Nog Review — Round (\d+)([\s\S]*?)(?=^## Nog Review — Round |\s*$)/gm;
-    let m;
-    while ((m = re.exec(body)) !== null) {
-      sections.push({ round: m[1], content: m[2].trim() });
-    }
-    return sections;
-  }
-
   async function renderHistoryDetailBody(item) {
     const container = document.getElementById('history-detail-body');
+    container.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:24px">Loading\u2026</div>';
 
-    // Try to fetch full slice content from the API
-    let body = null;
+    const allIds = [String(item.id), ...(item._childIds || [])];
+
+    // Fetch slice frontmatter (for rounds[] array)
+    let rounds = [];
     try {
-      const res = await fetch(`/api/queue/${item.id}/content`);
-      if (res.ok) {
-        const data = await res.json();
-        body = data.body;
+      const fmRes = await fetch(`/api/slice/${item.id}/frontmatter`);
+      if (fmRes.ok) {
+        const fmData = await fmRes.json();
+        rounds = fmData.rounds || [];
       }
     } catch (_) {}
 
+    // Get register events for this slice (and children)
+    const sliceEvents = cachedRegisterEvents.filter(e => allIds.includes(String(e.id)));
+
     let html = '';
-    const detailIsError = (item.outcome ?? 'DONE') === 'ERROR';
 
-    // ── Error detail section (for ERROR slices) ──
-    if (detailIsError) {
-      html += '<div class="slice-rendered-section"><div class="slice-rendered-section-label" style="color:#dc2626">Error Details</div><div class="slice-rendered-section-content">';
-      html += `<p style="color:#dc2626;font-weight:600">${escHtml(humanReason(item.reason || item.error_reason || ''))}</p>`;
+    // ── Consolidated totals header ──
+    const durMs = item._synthDurationMs ?? item.durationMs;
+    const tokIn = item._synthTokensIn ?? item.tokensIn;
+    const tokOut = item._synthTokensOut ?? item.tokensOut;
+    const costUsd = item._synthCostUsd ?? item.costUsd;
+    const totalRounds = item._terminalRound || rounds.length || 1;
 
-      // Fetch error detail from API
-      let errData = null;
-      try {
-        const errRes = await fetch(`/api/bridge/errors/${item.id}`);
-        if (errRes.ok) errData = await errRes.json();
-      } catch (_) {}
+    html += `<div class="detail-totals-bar">
+      <span class="total-item"><span class="total-label">Duration</span> <span class="total-value">${fmtDuration(durMs)}</span></span>
+      <span class="total-item"><span class="total-label">Tokens</span> <span class="total-value">${fmtTokens(tokIn, tokOut)}</span></span>
+      <span class="total-item"><span class="total-label">Cost</span> <span class="total-value">${fmtCost(costUsd)}</span></span>
+      <span class="total-item"><span class="total-label">Rounds</span> <span class="total-value">${totalRounds}</span></span>
+    </div>`;
 
-      if (errData) {
-        const stderr = errData.last_stderr || errData.stderr || '';
-        if (stderr) {
-          html += `<pre style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:10px;border-radius:6px;font-size:12px;max-height:200px;overflow-y:auto;white-space:pre-wrap">${escHtml(stderr.slice(-1000))}</pre>`;
-        }
-        const errTs = errData.ts || errData.timestamp || '';
-        if (errTs) {
-          html += `<p style="color:#9ca3af;font-size:0.82em">Failed at ${escHtml(new Date(errTs).toLocaleString())}</p>`;
+    // ── Per-round apendment breakdown ──
+    html += '<div class="slice-rendered-section"><div class="slice-rendered-section-label">Per-round apendment breakdown</div>';
+
+    if (rounds.length > 0) {
+      // Post-D3 slice: use rounds[] from frontmatter
+      for (const r of rounds) {
+        const roundNum = r.round ?? '?';
+        const verdict = r.nog_verdict || '\u2014';
+        const verdictClass = verdict === 'NOG_PASS' ? 'pass' : 'return';
+        html += `<div class="apendment-round-block">
+          <div class="apendment-round-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+            <span>Apendment round ${escHtml(String(roundNum))}</span>
+            <span class="apendment-round-meta">
+              <span>${fmtDuration(r.durationMs)}</span>
+              <span>${fmtTokens(r.tokensIn, r.tokensOut)}</span>
+              <span>${fmtCost(r.costUsd)}</span>
+              <span class="nog-verdict-badge ${verdictClass}">${escHtml(verdict)}</span>
+            </span>
+          </div>
+          <div class="apendment-round-body">
+            ${r.nog_reason ? `<p>${escHtml(r.nog_reason)}</p>` : '<p style="color:#9ca3af">No reason text recorded.</p>'}
+          </div>
+        </div>`;
+      }
+    } else if (allIds.length > 1) {
+      // Pre-D3 legacy: synthesize from children
+      let roundNum = 1;
+      for (const childId of allIds) {
+        const childEvents = cachedRegisterEvents.filter(e => String(e.id) === childId);
+        const doneEv = childEvents.find(e => e.event === 'DONE');
+        const nogEv = childEvents.filter(e => e.event === 'NOG_RETURN' || e.event === 'NOG_PASS').pop();
+        html += `<div class="apendment-round-block">
+          <div class="apendment-round-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+            <span>Apendment round ${roundNum} (ID ${escHtml(childId)})</span>
+            <span class="apendment-round-meta">
+              <span>${doneEv ? fmtDuration(doneEv.durationMs) : '\u2014'}</span>
+              <span>${doneEv ? fmtTokens(doneEv.tokensIn, doneEv.tokensOut) : '\u2014'}</span>
+              <span>${doneEv ? fmtCost(doneEv.costUsd) : '\u2014'}</span>
+              ${nogEv ? `<span class="nog-verdict-badge ${nogEv.event === 'NOG_PASS' ? 'pass' : 'return'}">${escHtml(nogEv.event)}</span>` : ''}
+            </span>
+          </div>
+          <div class="apendment-round-body">
+            ${nogEv && nogEv.reason ? `<p>${escHtml(nogEv.reason)}</p>` : '<p style="color:#9ca3af">No reason text.</p>'}
+          </div>
+        </div>`;
+        roundNum++;
+      }
+    } else {
+      // Single round, no rounds[] data — show minimal
+      html += `<div class="apendment-round-block">
+        <div class="apendment-round-header">
+          <span>Apendment round 1</span>
+          <span class="apendment-round-meta">
+            <span>${fmtDuration(item.durationMs)}</span>
+            <span>${fmtTokens(item.tokensIn, item.tokensOut)}</span>
+            <span>${fmtCost(item.costUsd)}</span>
+          </span>
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+
+    // ── Event timeline ──
+    html += '<div class="slice-rendered-section"><div class="slice-rendered-section-label">Event timeline</div>';
+    html += '<div class="event-timeline">';
+
+    if (sliceEvents.length > 0) {
+      for (const ev of sliceEvents) {
+        const ts = ev.ts ? new Date(ev.ts).toLocaleString() : '\u2014';
+        const evType = ev.event || '\u2014';
+        let detail = '';
+        if (ev.reason) detail = ev.reason;
+        else if (ev.title) detail = ev.title;
+        else if (ev.verdict) detail = ev.verdict;
+
+        html += `<div class="event-timeline-item">
+          <span class="event-timeline-ts">${escHtml(ts)}</span>
+          <span class="event-timeline-type">${escHtml(evType)}</span>
+          <span class="event-timeline-detail">${escHtml(detail)}</span>
+        </div>`;
+
+        // Enriched ERROR payload
+        if (ev.event === 'ERROR' && (ev.command || ev.exit_code != null || ev.stderr_tail)) {
+          html += `<div class="event-timeline-item" style="padding-left:160px">
+            <div class="event-timeline-error-block">`;
+          if (ev.command) html += `Command: ${escHtml(ev.command)}\n`;
+          if (ev.exit_code != null) html += `Exit code: ${ev.exit_code}\n`;
+          if (ev.stderr_tail) html += `\n${escHtml(ev.stderr_tail)}`;
+          html += `</div></div>`;
         }
       }
-      html += '</div></div>';
-    }
-
-    // ── Original prompt section ──
-    html += '<div class="slice-rendered-section"><div class="slice-rendered-section-label">Original prompt</div><div class="slice-rendered-section-content">';
-    if (body) {
-      html += renderRenderedTab(body);
-    } else if (item.goal) {
-      html += `<p>${escHtml(item.goal)}</p>`;
     } else {
-      html += '<p style="color:#9ca3af">No content available for this slice.</p>';
-    }
-    html += '</div></div>';
-
-    // ── Nog review thread section ──
-    html += '<div class="slice-rendered-section"><div class="slice-rendered-section-label">Nog review thread</div><div class="slice-rendered-section-content">';
-    const nogSections = body ? parseNogReviews(body) : [];
-    if (nogSections.length > 0) {
-      for (const s of nogSections) {
-        html += `<div style="margin-bottom:12px"><strong>Round ${escHtml(s.round)}</strong><div>${marked.parse(s.content)}</div></div>`;
-      }
-    } else {
-      html += '<p style="color:#9ca3af">No Nog review recorded.</p>';
+      html += '<div style="color:#9ca3af;padding:8px 0">No register events found for this slice.</div>';
     }
     html += '</div></div>';
 
     container.innerHTML = html;
+  }
+
+  // Open detail overlay from active slice cards (Rom/Nog panels)
+  function openActiveSliceDetail() {
+    if (!currentMission) return;
+    // Create a synthetic item for the detail overlay
+    const item = {
+      id: currentMission.id,
+      title: currentMission.title || 'Untitled',
+      durationMs: null,
+      tokensIn: null,
+      tokensOut: null,
+      costUsd: null,
+      _terminalOutcome: 'IN_PROGRESS',
+      _terminalRound: null,
+      _childIds: [],
+    };
+    // Reuse the history detail overlay
+    document.getElementById('history-detail-id').textContent = `#${item.id}`;
+    document.getElementById('history-detail-title').textContent = item.title;
+    document.getElementById('history-detail-context').innerHTML = '<span class="history-ctx-item"><span class="history-ctx-label">Status:</span> <span class="history-ctx-value">In Progress</span></span>';
+    renderHistoryDetailBody(item);
+    document.getElementById('history-detail-overlay').style.display = '';
+    historyDetailOpen = true;
   }
 
   function closeHistoryDetail() {
@@ -2695,7 +3420,7 @@
   updateHealthPill();
   setInterval(updateHealthPill, 15000);
   fetchBridge();
-  setInterval(fetchBridge, 5000);
+  setInterval(fetchBridge, 2000);
 
   // ── Combined Queue panel ─────────────────────────────────────────────────────
   // Merges staged items and accepted (PENDING) items into one list.
@@ -2706,20 +3431,20 @@
   let cachedStagedOrder = [];
   let dragSrcId = null;
 
-  function isAmendment(item) {
+  function isApendment(item) {
     return item.references && item.references !== 'null';
   }
 
   function buildQueueRows() {
-    // 1. Amendment accepted rows — locked at top, sorted by creation date
+    // 1. Apendment accepted rows — locked at top, sorted by creation date
     const acceptedSlices = cachedBridgeSlices.filter(b => b.state === 'PENDING');
-    const amendmentRows = acceptedSlices
-      .filter(b => isAmendment(b))
+    const apendmentRows = acceptedSlices
+      .filter(b => isApendment(b))
       .sort((a, b) => new Date(a.created || 0) - new Date(b.created || 0))
-      .map(b => ({ ...b, goal: b.goal ?? null, rowState: 'accepted', isAmendment: true }));
+      .map(b => ({ ...b, goal: b.goal ?? null, rowState: 'accepted', isApendment: true }));
 
-    // 2. Non-amendment accepted rows — ordered by queue order
-    const normalAccepted = acceptedSlices.filter(b => !isAmendment(b));
+    // 2. Non-apendment accepted rows — ordered by queue order
+    const normalAccepted = acceptedSlices.filter(b => !isApendment(b));
     const orderedAccepted = [];
     for (const oid of cachedQueueOrder) {
       const found = normalAccepted.find(b => b.id === oid);
@@ -2730,18 +3455,18 @@
       .filter(b => !cachedQueueOrder.includes(b.id))
       .sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
     for (const b of unorderedAccepted) orderedAccepted.push(b);
-    const acceptedRows = orderedAccepted.map(b => ({ ...b, rowState: 'accepted', isAmendment: false }));
+    const acceptedRows = orderedAccepted.map(b => ({ ...b, rowState: 'accepted', isApendment: false }));
 
     // 3. Staged rows — unaccepted, at bottom, ordered by cachedStagedOrder
     const stagedRows = buildStagedRows();
 
-    return [...amendmentRows, ...acceptedRows, ...stagedRows];
+    return [...apendmentRows, ...acceptedRows, ...stagedRows];
   }
 
   function buildStagedRows() {
     const base = cachedStagedItems
-      .filter(s => s.status !== 'NEEDS_AMENDMENT')
-      .map(s => ({ id: s.id, title: s.title, goal: s.goal, sprint: s.sprint, references: s.references, rowState: 'staged', isAmendment: false }));
+      .filter(s => s.status !== 'NEEDS_APENDMENT')
+      .map(s => ({ id: s.id, title: s.title, goal: s.goal, sprint: s.sprint, references: s.references, rowState: 'staged', isApendment: false }));
 
     const ordered = [];
     for (const oid of cachedStagedOrder) {
@@ -2767,7 +3492,7 @@
       const eid = escHtml(row.id);
       const sprintLabel = row.sprint ? `Sprint ${row.sprint}` : '';
       const isAccepted = row.rowState === 'accepted';
-      const isAmd = row.isAmendment;
+      const isAmd = row.isApendment;
 
       const isStaged = row.rowState === 'staged';
 
@@ -2803,7 +3528,7 @@
         ? `<span class="queue-retry-badge" title="Automatically re-queued after Anthropic API outage">&#8635; API retry ${retryCount}</span>`
         : '';
       return `<div class="queue-row-wrap">
-      <div class="queue-row" data-id="${eid}" data-state="${row.rowState}" data-amendment="${isAmd}" draggable="${draggable}">
+      <div class="queue-row" data-id="${eid}" data-state="${row.rowState}" data-apendment="${isAmd}" draggable="${draggable}">
         <span class="queue-drag-handle ${handleClass}">&#10303;</span>
         <span class="queue-row-id">#${eid}</span>
         <span class="sprint-badge">${escHtml(sprintLabel)}</span>
@@ -2813,7 +3538,7 @@
       </div>${goalHtml}</div>`;
     }).join('');
 
-    // Attach drag events to accepted non-amendment rows
+    // Attach drag events to accepted non-apendment rows
     setupDragAndDrop();
     // Restore chevron expanded state after re-render
     restoreQueueExpanded();
@@ -3143,7 +3868,7 @@
   function onDragOver(e) {
     e.preventDefault();
     const target = e.currentTarget;
-    if (target.dataset.amendment === 'true') return;
+    if (target.dataset.apendment === 'true') return;
 
     // Determine source section from dragSrcId
     const srcRow = document.querySelector(`.queue-row[data-id="${dragSrcId}"]`);
@@ -3166,7 +3891,7 @@
     const targetRow = e.currentTarget;
     targetRow.classList.remove('drag-over');
     if (!dragSrcId || targetRow.dataset.id === dragSrcId) return;
-    if (targetRow.dataset.amendment === 'true') return;
+    if (targetRow.dataset.apendment === 'true') return;
 
     // Determine source section
     const srcRow = document.querySelector(`.queue-row[data-id="${dragSrcId}"]`);
@@ -3202,7 +3927,7 @@
       let order = [...cachedStagedOrder];
       // Ensure both IDs are in the order array
       const allStagedIds = cachedStagedItems
-        .filter(s => s.status !== 'NEEDS_AMENDMENT')
+        .filter(s => s.status !== 'NEEDS_APENDMENT')
         .map(s => s.id);
       for (const sid of allStagedIds) {
         if (!order.includes(sid)) order.push(sid);
@@ -3228,10 +3953,10 @@
       ]);
       if (stagedRes.ok) {
         cachedStagedItems = await stagedRes.json();
-        stagedItemCount = cachedStagedItems.filter(i => i.status !== 'NEEDS_AMENDMENT').length;
+        stagedItemCount = cachedStagedItems.filter(i => i.status !== 'NEEDS_APENDMENT').length;
         // Merge new staged items into cachedStagedOrder without losing existing order
         const currentStagedIds = cachedStagedItems
-          .filter(i => i.status !== 'NEEDS_AMENDMENT')
+          .filter(i => i.status !== 'NEEDS_APENDMENT')
           .map(i => i.id);
         // Remove IDs no longer in staged
         cachedStagedOrder = cachedStagedOrder.filter(id => currentStagedIds.includes(id));
@@ -3250,7 +3975,7 @@
   }
 
   fetchCombinedQueue();
-  setInterval(fetchCombinedQueue, 5000);
+  setInterval(fetchCombinedQueue, 2000);
 </script>
 
 </body>
