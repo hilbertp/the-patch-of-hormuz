@@ -2533,7 +2533,9 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
     if (commMeta) title = commMeta.title || null;
   } catch (_) {}
 
-  registerEvent(id, 'ACCEPTED', { reason, cycle });
+  // Canonical order: REVIEW_RECEIVED (verdict on file) → ACCEPTED (decision) → rename → merge → MERGED
+  registerEvent(id, 'REVIEW_RECEIVED', { verdict: 'ACCEPTED', reason, cycle });
+  registerEvent(id, 'ACCEPTED', { cycle });
   log('info', 'evaluator', { id, verdict: 'ACCEPTED', cycle, durationMs });
 
   // timesheet write point 2 — update watcher row at terminal state
@@ -2546,8 +2548,6 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
   } catch (err) {
     log('warn', 'evaluator', { id, msg: 'Failed to rename EVALUATING to ACCEPTED', error: err.message });
   }
-
-  callReviewAPI(id, 'ACCEPTED', reason);
 
   // Merge branch to main directly — no separate merge slice.
   if (!branchName) {
@@ -2586,7 +2586,9 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
  * The slice keeps its original ID — no new slice is created.
  */
 function handleApendment(id, rootId, reason, failedCriteria, apendmentInstructions, cycle, branchName, evaluatingPath, sliceContent, durationMs) {
-  registerEvent(id, 'REVIEWED', { verdict: 'APENDMENT_NEEDED', reason, failed_criteria: failedCriteria, cycle: cycle + 1, round: cycle + 1, apendment_cycle: cycle + 1 });
+  // Canonical order: REVIEW_RECEIVED (verdict on file) → REVIEWED (decision)
+  registerEvent(id, 'REVIEW_RECEIVED', { verdict: 'APENDMENT_NEEDED', reason, cycle: cycle + 1 });
+  registerEvent(id, 'REVIEWED', { verdict: 'APENDMENT_NEEDED', failed_criteria: failedCriteria, cycle: cycle + 1, round: cycle + 1, apendment_cycle: cycle + 1 });
   log('info', 'evaluator', { id, verdict: 'APENDMENT_NEEDED', cycle: cycle + 1, rootId, durationMs });
 
   // Read the PARKED file for in-place rewrite.
@@ -2648,8 +2650,6 @@ function handleApendment(id, rootId, reason, failedCriteria, apendmentInstructio
   // Remove the EVALUATING file.
   try { fs.unlinkSync(evaluatingPath); } catch (_) {}
 
-  callReviewAPI(id, 'APENDMENT_NEEDED', reason);
-
   print(`${B.vert}    ${C.yellow}${SYM.cross}${C.reset} APENDMENT_NEEDED (cycle ${cycle + 1})${SYM.sep}Slice ${id} re-queued`);
   print(`${B.bl}${B.sng.repeat(W - 1)}`);
   print('');
@@ -2661,7 +2661,9 @@ function handleApendment(id, rootId, reason, failedCriteria, apendmentInstructio
  * STUCK verdict: register event, rename EVALUATING → STUCK, no new QUEUED.
  */
 function handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs) {
-  registerEvent(id, 'STUCK', { reason: 'apendment cap reached', cycle, branch: branchName });
+  // Canonical order: REVIEW_RECEIVED (verdict on file) → STUCK (decision)
+  registerEvent(id, 'REVIEW_RECEIVED', { verdict: 'STUCK', reason, cycle });
+  registerEvent(id, 'STUCK', { cycle, branch: branchName });
   log('warn', 'evaluator', { id, verdict: 'STUCK', cycle, durationMs });
 
   // timesheet write point 2 — update watcher row at terminal state
@@ -2674,8 +2676,6 @@ function handleStuck(id, reason, cycle, branchName, evaluatingPath, durationMs) 
   } catch (err) {
     log('warn', 'evaluator', { id, msg: 'Failed to rename EVALUATING to STUCK', error: err.message });
   }
-
-  callReviewAPI(id, 'STUCK', reason);
 
   appendKiraEvent({
     event: 'STUCK',
@@ -3856,8 +3856,9 @@ function poll() {
       log('info', 'evaluator', { id: doneId, msg: 'Legacy merge slice auto-accepted (deprecated path)' });
       const acceptedPath = path.join(QUEUE_DIR, `${doneId}-ACCEPTED.md`);
       try { fs.renameSync(donePath, acceptedPath); } catch (_) {}
-      registerEvent(doneId, 'ACCEPTED', { reason: 'auto-accepted merge', cycle: 0 });
-      callReviewAPI(doneId, 'ACCEPTED', 'auto-accepted merge');
+      // Canonical order: REVIEW_RECEIVED (verdict on file) → ACCEPTED (decision)
+      registerEvent(doneId, 'REVIEW_RECEIVED', { verdict: 'ACCEPTED', reason: 'auto-accepted merge', cycle: 0 });
+      registerEvent(doneId, 'ACCEPTED', { cycle: 0 });
       print(`  ${C.green}${SYM.check}${C.reset} Slice ${doneId}${SYM.dash}Merge auto-accepted`);
       continue;
     }

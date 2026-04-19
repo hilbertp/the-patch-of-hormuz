@@ -442,19 +442,13 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      try {
-        writeRegisterEvent(Object.assign(
-          { id: String(id), event: 'REVIEW_RECEIVED', verdict },
-          reason ? { reason } : {}
-        ));
-      } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
-        res.end(JSON.stringify({ error: 'Failed to write register entry' }));
-        return;
-      }
+      // UI-refresh nudge only — the watcher writes REVIEW_RECEIVED to
+      // register.jsonl synchronously. This endpoint no longer touches the
+      // register; it exists so legacy callers get a 200 instead of a 404.
+      console.log(`[review-nudge] POST /api/bridge/review id=${id} verdict=${verdict} (no register write)`);
 
-      res.writeHead(201, { 'Content-Type': 'application/json', ...corsHeaders });
-      res.end(JSON.stringify({ ok: true }));
+      res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+      res.end(JSON.stringify({ ok: true, nudge: true }));
     });
     return;
   }
