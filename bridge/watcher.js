@@ -515,6 +515,16 @@ function truncStderr(s) {
   return s.length > 2000 ? s.slice(-2000) : s;
 }
 
+/**
+ * INVARIANT: registerEvent is the SOLE writer of pipeline events to register.jsonl.
+ *
+ * All state transitions must flow through this function, synchronously, in canonical
+ * order: dev → review → accept → merge. No HTTP handler, SSE push, CLI helper, or
+ * background task may append to register.jsonl directly. If you are about to add a
+ * second writer, stop — use registerEvent or emit a control-file action for the
+ * watcher to dispatch synchronously. Slices 168 + 169 removed the last side channel
+ * (callReviewAPI); keep it that way.
+ */
 function registerEvent(id, event, extra) {
   const entry = Object.assign(
     { ts: new Date().toISOString(), id: String(id), event },
