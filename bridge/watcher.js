@@ -2065,35 +2065,6 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
 // ---------------------------------------------------------------------------
 
 /**
- * callReviewAPI(id, verdict, reason)
- *
- * Fires a POST to /api/bridge/review. Non-blocking — failures are logged but
- * do not affect evaluator completion.
- */
-function callReviewAPI(id, verdict, reason) {
-  try {
-    const http = require('http');
-    const body = JSON.stringify({ id: String(id), verdict, reason: reason || '' });
-    const req = http.request({
-      hostname: '127.0.0.1',
-      port: 4747,
-      path: '/api/bridge/review',
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-    }, (res) => {
-      log('info', 'review_api', { id, verdict, status: res.statusCode });
-    });
-    req.on('error', (err) => {
-      log('warn', 'review_api', { id, msg: 'POST /api/bridge/review failed', error: err.message });
-    });
-    req.write(body);
-    req.end();
-  } catch (err) {
-    log('warn', 'review_api', { id, msg: 'Failed to call review API', error: err.message });
-  }
-}
-
-/**
  * countReviewedCycles(rootId)
  *
  * Reads register.jsonl and counts REVIEWED events for a given root slice ID.
