@@ -30,8 +30,9 @@ const { nextSliceId } = require('./orchestrator.js');
 // Paths
 // ---------------------------------------------------------------------------
 
-const QUEUE_DIR  = path.resolve(__dirname, 'queue');
-const STAGED_DIR = path.resolve(__dirname, 'staged');
+const QUEUE_DIR     = path.resolve(__dirname, 'queue');
+const STAGED_DIR    = path.resolve(__dirname, 'staged');
+const REGISTER_FILE = process.env.DS9_REGISTER_FILE || path.resolve(__dirname, 'register.jsonl');
 
 // ---------------------------------------------------------------------------
 // Required fields — must match orchestrator.js REQUIRED_FIELDS exactly
@@ -167,6 +168,24 @@ function main() {
   // Write
   const outPath = path.join(STAGED_DIR, `${fields.id}-STAGED.md`);
   fs.writeFileSync(outPath, content, 'utf8');
+
+  // Emit RESTAGED if this ID already has a prior COMMISSIONED event in the register.
+  try {
+    const lines = fs.readFileSync(REGISTER_FILE, 'utf-8').trim().split('\n').filter(Boolean);
+    const hasPriorCommission = lines.some(line => {
+      try {
+        const raw = JSON.parse(line);
+        const sid = String(raw.slice_id || raw.id || '');
+        return sid === String(fields.id) && raw.event === 'COMMISSIONED';
+      } catch (_) { return false; }
+    });
+    if (hasPriorCommission) {
+      const entry = { ts: new Date().toISOString(), event: 'RESTAGED', slice_id: String(fields.id) };
+      fs.appendFileSync(REGISTER_FILE, JSON.stringify(entry) + '\n');
+    }
+  } catch (_) {
+    // Register absent or unreadable — first-ever staging, no RESTAGED needed.
+  }
 
   console.log(`Created: ${outPath}`);
   console.log('');
