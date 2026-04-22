@@ -53,6 +53,7 @@ const LOG_FILE       = path.resolve(__dirname, config.logFile);
 const HEARTBEAT_FILE = path.resolve(__dirname, config.heartbeatFile);
 const PROJECT_DIR    = path.resolve(__dirname, config.projectDir);
 const REGISTER_FILE  = path.resolve(__dirname, 'register.jsonl');
+const RESTAGED_BOOTSTRAP_MARKER = path.resolve(__dirname, '.restaged-bootstrap-done');
 const NOG_ACTIVE_FILE = path.resolve(__dirname, 'nog-active.json');
 const TRASH_DIR      = path.resolve(QUEUE_DIR, '..', 'trash');
 const WORKTREE_BASE  = '/tmp/ds9-worktrees';
@@ -2302,21 +2303,50 @@ function countReviewedCycles(rootId) {
 }
 
 /**
- * hasReviewEvent(id)
+ * latestRestagedTs(id, regFile)
+ *
+ * Returns the latest ts string of any RESTAGED event for this slice ID,
+ * or null if none exists. Used to scope per-attempt register reads.
+ * Accepts an optional regFile path for testing.
+ */
+function latestRestagedTs(id, regFile) {
+  const file = regFile || REGISTER_FILE;
+  try {
+    const lines = fs.readFileSync(file, 'utf-8').trim().split('\n').filter(Boolean);
+    let latest = null;
+    for (const line of lines) {
+      try {
+        const raw = JSON.parse(line);
+        const sid = String(raw.slice_id || raw.id || '');
+        if (sid === String(id) && raw.event === 'RESTAGED') {
+          if (!latest || raw.ts > latest) latest = raw.ts;
+        }
+      } catch (_) {}
+    }
+    return latest;
+  } catch (_) { return null; }
+}
+
+/**
+ * hasReviewEvent(id, regFile)
  *
  * Returns true if register.jsonl contains a NOG_DECISION, MERGED, or STUCK event
- * for this slice ID — meaning it has already been evaluated.
+ * for this slice ID after the latest RESTAGED marker — meaning the current attempt
+ * has already been evaluated. Pre-RESTAGED events are ignored.
+ * Accepts an optional regFile path for testing.
  */
-function hasReviewEvent(id) {
+function hasReviewEvent(id, regFile) {
+  const file = regFile || REGISTER_FILE;
   try {
-    const lines = fs.readFileSync(REGISTER_FILE, 'utf-8').trim().split('\n').filter(Boolean);
+    const cutoff = latestRestagedTs(id, file);
+    const lines = fs.readFileSync(file, 'utf-8').trim().split('\n').filter(Boolean);
     resetDedupeState();
     for (const line of lines) {
       try {
         const raw = JSON.parse(line);
         const entry = translateEvent(raw);
         if (entry && entry.id === String(id) && ['NOG_DECISION', 'MERGED', 'STUCK'].includes(entry.event)) {
-          return true;
+          if (!cutoff || entry.ts > cutoff) return true;
         }
       } catch (_) {}
     }
@@ -2325,20 +2355,25 @@ function hasReviewEvent(id) {
 }
 
 /**
- * hasMergedEvent(id)
+ * hasMergedEvent(id, regFile)
  *
- * Returns true if register.jsonl contains a MERGED event for this brief ID —
- * meaning the branch was successfully merged to main (even if the ref is gone).
+ * Returns true if register.jsonl contains a MERGED event for this brief ID after
+ * the latest RESTAGED marker — meaning the current attempt's branch was merged.
+ * Accepts an optional regFile path for testing.
  */
-function hasMergedEvent(id) {
+function hasMergedEvent(id, regFile) {
+  const file = regFile || REGISTER_FILE;
   try {
-    const lines = fs.readFileSync(REGISTER_FILE, 'utf-8').trim().split('\n').filter(Boolean);
+    const cutoff = latestRestagedTs(id, file);
+    const lines = fs.readFileSync(file, 'utf-8').trim().split('\n').filter(Boolean);
     resetDedupeState();
     for (const line of lines) {
       try {
         const raw = JSON.parse(line);
         const entry = translateEvent(raw);
-        if (entry && entry.id === String(id) && entry.event === 'MERGED') return true;
+        if (entry && entry.id === String(id) && entry.event === 'MERGED') {
+          if (!cutoff || entry.ts > cutoff) return true;
+        }
       } catch (_) {}
     }
   } catch (_) {}
@@ -3477,16 +3512,18 @@ function handleNogReturn(id, rootId, round, branchName, evaluatingPath, sliceCon
  * Returns true if register.jsonl contains a NOG_DECISION or NOG_ESCALATION event
  * for this slice ID — meaning Nog has already reviewed it.
  */
-function hasNogReviewEvent(id) {
+function hasNogReviewEvent(id, regFile) {
+  const file = regFile || REGISTER_FILE;
   try {
-    const lines = fs.readFileSync(REGISTER_FILE, 'utf-8').trim().split('\n').filter(Boolean);
+    const cutoff = latestRestagedTs(id, file);
+    const lines = fs.readFileSync(file, 'utf-8').trim().split('\n').filter(Boolean);
     resetDedupeState();
     for (const line of lines) {
       try {
         const raw = JSON.parse(line);
         const entry = translateEvent(raw);
         if (entry && entry.id === String(id) && ['NOG_DECISION', 'NOG_ESCALATION'].includes(entry.event)) {
-          return true;
+          if (!cutoff || entry.ts > cutoff) return true;
         }
       } catch (_) {}
     }
@@ -4540,6 +4577,70 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT',  () => shutdown('SIGINT'));
 
 // ---------------------------------------------------------------------------
+// One-shot bootstrap: rescue DONE files wedged by stale pre-RESTAGED reviews
+// ---------------------------------------------------------------------------
+
+/**
+ * restagedBootstrap(opts)
+ *
+ * Runs once per install (guarded by RESTAGED_BOOTSTRAP_MARKER).
+ * Scans queue for *-DONE.md files that have a stale NOG_DECISION/MERGED/STUCK
+ * in the register but no RESTAGED marker yet. Appends a synthetic RESTAGED so
+ * the new scoped hasReviewEvent returns false and the DONE can advance to Nog.
+ *
+ * Accepts optional {queueDir, regFile, markerFile} for testing.
+ */
+function restagedBootstrap(opts) {
+  const queueDir   = (opts && opts.queueDir)   || QUEUE_DIR;
+  const regFile    = (opts && opts.regFile)    || REGISTER_FILE;
+  const markerFile = (opts && opts.markerFile) || RESTAGED_BOOTSTRAP_MARKER;
+
+  if (fs.existsSync(markerFile)) return;
+
+  let doneFiles;
+  try {
+    doneFiles = fs.readdirSync(queueDir).filter(f => /^\d+-DONE\.md$/.test(f));
+  } catch (_) { return; }
+
+  for (const file of doneFiles) {
+    const id = file.replace('-DONE.md', '');
+    if (latestRestagedTs(id, regFile) !== null) continue; // already has RESTAGED
+
+    let hasStale = false;
+    try {
+      const lines = fs.readFileSync(regFile, 'utf-8').trim().split('\n').filter(Boolean);
+      resetDedupeState();
+      for (const line of lines) {
+        try {
+          const raw = JSON.parse(line);
+          const entry = translateEvent(raw);
+          if (entry && entry.id === String(id) && ['NOG_DECISION', 'MERGED', 'STUCK'].includes(entry.event)) {
+            hasStale = true;
+            break;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    if (hasStale) {
+      const rescueEntry = { ts: new Date().toISOString(), event: 'RESTAGED', slice_id: String(id) };
+      try {
+        fs.appendFileSync(regFile, JSON.stringify(rescueEntry) + '\n');
+        log('info', 'bootstrap', { id, msg: 'RESTAGED rescue appended for wedged DONE' });
+      } catch (err) {
+        log('warn', 'bootstrap', { id, msg: 'Failed to append RESTAGED rescue', error: err.message });
+      }
+    }
+  }
+
+  try {
+    fs.writeFileSync(markerFile, new Date().toISOString() + '\n');
+  } catch (err) {
+    log('warn', 'bootstrap', { msg: 'Failed to write bootstrap marker', error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Startup — only runs when this file is executed directly (not when required)
 // ---------------------------------------------------------------------------
 
@@ -4570,6 +4671,7 @@ if (require.main === module) {
   cleanupDeadWorktrees();
 
   const recoveryActions = crashRecovery();
+  restagedBootstrap();
   printStartupBlock(recoveryActions);
 
   // Initial heartbeat write so the file exists immediately on startup.
@@ -4611,4 +4713,4 @@ if (require.main === module) {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated };
+module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, latestRestagedTs, hasReviewEvent, hasMergedEvent, restagedBootstrap };

@@ -2699,10 +2699,18 @@
     const footerEl     = document.getElementById('active-slice-footer');
     const pausedFooter = document.getElementById('paused-footer');
 
-    // Derive round from register events for this slice
+    // Derive round from register events for this slice, scoped to the current attempt.
     function getRound(sliceId) {
+      const restagedEvents = cachedRegisterEvents.filter(e =>
+        String(e.id) === String(sliceId) && e.event === 'RESTAGED'
+      );
+      const latestRestaged = restagedEvents.length > 0
+        ? restagedEvents.reduce((a, b) => (a.ts > b.ts ? a : b))
+        : null;
+      const cutoff = latestRestaged ? latestRestaged.ts : null;
       const commEvents = cachedRegisterEvents.filter(e =>
-        String(e.id) === String(sliceId) && e.event === 'COMMISSIONED'
+        String(e.id) === String(sliceId) && e.event === 'COMMISSIONED' &&
+        (!cutoff || e.ts > cutoff)
       );
       // Use the round field from the latest COMMISSIONED event if available
       const latest = commEvents.length > 0 ? commEvents[commEvents.length - 1] : null;
