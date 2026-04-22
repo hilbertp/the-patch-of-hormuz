@@ -4048,6 +4048,13 @@
       }
       cachedStagedOrder = order;
       renderQueueList();
+
+      // Persist to server
+      fetch('/api/staged/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: cachedStagedOrder }),
+      }).catch(() => {});
     }
   }
 
@@ -4058,24 +4065,29 @@
         fetch('/api/bridge/staged'),
         fetch('/api/bridge'),
       ]);
+      let bridgeData = null;
+      if (bridgeRes.ok) {
+        bridgeData = await bridgeRes.json();
+        cachedBridgeSlices = bridgeData.slices || [];
+        if (!dragSrcId) {
+          cachedQueueOrder = bridgeData.queueOrder || [];
+        }
+      }
       if (stagedRes.ok) {
         cachedStagedItems = await stagedRes.json();
         stagedItemCount = cachedStagedItems.filter(i => i.status !== 'NEEDS_APENDMENT').length;
-        // Merge new staged items into cachedStagedOrder without losing existing order
-        const currentStagedIds = cachedStagedItems
-          .filter(i => i.status !== 'NEEDS_APENDMENT')
-          .map(i => i.id);
-        // Remove IDs no longer in staged
-        cachedStagedOrder = cachedStagedOrder.filter(id => currentStagedIds.includes(id));
-        // Append any new IDs not yet in the order
-        for (const sid of currentStagedIds) {
-          if (!cachedStagedOrder.includes(sid)) cachedStagedOrder.push(sid);
+        if (!dragSrcId) {
+          const serverStagedOrder = bridgeData && bridgeData.stagedOrder ? bridgeData.stagedOrder : [];
+          const currentStagedIds = cachedStagedItems
+            .filter(i => i.status !== 'NEEDS_APENDMENT')
+            .map(i => i.id);
+          let merged = serverStagedOrder.length > 0 ? [...serverStagedOrder] : [...cachedStagedOrder];
+          merged = merged.filter(id => currentStagedIds.includes(id));
+          for (const sid of currentStagedIds) {
+            if (!merged.includes(sid)) merged.push(sid);
+          }
+          cachedStagedOrder = merged;
         }
-      }
-      if (bridgeRes.ok) {
-        const bridgeData = await bridgeRes.json();
-        cachedBridgeSlices = bridgeData.slices || [];
-        cachedQueueOrder = bridgeData.queueOrder || [];
       }
       renderQueueList();
     } catch (_) {}

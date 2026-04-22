@@ -28,6 +28,7 @@ const LEGACY_VERDICT_NEED = 'AMEND' + 'MENT_NEEDED';
 const LEGACY_NOTE_FIELD   = 'amend' + 'ment_note';
 
 const QUEUE_ORDER  = path.join(REPO_ROOT, 'bridge', 'queue-order.json');
+const STAGED_ORDER = path.join(REPO_ROOT, 'bridge', 'staged-order.json');
 
 // ── Ensure staging directories exist ─────────────────────────────────────────
 for (const dir of [STAGED_DIR, TRASH_DIR]) {
@@ -51,6 +52,15 @@ function readQueueOrder() {
 }
 function writeQueueOrder(order) {
   fs.writeFileSync(QUEUE_ORDER, JSON.stringify(order, null, 2), 'utf8');
+}
+
+// ── Staged order persistence ────────────────────────────────────────────────
+function readStagedOrder() {
+  try { return JSON.parse(fs.readFileSync(STAGED_ORDER, 'utf8')); }
+  catch (_) { return []; }
+}
+function writeStagedOrder(order) {
+  fs.writeFileSync(STAGED_ORDER, JSON.stringify(order, null, 2), 'utf8');
 }
 
 // ── Frontmatter parser ───────────────────────────────────────────────────────
@@ -381,6 +391,7 @@ function buildBridgeData() {
   });
 
   const queueOrder = readQueueOrder();
+  const stagedOrder = readStagedOrder();
 
   // Nog active state (slice 105)
   let nogActive = null;
@@ -389,7 +400,7 @@ function buildBridgeData() {
     if (raw && raw.sliceId) nogActive = raw;
   } catch (_) {}
 
-  return { heartbeat, queue, slices, recent, economics, queueOrder, nogActive, apiRetries, events };
+  return { heartbeat, queue, slices, recent, economics, queueOrder, stagedOrder, nogActive, apiRetries, events };
 }
 
 // ── HTTP server ──────────────────────────────────────────────────────────────
@@ -828,6 +839,44 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: String(err) }));
     }
+    return;
+  }
+
+  // ── Queue order persistence (drag-reorder) ──────────────────────────────────
+  if (pathname === '/api/queue/order' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { order } = JSON.parse(body);
+        if (!Array.isArray(order)) throw new Error('order must be array');
+        writeQueueOrder(order.map(String));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // ── Staged order persistence (drag-reorder) ────────────────────────────────
+  if (pathname === '/api/staged/order' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { order } = JSON.parse(body);
+        if (!Array.isArray(order)) throw new Error('order must be array');
+        writeStagedOrder(order.map(String));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
     return;
   }
 
