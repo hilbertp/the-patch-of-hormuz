@@ -30,8 +30,8 @@ const { nextSliceId } = require('./orchestrator.js');
 // Paths
 // ---------------------------------------------------------------------------
 
-const QUEUE_DIR     = path.resolve(__dirname, 'queue');
-const STAGED_DIR    = path.resolve(__dirname, 'staged');
+const QUEUE_DIR     = process.env.DS9_QUEUE_DIR     || path.resolve(__dirname, 'queue');
+const STAGED_DIR    = process.env.DS9_STAGED_DIR    || path.resolve(__dirname, 'staged');
 const REGISTER_FILE = process.env.DS9_REGISTER_FILE || path.resolve(__dirname, 'register.jsonl');
 
 // ---------------------------------------------------------------------------
