@@ -3558,7 +3558,7 @@
       if (!res.ok) return;
       health = await res.json();
     } catch (_) { return; }
-    const w = health.watcher, wh = health.wormhole;
+    const w = health.watcher;
     if (w.status === 'up')    { pill.className = 'health-pill'; pillLabel.textContent = 'online'; }
     else if (w.status === 'stale') { pill.className = 'health-pill degraded'; pillLabel.textContent = 'degraded'; }
     else                      { pill.className = 'health-pill offline'; pillLabel.textContent = 'offline'; }
@@ -3571,15 +3571,6 @@
       lines.push(`<span class="health-tooltip-detail">processing · #${esc(w.currentSlice)} · ${fmtElapsedCompact(w.elapsedSeconds)} elapsed${lastAct}</span>`);
     } else if (w.status !== 'down') {
       lines.push(`<span class="health-tooltip-detail">idle</span>`);
-    }
-    lines.push('');
-    if (wh.ageSeconds != null && wh.ageSeconds < 60) {
-      lines.push(`<span class="health-tooltip-label">Wormhole</span>    <span class="health-tooltip-dot active"></span> active · ${fmtAge(wh.ageSeconds)}`);
-    } else if (wh.lastWriteTs) {
-      lines.push(`<span class="health-tooltip-label">Wormhole</span>    <span class="health-tooltip-dot dim"></span> last write ${fmtAge(wh.ageSeconds)}`);
-      if (wh.lastWriteTool) lines.push(`<span class="health-tooltip-detail">${esc(wh.lastWriteTool)}${wh.lastWritePath ? ' → ' + esc(wh.lastWritePath) : ''}</span>`);
-    } else {
-      lines.push(`<span class="health-tooltip-label">Wormhole</span>    <span class="health-tooltip-dot dim"></span> not yet used this session`);
     }
     lines.push(`<hr class="health-tooltip-sep">`);
     lines.push(`Processed    ${w.processedTotal} slices total`);
