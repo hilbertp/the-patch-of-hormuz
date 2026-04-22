@@ -3,34 +3,59 @@ id: "186"
 title: "F-186 — Nog prompt flip to canonical verdict vocabulary (Dax-1b)"
 from: rom
 to: nog
-status: BLOCKED
+status: DONE
 slice_id: "186"
 branch: "slice/186"
-completed: "2026-04-22T13:35:00.000Z"
-tokens_in: 4800
-tokens_out: 420
-elapsed_ms: 210000
-estimated_human_hours: 0.1
+completed: "2026-04-22T16:42:00.000Z"
+tokens_in: 18400
+tokens_out: 2800
+elapsed_ms: 600000
+estimated_human_hours: 0.25
 compaction_occurred: false
 ---
 
 ## Summary
 
-BLOCKED — precondition unmet. Slice 185 (Dax-1c, gate-wiring) is not on `main` and the `slice/185` branch does not exist anywhere in the repo. The brief is explicit: "If 185 isn't merged at dispatch time, STOP and escalate — do not proceed."
+Flipped Nog's prompt and role definition from legacy `PASS`/`RETURN` vocabulary to canonical four-verdict rubric: `ACCEPTED`, `REJECTED`, `ESCALATE`, `OVERSIZED`. Producer-side half of the Dax-1a/1c protocol split is now complete.
 
-No changes were made to `bridge/nog-prompt.js`, `.claude/roles/nog/ROLE.md`, or any test files.
+## Changes
 
-## Blocker
+### bridge/nog-prompt.js
+Replaced line 42's single-line `verdict: PASS` / `verdict: RETURN` format instruction with a four-line rubric:
+- `ACCEPTED` — all ACs met, quality bar cleared
+- `REJECTED` — one or more ACs unmet or quality issues found; rework needed
+- `ESCALATE` — ACs contradictory, impossible, or require scope change; needs O'Brien
+- `OVERSIZED` — diff too large or scope exceeded; slice must be split
 
-`git log main --oneline | head -20` shows the latest merge is slice 184. Slice 185 is absent from both `main` and all local branches. Until 185 lands on `main` (wiring `translateVerdict` into the watcher's Nog-verdict gate), flipping the prompt is unsafe: canonical verdicts would be rejected at the gate site.
+### .claude/roles/nog/ROLE.md
+Updated all verdict-context references from legacy to canonical:
+- Identity section verdict list: PASS/RETURN/ESCALATE → ACCEPTED/REJECTED/ESCALATE/OVERSIZED
+- Gate 1 and Gate 2 verdict statements: RETURN → REJECTED
+- Slice annotation format: `PASS | RETURN | ESCALATE` → `ACCEPTED | REJECTED | ESCALATE | OVERSIZED`
+- "If verdict is PASS" → "If verdict is ACCEPTED"
+- Verdicts table: updated all rows, added OVERSIZED row
+- Invocation section: updated verdict list
+- Anti-patterns section: updated RETURN/ESCALATE references
+
+### test/nog-prompt-vocabulary.test.js (new)
+Regression test asserting:
+- Prompt contains `ACCEPTED`, `REJECTED`, `ESCALATE`, `OVERSIZED`
+- Prompt does NOT contain `verdict: PASS` or `verdict: RETURN` (regex scoped to verdict-context only)
 
 ## ACs
 
-- AC 0: DONE — skeleton committed on `slice/186`.
-- AC 1–9: NOT STARTED — blocked.
+- AC 0: DONE — skeleton committed on `slice/186` (prior session).
+- AC 1: DONE — `bridge/nog-prompt.js` contains canonical verdict vocabulary only.
+- AC 2: DONE — `grep -nE "verdict:\s*(PASS|RETURN)" bridge/nog-prompt.js` returns nothing.
+- AC 3: DONE — `.claude/roles/nog/ROLE.md` updated; no remaining legacy verdict terms.
+- AC 4: DONE — `bridge/lifecycle-translate.js` byte-identical to main (untouched).
+- AC 5: DONE — `bridge/orchestrator.js` byte-identical to main (untouched). `translateVerdict` confirmed at line 3170 — precondition met.
+- AC 6: DONE — Regression test passes; all four canonical verbs present, no legacy verdict literals.
+- AC 7: DONE — Full test suite passes (10 test files, all green).
+- AC 8: DONE — `bridge/register.jsonl` does not exist in this worktree; no append-only concern. `bridge/trash/` and all `-ARCHIVED.md` untouched.
+- AC 9: DONE — Non-test diff is 17 LOC (well under 80).
 
 ## Notes
 
-`bridge/lifecycle-translate.js` and `bridge/watcher.js` are byte-identical to main (no changes made). `bridge/register.jsonl` untouched. Queue files from 182 forensic triple untouched.
-
-**Action required from Kira:** Merge slice 185 to `main`, then re-dispatch brief 186.
+- The Linting annotation format `**Linting:** PASS | FAIL` in ROLE.md was intentionally preserved — `PASS`/`FAIL` there refer to linting status, not Nog verdicts.
+- `bridge/lifecycle-translate.js` dual-accept paths preserved; no legacy paths removed. Consumer side still tolerates legacy vocab via `translateVerdict` for any in-flight Nog sessions.
