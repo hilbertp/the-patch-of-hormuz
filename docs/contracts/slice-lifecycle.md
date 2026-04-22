@@ -18,7 +18,7 @@ One file per slice. The filename suffix IS the status. No parallel lifecycles, n
 |-------------|-------------------------------------------------------------------------------|
 | Philipp     | Product owner. Approves slices into the queue.                                 |
 | O'Brien     | Dev team lead. Sole author of slices. Escalation point when Rom–Nog loop fails.|
-| Rom         | Implementor. Moves the ticket from IN_PROGRESS to DONE. On rejection, reads Nog's appendment and either (a) reworks his implementation, or (b) if he judges the ACs or goal/purpose itself is broken, appends a written justification and escalates directly to O'Brien (bypasses the 5-round counter). |
+| Rom         | Implementor. Moves the ticket from IN_PROGRESS to DONE. On rejection, reads Nog's appendment and reworks his implementation. |
 | Nog         | Code reviewer. **Append-only.** Writes his verdict and findings below existing content and hands the ticket back — to Rom (if cycles ≤ 5) or to O'Brien (escalation). Never edits what Rom or O'Brien wrote. |
 | Watcher     | Technical orchestrator. Physical filesystem moves, git ops, role spawning.      |
 
@@ -50,7 +50,6 @@ The watcher does **not** approve, accept, or reject. It executes transitions tha
 | DONE          | IN_REVIEW                 | Watcher  | Hands the slice to Nog.                              |
 | IN_REVIEW     | ACCEPTED                  | Nog      | Appends verdict: ACs met and goal achieved.          |
 | IN_REVIEW     | QUEUED                    | Nog      | Appends rejection verdict + findings. Cycle count ≤ 5. Rom will rework his implementation on next pickup. |
-| IN_PROGRESS   | STAGED (via O'Brien) — **slice-broken fast path** | Rom → O'Brien | Rom reads Nog's appendment, judges the ACs or goal/purpose is itself wrong (not his implementation), appends a written justification, and escalates immediately. Bypasses the 5-round counter. |
 | IN_REVIEW     | STAGED (via O'Brien)      | Nog → O'Brien | Appends 6th rejection verdict. O'Brien reworks the slice and returns it to STAGED. |
 | ACCEPTED      | MERGED                    | Watcher  | `git merge --no-ff slice/NNN-*` + `git push origin main`. |
 | MERGED        | ARCHIVED                  | Watcher  | Post-push bookkeeping — worktree prune, branch delete, file renamed to terminal state. |
@@ -63,16 +62,13 @@ The purpose of Nog is to catch problems before merge. **Nog only appends.** He a
 
 1. Nog evaluates the slice in IN_REVIEW.
 2. If ACs aren't met OR the goal isn't achieved, Nog **appends** a rejection verdict below the existing slice content. The verdict describes what was wrong and where Rom deviated from expectations. Nog does not edit, delete, or rewrite anything above his appended block.
-3. The slice returns to QUEUED with Nog's appendment attached. Rom picks it up again and reads Nog's findings at the bottom of the file. He now has two paths:
-   - **(a) Rework path (default):** if Rom judges that his implementation was the problem, he reworks his code on the slice branch and writes DONE again. Nog re-evaluates. The slice file itself is never edited — only appended to.
-   - **(b) Slice-broken fast path:** if Rom judges that the ACs or the goal/purpose is itself wrong for the situation (not his implementation), he appends an **escalation block** to the slice file and escalates directly to O'Brien. The escalation block must explain, in writing, *which AC(s) or which element of the goal/purpose is wrong and why*. This bypasses the 5-round counter — it goes straight to O'Brien rework. Rom does not touch code on the branch in this path.
+3. The slice returns to QUEUED with Nog's appendment attached. Rom picks it up again, reads Nog's findings at the bottom of the file, and **reworks his implementation** (in the code, on the slice branch) to address them. The slice file itself is never edited — only appended to.
 4. In the rework path, the Rom–Nog cycle may repeat **up to 5 times**. Each of Nog's rejection verdicts is appended to the file; prior rounds remain visible as audit trail.
 5. If Rom still fails after 5 rework rounds (i.e., Nog writes a 6th rejection verdict), the slice is **handed to O'Brien**. Nog routes the ticket to O'Brien, not back to Rom.
-6. O'Brien reads the full appendment history — including any slice-broken escalation from Rom — and reviews why the slice didn't work. Possible outcomes:
+6. O'Brien reads the full appendment history and reviews why Rom couldn't satisfy the ACs. Possible outcomes:
    - The ACs were unclear or contradictory — O'Brien clarifies the slice.
    - The slice was too large — O'Brien splits it.
    - The goal was wrong or unachievable — O'Brien rewrites.
-   - Rom's slice-broken escalation was unjustified — O'Brien clarifies and restages without changing ACs (rare; requires Rom to have misread the slice).
 7. After O'Brien's rework, the slice returns to STAGED for Philipp's re-approval.
 
 ---
@@ -87,7 +83,6 @@ The purpose of Nog is to catch problems before merge. **Nog only appends.** He a
 6. **The ticket's history is auditable from the filesystem alone.** `ls bridge/queue/` and the register tell the full story; no hidden state in memory. Each rejection round is visible as an appended block on the slice file.
 7. **Rejection does not lose work.** The slice branch survives the rejection loop; only the slice file moves back to QUEUED.
 8. **Escalation to O'Brien is automatic after 5 failed Nog rounds.** Not optional.
-9. **Rom may escalate a broken slice directly to O'Brien at any rejection pickup.** This bypasses the 5-round counter. It requires a written justification appended to the slice file identifying which AC or element of the goal/purpose is wrong and why. Rom does not write code on the branch in this path.
 
 ---
 
