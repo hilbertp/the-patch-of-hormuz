@@ -3994,7 +3994,7 @@
     const s = sliceDetailState;
 
     if (s.context === 'staged') {
-      const approveDisabled = serviceHealthDown ? ' disabled title="Service down — start Docker + detector before approving."' : '';
+      const approveDisabled = serviceHealthDown ? ' disabled title="Orchestrator/Server down — start Docker + watcher before approving."' : '';
       container.innerHTML = `
         <button class="slice-action-btn slice-action-approve" onclick="sliceDetailApprove()"${approveDisabled}>Approve</button>
         <button class="slice-action-btn slice-action-refine" onclick="sliceDetailRefine()">Refine</button>
