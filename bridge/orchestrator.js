@@ -2318,6 +2318,27 @@ function hasReviewEvent(id) {
 }
 
 /**
+ * hasMergedEvent(id)
+ *
+ * Returns true if register.jsonl contains a MERGED event for this brief ID —
+ * meaning the branch was successfully merged to main (even if the ref is gone).
+ */
+function hasMergedEvent(id) {
+  try {
+    const lines = fs.readFileSync(REGISTER_FILE, 'utf-8').trim().split('\n').filter(Boolean);
+    resetDedupeState();
+    for (const line of lines) {
+      try {
+        const raw = JSON.parse(line);
+        const entry = translateEvent(raw);
+        if (entry && entry.id === String(id) && entry.event === 'MERGED') return true;
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return false;
+}
+
+/**
  * extractJSON(text)
  *
  * Extracts and parses a JSON object from text that may contain preamble
@@ -4345,9 +4366,14 @@ function crashRecovery() {
     // Check if branch is already merged to main.
     let alreadyMerged = false;
     try {
+      // Fast path: check if ref still exists and is in main's ancestry
+      execSync(`git rev-parse --verify "${branchName}"`, { cwd: PROJECT_DIR, encoding: 'utf-8' });
       const merged = execSync('git branch --merged main', { cwd: PROJECT_DIR, encoding: 'utf-8' });
       alreadyMerged = merged.split('\n').some(line => line.trim() === branchName);
-    } catch (_) {}
+    } catch (_) {
+      // Branch ref is gone (deleted after worktree cleanup) — check register
+      alreadyMerged = hasMergedEvent(id);
+    }
 
     if (alreadyMerged) {
       log('info', 'startup_recovery', { id, msg: `Branch ${branchName} already on main — no merge needed`, branch: branchName });
