@@ -691,8 +691,13 @@ const server = http.createServer(async (req, res) => {
       wormhole = { lastWriteTs: raw.ts ?? null, lastWriteTool: raw.tool ?? null,
                    lastWritePath: raw.path ?? null, ageSeconds: raw.ts ? Math.round(age) : null };
     } catch (_) {}
+    // Read host-side health detector status (written by host-health-detector.sh)
+    let hostHealth = null;
+    try {
+      hostHealth = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'bridge', 'host-health.json'), 'utf8'));
+    } catch (_) {}
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ watcher, wormhole }));
+    res.end(JSON.stringify({ status: 'ok', ts: new Date().toISOString(), watcher, wormhole, hostHealth }));
     return;
   }
 
