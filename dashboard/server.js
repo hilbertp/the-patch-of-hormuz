@@ -742,38 +742,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── Unaccept (move PENDING back to staged) ──────────────────────────────────
-  const queueUnacceptMatch = pathname.match(/^\/api\/queue\/(\d+)\/unaccept$/);
-  if (queueUnacceptMatch && req.method === 'POST') {
-    const id = queueUnacceptMatch[1];
-    const queuedPath  = path.join(QUEUE_DIR, `${id}-QUEUED.md`);
-    const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
-    const activePath  = fs.existsSync(queuedPath) ? queuedPath : fs.existsSync(pendingPath) ? pendingPath : null;
-    if (!activePath) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: `No queued slice ${id}` }));
-      return;
-    }
-    try {
-      let content = fs.readFileSync(activePath, 'utf8');
-      content = updateFrontmatter(content, { status: 'STAGED' });
-      fs.writeFileSync(path.join(STAGED_DIR, `${id}-STAGED.md`), content, 'utf8');
-      try { fs.renameSync(activePath, path.join(TRASH_DIR, `${id}-QUEUED.unaccepted`)); } catch (_) {}
-      // Remove from queue order
-      const order = readQueueOrder();
-      const idx = order.indexOf(id);
-      if (idx !== -1) order.splice(idx, 1);
-      writeQueueOrder(order);
-      writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'unaccepted' });
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true }));
-    } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: String(err) }));
-    }
-    return;
-  }
-
   // ── Return-to-stage (writes control file for watcher) ────────────────────
   const returnMatch = pathname.match(/^\/api\/bridge\/return-to-stage\/(\d+)$/);
   if (returnMatch && req.method === 'POST') {

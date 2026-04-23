@@ -6,10 +6,10 @@ to: nog
 status: DONE
 slice_id: "194"
 branch: "slice/194"
-completed: "2026-04-23T10:18:00.000Z"
-tokens_in: 18400
-tokens_out: 4100
-elapsed_ms: 1980000
+completed: "2026-04-23T10:50:00.000Z"
+tokens_in: 19200
+tokens_out: 4400
+elapsed_ms: 2400000
 estimated_human_hours: 0.5
 compaction_occurred: false
 ---
@@ -18,35 +18,35 @@ compaction_occurred: false
 
 Two UX fixes to the Ops dashboard:
 1. Approved-but-not-yet-running slices now show a non-interactive `✓ Accepted` pill instead of the clickable `[Accept]` button.
-2. History panel now paginates at 5 entries per page (was 10).
+2. History panel now paginates at 5 entries per page.
+
+Amendment round 1: removed two dead-code leftovers flagged by Nog — `.queue-btn-accepted` CSS and `queueUnaccept()` JS function (plus its matching server endpoint `/api/queue/{id}/unaccept`).
 
 ## Changes
 
 ### `dashboard/lcars-dashboard.html`
-- `HISTORY_PAGE_SIZE`: `10` → `5` (line ~3092)
-- Queue QUEUED-state action: replaced `<button class="queue-btn-accepted" onclick="queueUnaccept(...)">&#10003; Queued</button>` with `<span class="queue-accepted-pill">&#10003; Accepted</span>`
-- Added `.queue-accepted-pill` CSS class: same green fill as the old button (`#16a34a` background/border, `#ffffff` text) but `cursor: default; user-select: none` — no hover affordance, not interactive
+- `HISTORY_PAGE_SIZE = 5` (paginates history at 5 per page)
+- Queue QUEUED-state action: `<span class="queue-accepted-pill">&#10003; Accepted</span>` (non-interactive pill)
+- Added `.queue-accepted-pill` CSS: `cursor: default; user-select: none`, no hover affordance
+- **Removed** `.queue-btn-accepted` and `.queue-btn-accepted:hover` CSS rulesets (dead code — button replaced by pill)
+- **Removed** `queueUnaccept()` async function (dead code — no longer called from UI)
+
+### `dashboard/server.js`
+- **Removed** `/api/queue/{id}/unaccept` POST endpoint (no client callers remain)
 
 ### `test/dashboard-render.test.js` (new file)
-- Test 1: 1 STAGED + 2 QUEUED rows → asserts exactly 1 `queue-btn-accept` and 2 `queue-accepted-pill`
-- Test 2: Edit button visible for STAGED + both QUEUED rows (3 total)
-- Test 3: Pill is a `<span>`, not a `<button>`
-- Test 4: 12 history rows → page 1=5 rows, page 2=5 rows, page 3=2 rows, totalPages=3
-- Test 5: Pagination controls — Prev disabled on page 1, Next disabled on last page, labels correct
-- Test 6: `HISTORY_PAGE_SIZE === 5`
+- 1 STAGED + 2 QUEUED rows → asserts 1 `queue-btn-accept`, 2 `queue-accepted-pill`
+- Edit button visible for all 3 rows
+- Pill is a `<span>`, not a `<button>`
+- 12 history rows → page sizes 5/5/2, totalPages=3
+- Pagination controls: Prev disabled p1, Next disabled last page, labels correct
+- `HISTORY_PAGE_SIZE === 5`
 
 ## Tests
 
-All tests pass:
-```
-dashboard-render.test.js: all tests passed
-ops-queue-render.test.js: all tests passed
-lifecycle-translate.test.js: all tests passed
-(all other test files: passed)
-```
+All tests pass (all 19 test files, run via `node test/*.test.js`).
 
 ## Notes
 
-- The old `queueUnaccept()` JS function remains in the codebase but is no longer called from the queue row render. No dead imports introduced.
-- No `bridge/` files were modified.
-- Diff: ~20 LOC in dashboard (excluding tests), well under 250 LOC limit.
+- No `bridge/` files modified.
+- Diff under 250 LOC (excluding tests).
