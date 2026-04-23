@@ -1490,6 +1490,22 @@
     background: #15803d;
   }
 
+  .queue-accepted-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    border: 1px solid #16a34a;
+    background: #16a34a;
+    color: #ffffff;
+    cursor: default;
+    user-select: none;
+  }
+
   .queue-btn-edit {
     display: inline-flex;
     align-items: center;
@@ -3073,7 +3089,7 @@
   let cachedHistoryItems = [];
   let cachedHistoryAllRows = [];
   let historyPage = 1;
-  const HISTORY_PAGE_SIZE = 10;
+  const HISTORY_PAGE_SIZE = 5;
 
   // Determine terminal outcome for a slice from register events
   function classifyTerminalOutcome(sliceId, events) {
@@ -3840,7 +3856,7 @@
       let actionsHtml;
       if (isQueued) {
         actionsHtml = `
-          <button class="queue-btn-accepted" onclick="queueUnaccept('${eid}')">&#10003; Queued</button>
+          <span class="queue-accepted-pill">&#10003; Accepted</span>
           <button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
       } else if (isStaged) {
         actionsHtml = `
