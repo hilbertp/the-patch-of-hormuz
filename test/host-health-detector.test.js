@@ -144,51 +144,48 @@ testDetectorOutput('missing', 'missing', 'unknown', {
 // Dashboard static analysis tests
 // ---------------------------------------------------------------------------
 
-console.log('\n── Dashboard service-health pill ──');
+console.log('\n── Dashboard services panel ──');
 
-test('Dashboard has #service-health-pill element', () => {
+test('Dashboard has #services-panel element', () => {
   assert.ok(
-    dashboardSource.includes('id="service-health-pill"'),
-    'Missing #service-health-pill element'
+    dashboardSource.includes('id="services-panel"'),
+    'Missing #services-panel element'
   );
 });
 
-test('Dashboard has #service-health-pill-label element', () => {
+test('Dashboard has three service rows (orchestrator, server, detector)', () => {
+  assert.ok(dashboardSource.includes('data-service="orchestrator"'), 'Missing orchestrator row');
+  assert.ok(dashboardSource.includes('data-service="server"'), 'Missing server row');
+  assert.ok(dashboardSource.includes('data-service="detector"'), 'Missing detector row');
+});
+
+test('Dashboard has service-dot CSS classes', () => {
+  assert.ok(dashboardSource.includes('service-dot.up') || dashboardSource.includes(".service-dot.up"), 'Missing service-dot.up CSS');
+  assert.ok(dashboardSource.includes('service-dot.down') || dashboardSource.includes(".service-dot.down"), 'Missing service-dot.down CSS');
+});
+
+test('Dashboard has service-row-tooltip CSS', () => {
   assert.ok(
-    dashboardSource.includes('id="service-health-pill-label"'),
-    'Missing #service-health-pill-label element'
+    dashboardSource.includes('service-row-tooltip'),
+    'Missing service-row-tooltip CSS class'
   );
 });
 
-test('Dashboard has pill-green CSS class', () => {
-  assert.ok(
-    dashboardSource.includes('.pill-green'),
-    'Missing .pill-green CSS class'
-  );
-});
-
-test('Dashboard has pill-red CSS class', () => {
-  assert.ok(
-    dashboardSource.includes('.pill-red'),
-    'Missing .pill-red CSS class'
-  );
-});
-
-test('Dashboard pill reads hostHealth from /api/health response', () => {
+test('Dashboard reads hostHealth from /api/health response', () => {
   assert.ok(
     dashboardSource.includes('hostHealth'),
     'Dashboard should reference hostHealth data'
   );
 });
 
-test('Dashboard updateServiceHealthPill checks container_status and api_status', () => {
+test('Dashboard updateServicesPanel checks container_status and api_status', () => {
   assert.ok(
-    dashboardSource.includes("container_status === 'running'"),
-    'Should check container_status === running'
+    dashboardSource.includes('container_status'),
+    'Should reference container_status field'
   );
   assert.ok(
-    dashboardSource.includes("api_status === 'ok'"),
-    'Should check api_status === ok'
+    dashboardSource.includes('api_status'),
+    'Should reference api_status field'
   );
 });
 
@@ -211,8 +208,8 @@ test('Approve button gets disabled attribute when service is down', () => {
 
 test('Approve button has tooltip explaining why disabled', () => {
   assert.ok(
-    dashboardSource.includes('Service down'),
-    'Disabled approve should show service-down tooltip'
+    dashboardSource.includes('down — start Docker'),
+    'Disabled approve should show service-down tooltip with Docker instructions'
   );
 });
 

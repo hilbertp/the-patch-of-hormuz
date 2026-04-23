@@ -139,27 +139,50 @@
   .health-tooltip-detail { color: #9ca3af; padding-left: 13px; }
   .health-tooltip-sep { border: none; border-top: 1px solid #374151; margin: 4px 0; }
 
-  /* ── Service-health pill (host-side detector) ─────── */
-  .service-health-pill {
+  /* ── Services panel (three-service status) ─────────── */
+  #services-panel {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 3px 10px 3px 7px;
-    border-radius: 20px;
+    gap: 0;
+    margin-left: 10px;
     font-size: 12px;
     font-weight: 500;
-    background: #f0fdf4;
-    color: #166534;
-    border: 1px solid #bbf7d0;
+    color: #374151;
+  }
+  .svc-sep { color: #d1d5db; padding: 0 6px; user-select: none; }
+  .service-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     cursor: default;
-    margin-left: 8px;
+    position: relative;
+    padding: 2px 0;
   }
-  .service-health-pill .pill-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: currentColor; flex-shrink: 0;
+  .service-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
   }
-  .service-health-pill.pill-green { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
-  .service-health-pill.pill-red   { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+  .service-dot.up      { background: #16a34a; }
+  .service-dot.down    { background: #dc2626; }
+  .service-dot.stale   { background: #f59e0b; }
+  .service-dot.unknown { background: #9ca3af; }
+  .service-row-tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: #1f2937;
+    color: #e5e7eb;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 11px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    white-space: pre;
+    line-height: 1.7;
+    min-width: 280px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    z-index: 100;
+  }
+  .service-row:hover .service-row-tooltip { display: block; }
 
   .slice-action-approve:disabled,
   .slice-action-approve.disabled {
@@ -2146,15 +2169,24 @@
       <div class="header-subtitle">Operations Center</div>
     </div>
     <div class="header-status">
-      <div class="health-pill" id="health-pill">
-        <span class="health-pill-dot"></span>
-        <span class="health-pill-waveform">▲▄▂▄▃</span>
-        <span id="health-pill-label">online</span>
-        <div class="health-pill-tooltip" id="health-pill-tooltip"></div>
-      </div>
-      <div class="service-health-pill pill-green" id="service-health-pill">
-        <span class="pill-dot"></span>
-        <span id="service-health-pill-label">Service up</span>
+      <div id="services-panel">
+        <div class="service-row" data-service="orchestrator" id="svc-orchestrator">
+          <span class="service-dot unknown" id="svc-orchestrator-dot"></span>
+          <span id="svc-orchestrator-label">Orchestrator …</span>
+          <div class="service-row-tooltip" id="svc-orchestrator-tooltip"></div>
+        </div>
+        <span class="svc-sep">·</span>
+        <div class="service-row" data-service="server" id="svc-server">
+          <span class="service-dot unknown" id="svc-server-dot"></span>
+          <span id="svc-server-label">Server …</span>
+          <div class="service-row-tooltip" id="svc-server-tooltip"></div>
+        </div>
+        <span class="svc-sep">·</span>
+        <div class="service-row" data-service="detector" id="svc-detector">
+          <span class="service-dot unknown" id="svc-detector-dot"></span>
+          <span id="svc-detector-label">Detector …</span>
+          <div class="service-row-tooltip" id="svc-detector-tooltip"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -3565,7 +3597,7 @@
     if (e.target === e.currentTarget) closeHistoryDetail();
   });
 
-  // ── Health pill ──────────────────────────────────────────────────────────────
+  // ── Services panel ───────────────────────────────────────────────────────────
   function fmtAge(seconds) {
     if (seconds == null) return '–';
     if (seconds < 60) return `${seconds}s ago`;
@@ -3577,77 +3609,109 @@
     const m = Math.floor(secs / 60), s = secs % 60;
     return m > 0 ? `${m}m${String(s).padStart(2,'0')}s` : `${s}s`;
   }
-  async function updateHealthPill() {
-    const pill = document.getElementById('health-pill');
-    const pillLabel = document.getElementById('health-pill-label');
-    const pillTooltip = document.getElementById('health-pill-tooltip');
-    if (!pill) return;
-    let health;
-    try {
-      const res = await fetch('/api/health');
-      if (!res.ok) return;
-      health = await res.json();
-    } catch (_) { return; }
-    const w = health.watcher, wh = health.wormhole;
-    if (w.status === 'up')    { pill.className = 'health-pill'; pillLabel.textContent = 'online'; }
-    else if (w.status === 'stale') { pill.className = 'health-pill degraded'; pillLabel.textContent = 'degraded'; }
-    else                      { pill.className = 'health-pill offline'; pillLabel.textContent = 'offline'; }
-    const esc = s => s == null ? '–' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const lines = [];
-    const wDotCls = w.status === 'up' ? 'up' : w.status === 'stale' ? 'stale' : 'down';
-    lines.push(`<span class="health-tooltip-label">Watcher</span>      <span class="health-tooltip-dot ${wDotCls}"></span> ${esc(w.status)} · ${fmtAge(w.heartbeatAge_s)}`);
-    if (w.currentSlice && w.elapsedSeconds != null) {
-      const lastAct = w.lastActivityAge_s != null ? ` · last output ${fmtAge(w.lastActivityAge_s)}` : '';
-      lines.push(`<span class="health-tooltip-detail">processing · #${esc(w.currentSlice)} · ${fmtElapsedCompact(w.elapsedSeconds)} elapsed${lastAct}</span>`);
-    } else if (w.status !== 'down') {
-      lines.push(`<span class="health-tooltip-detail">idle</span>`);
-    }
-    lines.push('');
-    if (wh.ageSeconds != null && wh.ageSeconds < 60) {
-      lines.push(`<span class="health-tooltip-label">Wormhole</span>    <span class="health-tooltip-dot active"></span> active · ${fmtAge(wh.ageSeconds)}`);
-    } else if (wh.lastWriteTs) {
-      lines.push(`<span class="health-tooltip-label">Wormhole</span>    <span class="health-tooltip-dot dim"></span> last write ${fmtAge(wh.ageSeconds)}`);
-      if (wh.lastWriteTool) lines.push(`<span class="health-tooltip-detail">${esc(wh.lastWriteTool)}${wh.lastWritePath ? ' → ' + esc(wh.lastWritePath) : ''}</span>`);
-    } else {
-      lines.push(`<span class="health-tooltip-label">Wormhole</span>    <span class="health-tooltip-dot dim"></span> not yet used this session`);
-    }
-    lines.push(`<hr class="health-tooltip-sep">`);
-    lines.push(`Processed    ${w.processedTotal} slices total`);
-    pillTooltip.innerHTML = lines.join('\n');
-
-    // ── Service-health pill (from host-side detector via /api/health → hostHealth) ──
-    updateServiceHealthPill(health.hostHealth);
-  }
 
   let serviceHealthDown = false;
 
-  function updateServiceHealthPill(hostHealth) {
-    const pill = document.getElementById('service-health-pill');
-    const label = document.getElementById('service-health-pill-label');
-    if (!pill || !label) return;
+  async function updateServicesPanel() {
+    const esc = s => s == null ? '–' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    let isDown = true;
-    if (hostHealth && hostHealth.container_status === 'running' && hostHealth.api_status === 'ok') {
-      // Check staleness: last_checked must be within 30 seconds
-      const age = hostHealth.last_checked
-        ? (Date.now() - new Date(hostHealth.last_checked).getTime()) / 1000
-        : Infinity;
-      if (age <= 30) isDown = false;
+    let health = null;
+    let serverUp = false;
+    let fetchMs = null;
+    const fetchStart = Date.now();
+    try {
+      const res = await fetch('/api/health');
+      fetchMs = Date.now() - fetchStart;
+      if (res.ok && fetchMs < 3000) { health = await res.json(); serverUp = true; }
+    } catch (_) {}
+
+    // ── Orchestrator row ──────────────────────────────────
+    const orchDot   = document.getElementById('svc-orchestrator-dot');
+    const orchLabel = document.getElementById('svc-orchestrator-label');
+    const orchTip   = document.getElementById('svc-orchestrator-tooltip');
+    if (orchDot && orchLabel && orchTip) {
+      const w = health ? health.watcher : null;
+      const st = w ? w.status : 'down';
+      const dotCls = st === 'up' ? 'up' : st === 'stale' ? 'stale' : 'down';
+      orchDot.className = `service-dot ${dotCls}`;
+      orchLabel.textContent = `Orchestrator ${st}`;
+      const lines = [];
+      lines.push(`<span class="health-tooltip-label">Orchestrator</span>  <span class="health-tooltip-dot ${dotCls}"></span> ${esc(st)} · ${w ? fmtAge(w.heartbeatAge_s) : '–'}`);
+      if (w && w.currentSlice && w.elapsedSeconds != null) {
+        const lastAct = w.lastActivityAge_s != null ? ` · last output ${fmtAge(w.lastActivityAge_s)}` : '';
+        lines.push(`<span class="health-tooltip-detail">processing · #${esc(w.currentSlice)} · ${fmtElapsedCompact(w.elapsedSeconds)} elapsed${lastAct}</span>`);
+      } else if (w && st !== 'down') {
+        lines.push(`<span class="health-tooltip-detail">idle · ${w.processedTotal} slices processed</span>`);
+      }
+      orchTip.innerHTML = lines.join('\n');
     }
 
-    serviceHealthDown = isDown;
-    if (isDown) {
-      pill.className = 'service-health-pill pill-red';
-      label.textContent = 'Service down — approvals blocked';
-    } else {
-      pill.className = 'service-health-pill pill-green';
-      label.textContent = 'Service up';
+    // ── Server row ────────────────────────────────────────
+    const srvDot   = document.getElementById('svc-server-dot');
+    const srvLabel = document.getElementById('svc-server-label');
+    const srvTip   = document.getElementById('svc-server-tooltip');
+    if (srvDot && srvLabel && srvTip) {
+      if (serverUp) {
+        srvDot.className = 'service-dot up';
+        srvLabel.textContent = 'Server up';
+        srvTip.innerHTML = `<span class="health-tooltip-label">Server</span>         <span class="health-tooltip-dot up"></span> up · /api/health responded in ${fetchMs}ms`;
+      } else {
+        srvDot.className = 'service-dot down';
+        srvLabel.textContent = 'Server down';
+        srvTip.innerHTML = `<span class="health-tooltip-label">Server</span>         <span class="health-tooltip-dot down"></span> down · no response from /api/health`;
+      }
     }
+
+    // ── Detector row ──────────────────────────────────────
+    const detDot   = document.getElementById('svc-detector-dot');
+    const detLabel = document.getElementById('svc-detector-label');
+    const detTip   = document.getElementById('svc-detector-tooltip');
+    if (detDot && detLabel && detTip) {
+      const hh = health ? health.hostHealth : null;
+      const lines = [];
+      let detDown = true;
+      if (!hh) {
+        detDot.className = 'service-dot down';
+        detLabel.textContent = 'Detector down';
+        lines.push(`<span class="health-tooltip-label">Detector</span>       <span class="health-tooltip-dot down"></span> detector not reporting`);
+        lines.push(`<span class="health-tooltip-detail">install launchd agent per scripts/README-health-detector.md</span>`);
+      } else {
+        const age = hh.last_checked
+          ? Math.round((Date.now() - new Date(hh.last_checked).getTime()) / 1000)
+          : Infinity;
+        if (age > 30) {
+          detDot.className = 'service-dot down';
+          detLabel.textContent = 'Detector down';
+          lines.push(`<span class="health-tooltip-label">Detector</span>       <span class="health-tooltip-dot down"></span> detector silent · ${fmtAge(age)}`);
+          lines.push(`<span class="health-tooltip-detail">${age}s since last check</span>`);
+        } else if (hh.container_status !== 'running') {
+          detDot.className = 'service-dot down';
+          detLabel.textContent = 'Detector down';
+          lines.push(`<span class="health-tooltip-label">Detector</span>       <span class="health-tooltip-dot down"></span> container ${esc(hh.container_status)} · ${fmtAge(age)}`);
+        } else if (hh.api_status !== 'ok') {
+          detDot.className = 'service-dot down';
+          detLabel.textContent = 'Detector down';
+          lines.push(`<span class="health-tooltip-label">Detector</span>       <span class="health-tooltip-dot down"></span> API ${esc(hh.api_status)} · ${fmtAge(age)}`);
+        } else {
+          detDown = false;
+          detDot.className = 'service-dot up';
+          detLabel.textContent = 'Detector up';
+          lines.push(`<span class="health-tooltip-label">Detector</span>       <span class="health-tooltip-dot up"></span> up · ${fmtAge(age)}`);
+          lines.push(`<span class="health-tooltip-detail">container running · API ok</span>`);
+        }
+      }
+      detTip.innerHTML = lines.join('\n');
+    }
+
+    // ── Approve gate: blocked only by orchestrator or server down ──
+    // Detector down = observability gap; approvals still allowed.
+    const orchStatus = health ? health.watcher.status : 'down';
+    serviceHealthDown = !serverUp || orchStatus === 'down';
   }
 
   startElapsedTick();
-  updateHealthPill();
-  setInterval(updateHealthPill, 15000);
+  updateServicesPanel();
+  setInterval(updateServicesPanel, 15000);
   fetchBridge();
   setInterval(fetchBridge, 2000);
 
@@ -4001,7 +4065,7 @@
     const s = sliceDetailState;
 
     if (s.context === 'staged') {
-      const approveDisabled = serviceHealthDown ? ' disabled title="Service down — start Docker + detector before approving."' : '';
+      const approveDisabled = serviceHealthDown ? ' disabled title="Orchestrator/Server down — start Docker + watcher before approving."' : '';
       container.innerHTML = `
         <button class="slice-action-btn slice-action-approve" onclick="sliceDetailApprove()"${approveDisabled}>Approve</button>
         <button class="slice-action-btn slice-action-refine" onclick="sliceDetailRefine()">Refine</button>
