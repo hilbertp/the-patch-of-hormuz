@@ -39,7 +39,11 @@ function buildNogPrompt({ id, round, sliceFileContents, doneReportContents, gitD
     'Perform your review per ROLE.md. Then:',
     `1. Append your review section to the slice file at: ${slicePath}`,
     `2. Write your verdict to: bridge/queue/${id}-NOG.md`,
-    '   Format: YAML frontmatter with `verdict: PASS` or `verdict: RETURN`, plus a one-line `summary`.',
+    '   Format: YAML frontmatter with one of the following `verdict` values, plus a one-line `summary`:',
+    '     verdict: ACCEPTED  — all ACs met, quality bar cleared, nothing to fix',
+    '     verdict: REJECTED  — one or more ACs unmet or quality issues found; rework needed',
+    '     verdict: ESCALATE  — ACs are contradictory, impossible, or require scope change; needs O\'Brien',
+    '     verdict: OVERSIZED — diff too large or scope exceeded; slice must be split before review',
     '',
     'Do not modify any code. Read only. Write only to the two files above.',
   ].join('\n');

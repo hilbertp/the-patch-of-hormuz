@@ -1516,6 +1516,28 @@
     padding: 24px 0;
   }
 
+  /* ── Per-state queue-row rules ───────────────────────── */
+  .queue-row[data-state="IN_PROGRESS"]    { background: #fffbeb; }
+  .queue-row[data-state="DONE"]           { background: #f0fdf4; }
+  .queue-row[data-state="ERROR"]          { background: #fef2f2; }
+  .queue-row[data-state="NEEDS_APENDMENT"]{ background: #fffbeb; }
+
+  .queue-state-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+  }
+  .queue-state-badge.state-queued           { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+  .queue-state-badge.state-in-progress      { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+  .queue-state-badge.state-done             { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+  .queue-state-badge.state-error            { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+  .queue-state-badge.state-needs-apendment  { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+
   /* ── RESPONSIVE ────────────────────────────────────────── */
   @media (max-width: 900px) {
     .dashboard-container { padding: 20px 20px; }
@@ -2731,10 +2753,18 @@
     const footerEl     = document.getElementById('active-slice-footer');
     const pausedFooter = document.getElementById('paused-footer');
 
-    // Derive round from register events for this slice
+    // Derive round from register events for this slice, scoped to the current attempt.
     function getRound(sliceId) {
+      const restagedEvents = cachedRegisterEvents.filter(e =>
+        String(e.id) === String(sliceId) && e.event === 'RESTAGED'
+      );
+      const latestRestaged = restagedEvents.length > 0
+        ? restagedEvents.reduce((a, b) => (a.ts > b.ts ? a : b))
+        : null;
+      const cutoff = latestRestaged ? latestRestaged.ts : null;
       const commEvents = cachedRegisterEvents.filter(e =>
-        String(e.id) === String(sliceId) && e.event === 'COMMISSIONED'
+        String(e.id) === String(sliceId) && e.event === 'COMMISSIONED' &&
+        (!cutoff || e.ts > cutoff)
       );
       // Use the round field from the latest COMMISSIONED event if available
       const latest = commEvents.length > 0 ? commEvents[commEvents.length - 1] : null;
@@ -3699,47 +3729,65 @@
   }
 
   function buildQueueRows() {
-    // 1. Apendment accepted rows — locked at top, sorted by creation date
-    const acceptedSlices = cachedBridgeSlices.filter(b => b.state === 'PENDING');
-    const apendmentRows = acceptedSlices
+    // 1. STAGED rows — newest unordered first, then cachedStagedOrder
+    const stagedBase = cachedStagedItems
+      .filter(s => s.status !== 'NEEDS_APENDMENT')
+      .map(s => ({ id: s.id, title: s.title, goal: s.goal, sprint: s.sprint, references: s.references, rowState: 'STAGED', isApendment: false }));
+    const stagedOrdered = [];
+    for (const oid of cachedStagedOrder) {
+      const found = stagedBase.find(s => s.id === oid);
+      if (found) stagedOrdered.push(found);
+    }
+    const stagedUnordered = stagedBase
+      .filter(s => !cachedStagedOrder.includes(s.id))
+      .sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10));
+    const stagedRows = [...stagedOrdered, ...stagedUnordered];
+
+    // 2. NEEDS_APENDMENT rows
+    const needsAmendRows = cachedStagedItems
+      .filter(s => s.status === 'NEEDS_APENDMENT')
+      .sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10))
+      .map(s => ({ id: s.id, title: s.title, goal: s.goal, sprint: s.sprint, references: s.references, rowState: 'NEEDS_APENDMENT', isApendment: false }));
+
+    // 3. QUEUED/PENDING apendment rows — locked at top of QUEUED group
+    const queuedSlices = cachedBridgeSlices.filter(b => b.state === 'QUEUED' || b.state === 'PENDING');
+    const apendmentRows2 = queuedSlices
       .filter(b => isApendment(b))
       .sort((a, b) => new Date(a.created || 0) - new Date(b.created || 0))
-      .map(b => ({ ...b, goal: b.goal ?? null, rowState: 'accepted', isApendment: true }));
+      .map(b => ({ ...b, rowState: 'QUEUED', isApendment: true }));
 
-    // 2. Non-apendment accepted rows — ordered by queue order
-    const normalAccepted = acceptedSlices.filter(b => !isApendment(b));
-    const orderedAccepted = [];
+    // 4. QUEUED/PENDING non-apendment rows — ordered by queue order
+    const normalQueued = queuedSlices.filter(b => !isApendment(b));
+    const orderedQueued = [];
     for (const oid of cachedQueueOrder) {
-      const found = normalAccepted.find(b => b.id === oid);
-      if (found) orderedAccepted.push(found);
+      const found = normalQueued.find(b => b.id === oid);
+      if (found) orderedQueued.push(found);
     }
-    // Any accepted items not in the order list go at the end, sorted ascending by ID
-    const unorderedAccepted = normalAccepted
+    const unorderedQueued = normalQueued
       .filter(b => !cachedQueueOrder.includes(b.id))
       .sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
-    for (const b of unorderedAccepted) orderedAccepted.push(b);
-    const acceptedRows = orderedAccepted.map(b => ({ ...b, rowState: 'accepted', isApendment: false }));
+    for (const b of unorderedQueued) orderedQueued.push(b);
+    const queuedRows = orderedQueued.map(b => ({ ...b, rowState: 'QUEUED', isApendment: false }));
 
-    // 3. Staged rows — unaccepted, at bottom, ordered by cachedStagedOrder
-    const stagedRows = buildStagedRows();
+    // 5. IN_PROGRESS rows (desc ID)
+    const inProgressRows = cachedBridgeSlices
+      .filter(b => b.state === 'IN_PROGRESS')
+      .sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10))
+      .map(b => ({ ...b, rowState: 'IN_PROGRESS', isApendment: false }));
 
-    return [...apendmentRows, ...acceptedRows, ...stagedRows];
-  }
+    // 6. DONE rows (desc ID)
+    const doneRows = cachedBridgeSlices
+      .filter(b => b.state === 'DONE')
+      .sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10))
+      .map(b => ({ ...b, rowState: 'DONE', isApendment: false }));
 
-  function buildStagedRows() {
-    const base = cachedStagedItems
-      .filter(s => s.status !== 'NEEDS_APENDMENT')
-      .map(s => ({ id: s.id, title: s.title, goal: s.goal, sprint: s.sprint, references: s.references, rowState: 'staged', isApendment: false }));
+    // 7. ERROR rows (desc ID)
+    const errorRows = cachedBridgeSlices
+      .filter(b => b.state === 'ERROR')
+      .sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10))
+      .map(b => ({ ...b, rowState: 'ERROR', isApendment: false }));
 
-    const ordered = [];
-    for (const oid of cachedStagedOrder) {
-      const found = base.find(s => s.id === oid);
-      if (found) ordered.push(found);
-    }
-    const unordered = base
-      .filter(s => !cachedStagedOrder.includes(s.id))
-      .sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
-    return [...ordered, ...unordered];
+    return [...stagedRows, ...needsAmendRows, ...apendmentRows2, ...queuedRows, ...inProgressRows, ...doneRows, ...errorRows];
   }
 
   function renderQueueList() {
@@ -3754,34 +3802,56 @@
     container.innerHTML = rows.map(row => {
       const eid = escHtml(row.id);
       const sprintLabel = row.sprint ? `Sprint ${row.sprint}` : '';
-      const isAccepted = row.rowState === 'accepted';
+      const rowState = row.rowState;
       const isAmd = row.isApendment;
-
-      const isStaged = row.rowState === 'staged';
+      const isQueued = rowState === 'QUEUED';
+      const isStaged = rowState === 'STAGED';
 
       // Drag handle
       let handleClass = '';
       let draggable = 'false';
-      if (isAccepted && !isAmd) {
+      if (isQueued && !isAmd) {
         handleClass = 'active';
         draggable = 'true';
-      } else if (isAccepted && isAmd) {
+      } else if (isQueued && isAmd) {
         handleClass = 'locked';
-      } else if (isStaged && !isAmd) {
+      } else if (isStaged) {
         handleClass = 'active';
         draggable = 'true';
+      } else {
+        handleClass = 'locked';
       }
 
-      // Action buttons
+      // State badge (visually distinguishes non-STAGED states)
+      let stateBadgeHtml = '';
+      if (rowState === 'QUEUED') {
+        stateBadgeHtml = '<span class="queue-state-badge state-queued">Queued</span>';
+      } else if (rowState === 'IN_PROGRESS') {
+        stateBadgeHtml = '<span class="queue-state-badge state-in-progress">In Progress</span>';
+      } else if (rowState === 'DONE') {
+        stateBadgeHtml = '<span class="queue-state-badge state-done">Done</span>';
+      } else if (rowState === 'ERROR') {
+        stateBadgeHtml = '<span class="queue-state-badge state-error">Error</span>';
+      } else if (rowState === 'NEEDS_APENDMENT') {
+        stateBadgeHtml = '<span class="queue-state-badge state-needs-apendment">Needs Amend</span>';
+      }
+
+      // Action buttons per state
       let actionsHtml;
-      if (isAccepted) {
+      if (isQueued) {
         actionsHtml = `
-          <button class="queue-btn-accepted" onclick="queueUnaccept('${eid}')">&#10003; Accepted</button>
+          <button class="queue-btn-accepted" onclick="queueUnaccept('${eid}')">&#10003; Queued</button>
           <button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
-      } else {
+      } else if (isStaged) {
         actionsHtml = `
           <button class="queue-btn-accept" onclick="queueAccept('${eid}')">Accept</button>
           <button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
+      } else if (rowState === 'NEEDS_APENDMENT') {
+        actionsHtml = `<button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
+      } else if (rowState === 'IN_PROGRESS' || rowState === 'DONE' || rowState === 'ERROR') {
+        actionsHtml = `<button class="return-to-stage-btn" onclick="returnToStage('${eid}', this)">&#x21a9; Return</button>`;
+      } else {
+        actionsHtml = '';
       }
 
       const goalHtml = row.goal ? `<div class="queue-expand" id="queue-expand-${eid}"><span class="queue-expand-goal">${escHtml(row.goal)}</span></div>` : '';
@@ -3791,17 +3861,18 @@
         ? `<span class="queue-retry-badge" title="Automatically re-queued after Anthropic API outage">&#8635; API retry ${retryCount}</span>`
         : '';
       return `<div class="queue-row-wrap">
-      <div class="queue-row" data-id="${eid}" data-state="${row.rowState}" data-apendment="${isAmd}" draggable="${draggable}">
+      <div class="queue-row" data-id="${eid}" data-state="${rowState}" data-apendment="${isAmd}" draggable="${draggable}">
         <span class="queue-drag-handle ${handleClass}">&#10303;</span>
         <span class="queue-row-id">#${eid}</span>
         <span class="sprint-badge">${escHtml(sprintLabel)}</span>
+        ${stateBadgeHtml}
         <span class="queue-row-title">${escHtml(row.title || '')}</span>
         ${retryBadge}${chevronHtml}
         <span class="queue-row-actions">${actionsHtml}</span>
       </div>${goalHtml}</div>`;
     }).join('');
 
-    // Attach drag events to accepted non-apendment rows
+    // Attach drag events to QUEUED non-apendment and STAGED rows
     setupDragAndDrop();
     // Restore chevron expanded state after re-render
     restoreQueueExpanded();
@@ -3858,8 +3929,8 @@
   let sliceDetailTab = 'rendered';
 
   async function queueEdit(id) {
-    // Determine context: accepted (PENDING in queue) vs staged
-    const isAccepted = cachedBridgeSlices.some(b => b.id === String(id) && b.state === 'PENDING');
+    // Determine context: QUEUED/PENDING (in build queue) vs staged
+    const isAccepted = cachedBridgeSlices.some(b => b.id === String(id) && (b.state === 'QUEUED' || b.state === 'PENDING'));
     const context = isAccepted ? 'accepted' : 'staged';
 
     // Fetch full content from server
@@ -4168,8 +4239,8 @@
 
     const targetId = targetRow.dataset.id;
 
-    if (targetState === 'accepted') {
-      // Reorder accepted: move dragSrcId before targetId in queue order
+    if (targetState === 'QUEUED') {
+      // Reorder QUEUED: move dragSrcId before targetId in queue order
       let order = [...cachedQueueOrder];
       order = order.filter(id => id !== dragSrcId);
       const targetIdx = order.indexOf(targetId);
@@ -4187,8 +4258,8 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order }),
       }).catch(() => {});
-    } else if (targetState === 'staged') {
-      // Reorder staged: client-side only
+    } else if (targetState === 'STAGED') {
+      // Reorder STAGED: client-side only
       let order = [...cachedStagedOrder];
       // Ensure both IDs are in the order array
       const allStagedIds = cachedStagedItems
