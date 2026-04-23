@@ -321,35 +321,26 @@ test('No execSync/execFile call uses stdio inherit (except selfRestart spawn)', 
 });
 
 // ---------------------------------------------------------------------------
-// Test 9: Watcher uses APENDMENT_NEEDED verdict string (not AMENDMENT_NEEDED)
+// Test 9: invokeEvaluator is gone (slice 191: merged into single Nog pass)
 // ---------------------------------------------------------------------------
 
-test('Evaluator prompt uses APENDMENT_NEEDED verdict string', () => {
+test('invokeEvaluator does NOT exist in orchestrator source (removed slice 191)', () => {
   assert.ok(
-    watcherSource.includes('"APENDMENT_NEEDED"'),
-    'Watcher should reference APENDMENT_NEEDED'
-  );
-  // The only AMENDMENT_NEEDED reference should be in the back-compat conversion
-  const amendmentNeededLines = watcherSource.split('\n').filter(l =>
-    l.includes('AMENDMENT_NEEDED') && !l.includes('Accept both') && !l.includes('verdict ===')
-  );
-  assert.strictEqual(
-    amendmentNeededLines.length,
-    0,
-    `Found AMENDMENT_NEEDED outside back-compat: ${amendmentNeededLines.map(l => l.trim()).join('; ')}`
+    !watcherSource.includes('function invokeEvaluator('),
+    'invokeEvaluator must be removed — merged into single invokeNog pass'
   );
 });
 
 // ---------------------------------------------------------------------------
-// Test 10: handleApendment function exists (replaces handleAmendment)
+// Test 10: handleApendment is gone (slice 191: dead code after evaluator removal)
 // ---------------------------------------------------------------------------
 
-test('handleApendment function exists in orchestrator source', () => {
+test('handleApendment does NOT exist in orchestrator source (removed slice 191)', () => {
   assert.ok(
-    watcherSource.includes('function handleApendment('),
-    'Watcher should have handleApendment function'
+    !watcherSource.includes('function handleApendment('),
+    'handleApendment must be removed — dead code after evaluator merge'
   );
-  // Old function should not exist
+  // Old amendment variant also gone
   assert.ok(
     !watcherSource.includes('function handleAmendment('),
     'Watcher should NOT have handleAmendment function'

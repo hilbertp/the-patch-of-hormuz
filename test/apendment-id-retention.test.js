@@ -338,28 +338,13 @@ test('handleNogReturn does NOT call nextSliceId (ID retention)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test (e): handleApendment in orchestrator does NOT call nextSliceId
+// Test (e): handleApendment removed (slice 191: dead code after evaluator merge)
 // ---------------------------------------------------------------------------
 
-test('handleApendment does NOT call nextSliceId (ID retention)', () => {
-  const lines = watcherSource.split('\n');
-  let start = -1, end = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes('function handleApendment(')) {
-      start = i;
-    }
-    if (start > 0 && i > start && /^function\s/.test(lines[i]) && !lines[i].includes('handleApendment')) {
-      end = i;
-      break;
-    }
-  }
-  assert.ok(start > 0, 'handleApendment must exist');
-  assert.ok(end > start, 'handleApendment must have an end');
-
-  const fnBody = lines.slice(start, end).join('\n');
+test('handleApendment does NOT exist in orchestrator (removed slice 191)', () => {
   assert.ok(
-    !fnBody.includes('nextSliceId'),
-    'handleApendment must NOT call nextSliceId — ID retention'
+    !watcherSource.includes('function handleApendment('),
+    'handleApendment must be removed — dead code after invokeEvaluator merge'
   );
 });
 
@@ -439,15 +424,14 @@ test('rounds[] entries are frozen — appending round 3 does not alter round 1 o
 });
 
 // ---------------------------------------------------------------------------
-// Test (h): APENDMENT_NEEDED is used in evaluator prompt (not AMENDMENT_NEEDED)
+// Test (h): invokeEvaluator removed (slice 191: merged into single Nog pass)
 // ---------------------------------------------------------------------------
 
-test('Evaluator prompt verdict options include APENDMENT_NEEDED', () => {
-  // Find the evaluator prompt JSON format block
-  const promptVerdictLine = watcherSource.split('\n').find(l =>
-    l.includes('"verdict"') && l.includes('APENDMENT_NEEDED')
+test('invokeEvaluator does NOT exist in orchestrator (removed slice 191)', () => {
+  assert.ok(
+    !watcherSource.includes('function invokeEvaluator('),
+    'invokeEvaluator must be removed — merged into single invokeNog pass'
   );
-  assert.ok(promptVerdictLine, 'Evaluator prompt must include APENDMENT_NEEDED in verdict options');
 });
 
 // ---------------------------------------------------------------------------

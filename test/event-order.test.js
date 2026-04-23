@@ -85,61 +85,45 @@ test('handleAccepted does not call callReviewAPI', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Part 2 — handleApendment emits NOG_DECISION (canonical)
+// Part 2 — handleApendment removed (slice 191); invokeNog emits NOG_DECISION REJECTED
 // ---------------------------------------------------------------------------
 
-console.log('\n-- Part 2: handleApendment --');
+console.log('\n-- Part 2: handleApendment removed; invokeNog emits REJECTED --');
 
-test('handleApendment emits NOG_DECISION with verdict REJECTED', () => {
-  const fnMatch = orchestratorSource.match(/function handleApendment\([^)]*\)\s*\{([\s\S]*?)^}/m);
-  assert(fnMatch, 'Could not find handleApendment function');
-  const body = fnMatch[1];
-
-  const nogDecision = body.match(/registerEvent\(id,\s*'NOG_DECISION',\s*\{([^}]+)\}/);
-  assert(nogDecision, 'NOG_DECISION registerEvent not found in handleApendment');
-  assert(nogDecision[1].includes("'REJECTED'"), 'NOG_DECISION must carry REJECTED verdict');
-  assert(nogDecision[1].includes('reason'), 'NOG_DECISION must carry reason');
+test('handleApendment does NOT exist (removed slice 191: dead code after evaluator merge)', () => {
+  assert(!orchestratorSource.includes('function handleApendment('), 'handleApendment must be removed');
 });
 
-test('handleApendment does NOT emit REVIEW_RECEIVED or REVIEWED', () => {
-  const fnMatch = orchestratorSource.match(/function handleApendment\([^)]*\)\s*\{([\s\S]*?)^}/m);
+test('invokeNog emits NOG_DECISION with verdict REJECTED on REJECTED path', () => {
+  const fnMatch = orchestratorSource.match(/function invokeNog\([^)]*\)\s*\{([\s\S]*?)^function /m);
+  assert(fnMatch, 'Could not find invokeNog function');
   const body = fnMatch[1];
-  assert(!body.includes("'REVIEW_RECEIVED'"), 'handleApendment must not emit REVIEW_RECEIVED');
-  assert(!body.includes("'REVIEWED'"), 'handleApendment must not emit REVIEWED');
+  const rejectedLine = body.match(/registerEvent\(id,\s*'NOG_DECISION',\s*\{[^}]*'REJECTED'/);
+  assert(rejectedLine, 'invokeNog must emit NOG_DECISION with REJECTED verdict');
 });
 
-test('handleApendment does not call callReviewAPI', () => {
-  const fnMatch = orchestratorSource.match(/function handleApendment\([^)]*\)\s*\{([\s\S]*?)^}/m);
+test('invokeNog REJECTED path does not emit REVIEW_RECEIVED or REVIEWED', () => {
+  const fnMatch = orchestratorSource.match(/function invokeNog\([^)]*\)\s*\{([\s\S]*?)^function /m);
   const body = fnMatch[1];
-  assert(!body.includes('callReviewAPI('), 'handleApendment must not call callReviewAPI');
+  assert(!body.includes("'REVIEW_RECEIVED'"), 'invokeNog must not emit REVIEW_RECEIVED');
+  assert(!body.includes("'REVIEWED'"), 'invokeNog must not emit REVIEWED');
 });
 
 // ---------------------------------------------------------------------------
-// Part 3 — handleStuck emits STUCK directly (no REVIEW_RECEIVED)
+// Part 3 — handleStuck (evaluator version) removed (slice 191)
 // ---------------------------------------------------------------------------
 
-console.log('\n-- Part 3: handleStuck --');
+console.log('\n-- Part 3: handleStuck (evaluator version) removed --');
 
-test('handleStuck emits STUCK with reason', () => {
-  const fnMatch = orchestratorSource.match(/function handleStuck\([^)]*\)\s*\{([\s\S]*?)^}/m);
-  assert(fnMatch, 'Could not find handleStuck function');
-  const body = fnMatch[1];
-
-  const stuckLine = body.match(/registerEvent\(id,\s*'STUCK',\s*\{([^}]+)\}/);
-  assert(stuckLine, 'Could not find STUCK registerEvent call');
-  assert(stuckLine[1].includes('reason'), 'STUCK event must carry reason');
+test('handleStuck does NOT exist as evaluator handler (removed slice 191)', () => {
+  assert(!orchestratorSource.includes('function handleStuck('), 'handleStuck must be removed');
 });
 
-test('handleStuck does NOT emit REVIEW_RECEIVED', () => {
-  const fnMatch = orchestratorSource.match(/function handleStuck\([^)]*\)\s*\{([\s\S]*?)^}/m);
-  const body = fnMatch[1];
-  assert(!body.includes("'REVIEW_RECEIVED'"), 'handleStuck must not emit REVIEW_RECEIVED');
-});
-
-test('handleStuck does not call callReviewAPI', () => {
-  const fnMatch = orchestratorSource.match(/function handleStuck\([^)]*\)\s*\{([\s\S]*?)^}/m);
-  const body = fnMatch[1];
-  assert(!body.includes('callReviewAPI('), 'handleStuck must not call callReviewAPI');
+test('STUCK state is still reachable via Nog escalation (MAX_ROUNDS_EXHAUSTED path)', () => {
+  assert(
+    orchestratorSource.includes("'STUCK'") && orchestratorSource.includes("'MAX_ROUNDS_EXHAUSTED'"),
+    'Nog escalation path must still register STUCK/MAX_ROUNDS_EXHAUSTED'
+  );
 });
 
 // ---------------------------------------------------------------------------
