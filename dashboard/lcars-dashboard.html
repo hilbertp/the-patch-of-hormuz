@@ -1470,7 +1470,7 @@
     background: #f0fdf4;
   }
 
-  .queue-btn-accepted {
+  .queue-accepted-pill {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -1478,16 +1478,12 @@
     border-radius: 6px;
     font-size: 12px;
     font-weight: 500;
-    cursor: pointer;
     white-space: nowrap;
     border: 1px solid #16a34a;
     background: #16a34a;
     color: #ffffff;
-    transition: background 0.15s;
-  }
-
-  .queue-btn-accepted:hover {
-    background: #15803d;
+    cursor: default;
+    user-select: none;
   }
 
   .queue-btn-edit {
@@ -3171,7 +3167,7 @@
   let cachedHistoryItems = [];
   let cachedHistoryAllRows = [];
   let historyPage = 1;
-  const HISTORY_PAGE_SIZE = 10;
+  const HISTORY_PAGE_SIZE = 5;
 
   // Determine terminal outcome for a slice from register events
   function classifyTerminalOutcome(sliceId, events) {
@@ -3938,7 +3934,7 @@
       let actionsHtml;
       if (isQueued) {
         actionsHtml = `
-          <button class="queue-btn-accepted" onclick="queueUnaccept('${eid}')">&#10003; Queued</button>
+          <span class="queue-accepted-pill">&#10003; Accepted</span>
           <button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
       } else if (isStaged) {
         actionsHtml = `
@@ -4006,16 +4002,6 @@
       if (res.ok) {
         if (!cachedQueueOrder.includes(id)) cachedQueueOrder = [...cachedQueueOrder, id];
         cachedStagedOrder = cachedStagedOrder.filter(sid => sid !== id);
-        fetchCombinedQueue();
-        fetchBridge();
-      }
-    } catch (_) {}
-  }
-
-  async function queueUnaccept(id) {
-    try {
-      const res = await fetch('/api/queue/' + id + '/unaccept', { method: 'POST' });
-      if (res.ok) {
         fetchCombinedQueue();
         fetchBridge();
       }

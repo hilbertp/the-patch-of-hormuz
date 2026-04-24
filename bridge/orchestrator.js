@@ -2298,26 +2298,59 @@ function latestRestagedTs(id, regFile) {
 }
 
 /**
+ * latestAttemptStartTs(id, regFile)
+ *
+ * Returns the ISO timestamp of the most recent event marking the start of the
+ * current attempt. Resolution order: latest RESTAGED → latest COMMISSIONED → null.
+ * Accepts an optional regFile path for testing.
+ */
+function latestAttemptStartTs(id, regFile) {
+  const file = regFile || REGISTER_FILE;
+  try {
+    const lines = fs.readFileSync(file, 'utf-8').trim().split('\n').filter(Boolean);
+    let latestRestaged = null;
+    let latestCommissioned = null;
+    for (const line of lines) {
+      try {
+        const raw = JSON.parse(line);
+        const sid = String(raw.slice_id || raw.id || '');
+        if (sid !== String(id)) continue;
+        if (raw.event === 'RESTAGED') {
+          if (!latestRestaged || raw.ts > latestRestaged) latestRestaged = raw.ts;
+        } else if (raw.event === 'COMMISSIONED') {
+          if (!latestCommissioned || raw.ts > latestCommissioned) latestCommissioned = raw.ts;
+        }
+      } catch (_) {}
+    }
+    return latestRestaged || latestCommissioned || null;
+  } catch (_) { return null; }
+}
+
+/**
  * hasReviewEvent(id, regFile)
  *
- * Returns true if register.jsonl contains a NOG_DECISION, MERGED, or STUCK event
- * for this slice ID after the latest RESTAGED marker — meaning the current attempt
- * has already been evaluated. Pre-RESTAGED events are ignored.
+ * Returns true if the current attempt has reached a terminal review state:
+ * MERGED, STUCK, or NOG_DECISION with verdict ACCEPTED. REJECTED and ESCALATE
+ * verdicts are intermediate — they do not block re-dispatch. The attempt
+ * boundary is latestAttemptStartTs (RESTAGED → COMMISSIONED → null).
  * Accepts an optional regFile path for testing.
  */
 function hasReviewEvent(id, regFile) {
   const file = regFile || REGISTER_FILE;
   try {
-    const cutoff = latestRestagedTs(id, file);
+    const cutoff = latestAttemptStartTs(id, file);
+    if (cutoff === null) return false;
     const lines = fs.readFileSync(file, 'utf-8').trim().split('\n').filter(Boolean);
     resetDedupeState();
     for (const line of lines) {
       try {
         const raw = JSON.parse(line);
         const entry = translateEvent(raw);
-        if (entry && entry.id === String(id) && ['NOG_DECISION', 'MERGED', 'STUCK'].includes(entry.event)) {
-          if (!cutoff || entry.ts > cutoff) return true;
-        }
+        if (!entry || entry.id !== String(id)) continue;
+        if (entry.ts <= cutoff) continue;
+        if (entry.event === 'MERGED') return true;
+        if (entry.event === 'STUCK') return true;
+        if (entry.event === 'NOG_DECISION' && entry.verdict === 'ACCEPTED') return true;
       } catch (_) {}
     }
   } catch (_) {}
@@ -3693,7 +3726,7 @@ function poll() {
       continue;
     }
 
-    // Skip if already reviewed (evaluator has run).
+    // Skip if the current attempt has already been accepted + merged. Rejected verdicts are NOT terminal — Rom reworks and the next DONE must re-dispatch.
     if (hasReviewEvent(doneId)) continue;
 
     // Rom slice-broken fast path (BR invariant #9):
@@ -3818,10 +3851,7 @@ function poll() {
   //   - Remove the QUEUED/PENDING file so the poll loop doesn't re-process it forever
   //   - Continue the poll loop (do not crash)
   // ---------------------------------------------------------------------------
-  const REQUIRED_FIELDS = ['id', 'title', 'from', 'to', 'priority', 'created'];
-  const missingFields = REQUIRED_FIELDS.filter(
-    field => !meta || !meta[field] || meta[field].trim() === ''
-  );
+  const { missingFields } = validateIntakeMeta(meta);
 
   if (missingFields.length > 0) {
     const errId   = (meta && meta.id) || id;
@@ -4249,7 +4279,33 @@ if (require.main === module) {
 }
 
 // ---------------------------------------------------------------------------
+// validateIntakeMeta — intake field validation for the poll loop
+//
+// Rework/apendment files carry rounds[], round>1, or apendment/references
+// signals and only need 4 fields (id, title, from, to); the priority +
+// created pair was captured in the original COMMISSIONED event.
+// ---------------------------------------------------------------------------
+
+function validateIntakeMeta(meta) {
+  const isApendmentFile = !!(meta && (
+    meta.type === 'amendment' ||
+    meta.apendment ||
+    meta.amendment ||
+    (meta.references && meta.references !== 'null') ||
+    (parseInt(meta.round, 10) > 1) ||
+    (Array.isArray(meta.rounds) && meta.rounds.length > 0)
+  ));
+  const REQUIRED_FIELDS = isApendmentFile
+    ? ['id', 'title', 'from', 'to']
+    : ['id', 'title', 'from', 'to', 'priority', 'created'];
+  const missingFields = REQUIRED_FIELDS.filter(
+    field => !meta || !meta[field] || meta[field].trim() === ''
+  );
+  return { ok: missingFields.length === 0, missingFields };
+}
+
+// ---------------------------------------------------------------------------
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, latestRestagedTs, hasReviewEvent, hasMergedEvent, restagedBootstrap };
+module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, validateIntakeMeta };
