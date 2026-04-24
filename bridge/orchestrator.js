@@ -52,7 +52,7 @@ const STAGED_DIR     = path.resolve(__dirname, 'staged');
 const LOG_FILE       = path.resolve(__dirname, config.logFile);
 const HEARTBEAT_FILE = path.resolve(__dirname, config.heartbeatFile);
 const PROJECT_DIR    = path.resolve(__dirname, config.projectDir);
-const REGISTER_FILE  = path.resolve(__dirname, 'register.jsonl');
+let REGISTER_FILE  = path.resolve(__dirname, 'register.jsonl');
 const RESTAGED_BOOTSTRAP_MARKER = path.resolve(__dirname, '.restaged-bootstrap-done');
 const NOG_ACTIVE_FILE = path.resolve(__dirname, 'nog-active.json');
 const TRASH_DIR      = path.resolve(QUEUE_DIR, '..', 'trash');
@@ -1156,11 +1156,18 @@ function selfRestart(reason) {
 /**
  * ensureMainIsFresh(id)
  *
- * Fetches from origin and fast-forwards local main so the branch we're
+ * Fetches from origin and synchronises local main so the branch we're
  * about to create includes all remote work. If the fetch fails (offline,
  * no remote), log a warning but continue — local main is still valid.
- * If local main has diverged from origin, hard-resets to origin/main and
- * triggers a self-restart to ensure clean process state.
+ *
+ * Four cases after fetch:
+ *   in-sync  (ahead=0, behind=0) → nothing to do
+ *   ahead    (ahead>0, behind=0) → push local commits to origin
+ *   behind   (ahead=0, behind>0) → fast-forward local main from origin
+ *   diverged (ahead>0, behind>0) → throw Error; operator must resolve
+ *
+ * The push/ff paths are wrapped in the Layer-2 unlock/relock protocol
+ * inherited from slice 202. True divergence bails before any unlock.
  */
 function ensureMainIsFresh(id) {
   try {
@@ -1178,8 +1185,15 @@ function ensureMainIsFresh(id) {
     return;
   }
 
-  // Check if local has commits not on origin (diverged)
-  const ahead = gitFinalizer.runGit('git log origin/main..main --oneline', { slice_id: id, op: 'ensureMainIsFresh_ahead', encoding: 'utf-8' }).trim();
+  const aheadCount  = Number(gitFinalizer.runGit('git rev-list --count origin/main..main',        { slice_id: id, op: 'ensureMainIsFresh_aheadCount',  encoding: 'utf-8' }).trim());
+  const behindCount = Number(gitFinalizer.runGit('git rev-list --count main..origin/main',        { slice_id: id, op: 'ensureMainIsFresh_behindCount', encoding: 'utf-8' }).trim());
+
+  // True divergence: local has commits origin doesn't AND origin has commits local doesn't.
+  // This is an operator situation — bail immediately without touching either side.
+  if (aheadCount > 0 && behindCount > 0) {
+    log('error', 'git_safety', { id, msg: 'true divergence detected', ahead: aheadCount, behind: behindCount });
+    throw new Error(`main diverged from origin: local ahead ${aheadCount}, behind ${behindCount}. Operator intervention required.`);
+  }
 
   // ── Layer 2 enforcement: unlock source paths before git mutations, re-lock after ──
   const unlockScript = path.join(PROJECT_DIR, 'scripts', 'unlock-main.sh');
@@ -1187,22 +1201,15 @@ function ensureMainIsFresh(id) {
   try { execSync(`bash "${unlockScript}"`, { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
 
   try {
-    if (ahead) {
-      // Diverged — discard local-only commits and hard-reset to origin
-      const aheadList = ahead.split('\n').map(l => l.trim()).filter(Boolean);
-      log('warn', 'git_safety', {
-        id,
-        msg: `main has diverged from origin (${aheadList.length} local-only commit(s)) — hard-resetting to origin/main`,
-        discarded: aheadList,
-      });
-      gitFinalizer.runGit('git reset --hard origin/main', { slice_id: id, op: 'ensureMainIsFresh_reset', execOpts: { stdio: 'pipe' } });
-      const after = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'ensureMainIsFresh_verifyReset', encoding: 'utf-8' }).trim();
-      log('info', 'git_safety', { id, msg: `Hard-reset complete: main now at ${after.slice(0, 8)}` });
-      // process.exit(0) inside selfRestart() bypasses finally — relock explicitly here.
-      try { execSync(`bash "${lockScript}"`, { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
-      selfRestart(`main was diverged and has been hard-reset to origin/main at ${after.slice(0, 8)}`);
+    if (aheadCount > 0 && behindCount === 0) {
+      // Local ahead only — push to origin; do NOT reset
+      log('info', 'git_safety', { id, msg: `local ahead of origin by ${aheadCount}; pushing`, ahead: aheadCount });
+      gitFinalizer.runGit('git push origin main', { slice_id: id, op: 'ensureMainIsFresh_push', execOpts: { stdio: 'pipe' } });
+      const after = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'ensureMainIsFresh_verifyPush', encoding: 'utf-8' }).trim();
+      registerEvent(id, 'MAIN_PUSHED_TO_ORIGIN', { sha: after, ahead_count: aheadCount });
+      log('info', 'git_safety', { id, msg: `Pushed main to origin: ${after.slice(0, 8)}, ${aheadCount} commit(s)` });
     } else {
-      // Local is behind origin — safe fast-forward
+      // Local behind only — safe fast-forward (aheadCount === 0, behindCount > 0)
       gitFinalizer.runGit('git merge --ff-only origin/main', { slice_id: id, op: 'ensureMainIsFresh_ff', execOpts: { stdio: 'pipe' } });
       const after = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'ensureMainIsFresh_verifyFF', encoding: 'utf-8' }).trim();
       log('info', 'git_safety', { id, msg: `Fast-forwarded main: ${local.slice(0, 8)} → ${after.slice(0, 8)}` });
@@ -4319,4 +4326,4 @@ function validateIntakeMeta(meta) {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, validateIntakeMeta };
+module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, validateIntakeMeta, ensureMainIsFresh, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
