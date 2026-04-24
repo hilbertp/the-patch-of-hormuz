@@ -329,10 +329,23 @@ function buildBridgeData() {
       return { ...entry, outcome: finalOutcome, reviewStatus, sprint: getSprintForId(entry.id) };
     });
 
+  // Build mergedIds from MERGED register events (terminal: landed on main)
+  const mergedIds = new Set();
+  for (const ev of events) {
+    if (ev.event === 'MERGED') mergedIds.add(String(ev.id));
+  }
+
   // Queue files
   let files = [];
   try { files = fs.readdirSync(QUEUE_DIR).filter(f => f.endsWith('.md')); }
   catch (_) {}
+
+  // Build terminal ID set: filesystem ACCEPTED/ARCHIVED/SLICE markers + MERGED events
+  const terminalIds = new Set(mergedIds);
+  for (const f of files) {
+    const tm = f.match(/^(.+?)-(ACCEPTED|ARCHIVED|SLICE)\.md$/);
+    if (tm) terminalIds.add(String(tm[1]));
+  }
 
   const queue = { waiting: 0, active: 0, done: 0, error: 0 };
   const slices = [];
@@ -341,7 +354,10 @@ function buildBridgeData() {
     // Derive state from filename suffix: {id}-{STATE}.md
     const match = filename.match(/^(.+?)-(PENDING|QUEUED|IN_PROGRESS|DONE|ERROR)\.md$/);
     if (!match) continue;
-    const [, , state] = match;
+    const [, rawId, state] = match;
+
+    // Skip terminal slices (merged to main or marked ACCEPTED/ARCHIVED/SLICE)
+    if (terminalIds.has(rawId)) continue;
 
     switch (state) {
       case 'PENDING':     queue.waiting++; break;
@@ -357,7 +373,7 @@ function buildBridgeData() {
       fm = parseFrontmatter(content);
     } catch (_) {}
 
-    const id = fm.id ?? match[1];
+    const id = fm.id ?? rawId;
     const goalFromRegister = commissioned[id]?.goal ?? null;
     const goalFromFm       = fm.goal ?? null;
 
