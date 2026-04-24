@@ -59,6 +59,18 @@ dashboard/        # Web UI served on port 4747
 - Docker and Docker Compose
 - Anthropic API key (set as `ANTHROPIC_API_KEY`)
 
+## Main-lock protocol
+
+Source directories (`dashboard/`, `docs/contracts/`, `bridge/*.js`, `package.json`, `README.md`, `CLAUDE.md`) are locked read-only after each merge. The orchestrator unlocks them automatically before git operations and re-locks after.
+
+To enable the chmod guard (prevents accidental `chmod -R u+w` from silently breaking the lock):
+
+```bash
+source scripts/activate-guard.sh
+```
+
+Add that line to your shell rc file (`.zshrc`, `.bashrc`) to activate it permanently for this repo. When the guard intercepts a disallowed `chmod`, it prints the unlock protocol and exits non-zero.
+
 ## Contributing
 
 Contributions are welcome. Open an issue to discuss what you'd like to add before sending a PR.
