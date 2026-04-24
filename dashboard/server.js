@@ -17,6 +17,7 @@ const DASHBOARD    = path.join(__dirname, 'lcars-dashboard.html');
 const FIRST_OUTPUT  = path.join(REPO_ROOT, 'bridge', 'first-output.json');
 const NOG_ACTIVE    = path.join(REPO_ROOT, 'bridge', 'nog-active.json');
 const CONTROL_DIR   = path.join(REPO_ROOT, 'bridge', 'control');
+const SESSIONS      = path.join(REPO_ROOT, 'bridge', 'sessions.jsonl');
 const { translateEvent, resetDedupeState } = require(path.join(REPO_ROOT, 'bridge', 'lifecycle-translate'));
 
 const CORS_ORIGIN  = 'https://dax-dashboard.lovable.app';
@@ -500,6 +501,97 @@ function buildBridgeData() {
   } catch (_) {}
 
   return { heartbeat, queue, slices, recent, economics, queueOrder, stagedOrder, nogActive, apiRetries, events };
+}
+
+// ── Cost Center aggregation ──────────────────────────────────────────────────
+function buildCostsData() {
+  // Rom — sum DONE events from register.jsonl
+  const romRow = { role: 'rom', model: 'claude-sonnet-4-6', count: 0,
+                   tokens_in: 0, tokens_out: 0, cost_usd: 0 };
+  try {
+    const raw = fs.readFileSync(REGISTER, 'utf8');
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue;
+      let ev;
+      try { ev = JSON.parse(line); } catch (_) { continue; }
+      if (ev.event !== 'DONE') continue;
+      romRow.count++;
+      romRow.tokens_in  += ev.tokensIn  ?? 0;
+      romRow.tokens_out += ev.tokensOut ?? 0;
+      romRow.cost_usd   += ev.costUsd   ?? 0;
+    }
+  } catch (_) { /* register.jsonl absent */ }
+
+  // Nog — sum rounds[] across all DONE.md files in queue/
+  const nogRow = { role: 'nog', model: 'claude-sonnet-4-6', count: 0,
+                   tokens_in: 0, tokens_out: 0, cost_usd: 0 };
+  try {
+    const files = fs.readdirSync(QUEUE_DIR).filter(f => f.endsWith('-DONE.md'));
+    for (const file of files) {
+      let text;
+      try { text = fs.readFileSync(path.join(QUEUE_DIR, file), 'utf8'); }
+      catch (_) { continue; }
+      const rounds = parseRoundsArray(text);
+      for (const r of rounds) {
+        nogRow.count++;
+        nogRow.tokens_in  += r.tokensIn  ?? 0;
+        nogRow.tokens_out += r.tokensOut ?? 0;
+        nogRow.cost_usd   += r.costUsd   ?? 0;
+      }
+    }
+  } catch (_) {}
+
+  // Sessions — group by role from sessions.jsonl
+  const sessionsByRole = {};
+  let updatedAt = new Date().toISOString();
+  try {
+    const raw = fs.readFileSync(SESSIONS, 'utf8');
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue;
+      let entry;
+      try { entry = JSON.parse(line); } catch (_) { continue; }
+      const role = entry.role ?? 'unknown';
+      if (!sessionsByRole[role]) {
+        sessionsByRole[role] = {
+          role,
+          model: entry.model ?? 'claude-sonnet-4-6',
+          count: 0,
+          tokens_in: 0,
+          tokens_out: 0,
+          cost_usd: 0,
+          _has_cost: false,
+        };
+      }
+      const row = sessionsByRole[role];
+      row.count++;
+      if (entry.tokens_in  != null) row.tokens_in  += entry.tokens_in;
+      if (entry.tokens_out != null) row.tokens_out += entry.tokens_out;
+      if (entry.cost_usd   != null) { row.cost_usd += entry.cost_usd; row._has_cost = true; }
+      if (entry.ts && entry.ts > updatedAt) updatedAt = entry.ts;
+    }
+  } catch (_) {}
+
+  // Normalise session rows: null out aggregates when no values were present
+  const sessionRows = Object.values(sessionsByRole).map(row => {
+    const out = { role: row.role, model: row.model, count: row.count,
+                  tokens_in: null, tokens_out: null, cost_usd: null };
+    if (row._has_cost || row.tokens_in > 0) {
+      if (row.tokens_in  > 0) out.tokens_in  = row.tokens_in;
+      if (row.tokens_out > 0) out.tokens_out = row.tokens_out;
+      if (row._has_cost)      out.cost_usd   = row.cost_usd;
+    }
+    return out;
+  });
+
+  const by_role = [romRow, nogRow, ...sessionRows];
+
+  // Total: sum only non-null cost entries
+  let total_cost_usd = romRow.cost_usd + nogRow.cost_usd;
+  for (const row of sessionRows) {
+    if (row.cost_usd != null) total_cost_usd += row.cost_usd;
+  }
+
+  return { by_role, total_cost_usd, updated_at: updatedAt };
 }
 
 // ── HTTP server ──────────────────────────────────────────────────────────────
@@ -992,6 +1084,19 @@ const server = http.createServer(async (req, res) => {
     catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: String(err) })); return; }
     res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
     res.end(JSON.stringify(data));
+    return;
+  }
+
+  // ── Cost Center ─────────────────────────────────────────────────────────
+  if (pathname === '/api/costs' && req.method === 'GET') {
+    try {
+      const result = buildCostsData();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
     return;
   }
 
