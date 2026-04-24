@@ -1016,6 +1016,84 @@
     line-height: 1.5;
   }
 
+  /* ── COST CENTER ─────────────────────────────────────────────────── */
+  .cost-center {
+    margin-bottom: 24px;
+  }
+
+  .cost-center-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 0;
+  }
+
+  .cost-center-header .section-title {
+    margin-bottom: 0;
+  }
+
+  .cost-center-toggle {
+    font-size: 11px;
+    color: #9ca3af;
+    transition: transform 0.15s;
+    display: inline-block;
+  }
+
+  .cost-center-toggle.collapsed {
+    transform: rotate(-90deg);
+  }
+
+  .cost-center-body {
+    margin-top: 14px;
+    overflow: hidden;
+  }
+
+  .cost-center-body.hidden {
+    display: none;
+  }
+
+  .cost-center-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .cost-center-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0 12px 8px 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .cost-center-table td {
+    padding: 8px 12px 8px 0;
+    border-bottom: 1px solid #f3f4f6;
+    color: #374151;
+  }
+
+  .cost-center-table tr:last-child td {
+    border-bottom: none;
+    font-weight: 600;
+    color: #111827;
+    padding-top: 10px;
+  }
+
+  .cost-center-table .null-val {
+    color: #9ca3af;
+  }
+
+  .cost-center-updated {
+    font-size: 11px;
+    color: #9ca3af;
+    margin-top: 10px;
+  }
+
   /* ── STAGED PANEL (preserved from commission 047 — do not modify) ─── */
   .staged-panel {
     padding: 0 0 8px;
@@ -2383,6 +2461,32 @@
         <div class="crew-function">Role to be defined.</div>
       </div>
 
+    </div>
+  </section>
+
+  <!-- ── COST CENTER ─────────────────────────────────────────────────────── -->
+  <section class="cost-center" id="cost-center">
+    <div class="cost-center-header" onclick="toggleCostCenter()">
+      <div class="section-title">Cost Center</div>
+      <span class="cost-center-toggle" id="cost-center-toggle">▾</span>
+    </div>
+    <div class="cost-center-body" id="cost-center-body">
+      <table class="cost-center-table">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Model</th>
+            <th>Count</th>
+            <th>Tokens In</th>
+            <th>Tokens Out</th>
+            <th>Cost (USD)</th>
+          </tr>
+        </thead>
+        <tbody id="cost-center-tbody">
+          <tr><td colspan="6" class="null-val">Loading…</td></tr>
+        </tbody>
+      </table>
+      <div class="cost-center-updated" id="cost-center-updated"></div>
     </div>
   </section>
 
@@ -4324,6 +4428,83 @@
 
   fetchCombinedQueue();
   setInterval(fetchCombinedQueue, 2000);
+
+  // ── Cost Center ───────────────────────────────────────────────────────────
+  let costCenterCollapsed = false;
+  let costCenterUpdatedAt = null;
+  let costCenterInterval = null;
+
+  function toggleCostCenter() {
+    costCenterCollapsed = !costCenterCollapsed;
+    document.getElementById('cost-center-body').classList.toggle('hidden', costCenterCollapsed);
+    document.getElementById('cost-center-toggle').classList.toggle('collapsed', costCenterCollapsed);
+  }
+
+  function fmtTokens(v) {
+    if (v == null) return '<span class="null-val">—</span>';
+    if (v >= 1e6)  return (v / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'M';
+    if (v >= 1e3)  return Math.round(v / 1e3) + 'k';
+    return String(v);
+  }
+
+  function fmtCost(v) {
+    if (v == null) return '<span class="null-val">—</span>';
+    return '$' + v.toFixed(2);
+  }
+
+  const COST_COUNT_LABELS = { rom: 'slices', nog: 'rounds', default: 'sessions' };
+
+  function countLabel(role, count) {
+    const label = COST_COUNT_LABELS[role] ?? COST_COUNT_LABELS.default;
+    return `${count} ${label}`;
+  }
+
+  async function fetchCosts() {
+    try {
+      const res = await fetch('/api/costs');
+      if (!res.ok) return;
+      const data = await res.json();
+      costCenterUpdatedAt = Date.now();
+      renderCostCenter(data);
+    } catch (_) {}
+  }
+
+  function renderCostCenter(data) {
+    const tbody = document.getElementById('cost-center-tbody');
+    if (!tbody) return;
+
+    let rows = '';
+    for (const row of data.by_role) {
+      const name = row.role.charAt(0).toUpperCase() + row.role.slice(1);
+      rows += `<tr>
+        <td>${name}</td>
+        <td>${row.model ?? '—'}</td>
+        <td>${countLabel(row.role, row.count)}</td>
+        <td>${fmtTokens(row.tokens_in)}</td>
+        <td>${fmtTokens(row.tokens_out)}</td>
+        <td>${fmtCost(row.cost_usd)}</td>
+      </tr>`;
+    }
+    // Total row
+    rows += `<tr>
+      <td><strong>Total</strong></td>
+      <td></td><td></td><td></td><td></td>
+      <td>${fmtCost(data.total_cost_usd)}</td>
+    </tr>`;
+    tbody.innerHTML = rows;
+  }
+
+  function updateCostCenterTimestamp() {
+    const el = document.getElementById('cost-center-updated');
+    if (!el) return;
+    if (!costCenterUpdatedAt) { el.textContent = ''; return; }
+    const ago = Math.round((Date.now() - costCenterUpdatedAt) / 1000);
+    el.textContent = `Last updated ${ago}s ago`;
+  }
+
+  fetchCosts();
+  costCenterInterval = setInterval(fetchCosts, 30000);
+  setInterval(updateCostCenterTimestamp, 1000);
 </script>
 
 </body>
