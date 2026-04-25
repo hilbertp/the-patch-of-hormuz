@@ -9,7 +9,7 @@
  *   AC1:  --restage writes staged file with original id (not max+1)
  *   AC2:  terminal queue files are moved to trash with .attempt1 suffix
  *   AC3:  git branch slice/<id> renamed to slice/<id>-attempt<N>
- *   AC4:  body-file frontmatter has rounds:/round: stripped
+ *   AC4:  body-file frontmatter has rounds: preserved (slice 215)
  *   AC5:  RESTAGED event emitted when prior COMMISSIONED exists
  *   AC6:  rejects id with no prior history (exit 1)
  *   AC7:  rejects id that is currently active (exit 1)
@@ -254,8 +254,8 @@ test('AC3b: missing git branch skipped silently', () => {
   assert.ok(stagedFileExists('999'), 'staged file still created despite missing branch');
 });
 
-// AC4: rounds: and round: stripped from body-file frontmatter
-test('AC4: rounds: and round: stripped from body-file frontmatter', () => {
+// AC4: rounds: preserved in body-file frontmatter (slice 215 — feedback_reuse_slice_id.md)
+test('AC4: rounds: preserved in body-file frontmatter', () => {
   writeReg([
     { ts: '2026-04-01T00:00:00.000Z', event: 'COMMISSIONED', slice_id: '999' },
   ]);
@@ -265,8 +265,7 @@ test('AC4: rounds: and round: stripped from body-file frontmatter', () => {
   runNewSlice(`--restage 999 --body-file ${bodyFile}`);
 
   const content = readStaged('999');
-  assert.ok(!content.includes('rounds:'), 'staged file must not contain rounds:');
-  assert.ok(!content.includes('round:'),  'staged file must not contain round:');
+  assert.ok(content.includes('rounds:'), 'staged file must preserve rounds:');
   assert.ok(content.includes('Body content'), 'staged file should retain body content');
 });
 
