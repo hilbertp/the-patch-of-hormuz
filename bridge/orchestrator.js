@@ -2353,6 +2353,21 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
         try {
           fs.renameSync(inProgressPath, parkedPath);
           log('info', 'state', { id, msg: 'Parked slice', from: 'IN_PROGRESS', to: 'PARKED' });
+
+          // Capture Rom's session_id for potential resume on rework rounds.
+          const sessionId = extractSessionId(stdout || '');
+          if (sessionId) {
+            try {
+              const parkedContent = fs.readFileSync(parkedPath, 'utf-8');
+              const updatedParked = updateFrontmatter(parkedContent, { rom_session_id: sessionId });
+              fs.writeFileSync(parkedPath, updatedParked);
+              log('info', 'session', { id, msg: 'Persisted rom_session_id to PARKED', session_id: sessionId });
+            } catch (sessionErr) {
+              log('warn', 'session', { id, msg: 'Failed to persist rom_session_id', error: sessionErr.message });
+            }
+          } else {
+            log('info', 'session', { id, msg: 'No session_id in claude output — rework will use fresh session' });
+          }
         } catch (archiveErr) {
           // Fallback: if rename fails, try to delete so the queue doesn't jam.
           log('warn', 'error', { id, msg: 'Failed to park IN_PROGRESS file, trashing instead', error: archiveErr.message });
