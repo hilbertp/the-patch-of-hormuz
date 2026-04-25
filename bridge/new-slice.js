@@ -17,6 +17,15 @@
  *     [--amendment "slice/095-fix-title"]  (exact branch name to reuse for amendment) \
  *     [--timeout 20]           (inactivity timeout in minutes, default: 20) \
  *     [--body-file /path/to/body.md]   (optional markdown body, or pipe via stdin)
+ *     [--restage <id>]         (re-stage an existing slice under its original ID; see below)
+ *
+ * Re-staging (--restage <id>):
+ *   Use --restage when a slice needs to be re-run under its original numeric ID rather
+ *   than getting a new max+1 ID. This is the correct path after a PARKED or failed slice:
+ *   it archives the prior queue artifacts to bridge/trash/ with .attempt<N> suffixes,
+ *   renames the prior git branch to slice/<id>-attempt<N>, and writes a fresh STAGED file
+ *   with the same ID. The round counter resets cleanly; the slice's identity is preserved.
+ *   Do NOT use --restage for genuinely new slices — those get max+1 IDs automatically.
  *
  * Writes: bridge/staged/{id}-STAGED.md
  * Prints: the created file path, then the full file contents.
@@ -24,6 +33,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 const { nextSliceId } = require('./orchestrator.js');
 
 // ---------------------------------------------------------------------------
@@ -33,6 +43,7 @@ const { nextSliceId } = require('./orchestrator.js');
 const QUEUE_DIR     = process.env.DS9_QUEUE_DIR     || path.resolve(__dirname, 'queue');
 const STAGED_DIR    = process.env.DS9_STAGED_DIR    || path.resolve(__dirname, 'staged');
 const REGISTER_FILE = process.env.DS9_REGISTER_FILE || path.resolve(__dirname, 'register.jsonl');
+const TRASH_DIR     = process.env.DS9_TRASH_DIR     || path.resolve(__dirname, 'trash');
 
 // ---------------------------------------------------------------------------
 // Required fields — must match orchestrator.js REQUIRED_FIELDS exactly
@@ -75,6 +86,149 @@ function validate(fields) {
   if (!VALID_TO.includes(fields.to))
     errors.push(`--to must be one of: ${VALID_TO.join(', ')} (got: ${fields.to})`);
   return errors;
+}
+
+// ---------------------------------------------------------------------------
+// Terminal states for queue-file archival
+// ---------------------------------------------------------------------------
+
+const TERMINAL_STATES = ['DONE', 'PARKED', 'ACCEPTED', 'ERROR', 'STUCK', 'NOG', 'ARCHIVED'];
+
+// ---------------------------------------------------------------------------
+// Restage helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the next attempt number for a given slice id.
+ * Finds the highest .attempt<N> suffix among existing trash files for this id.
+ */
+function nextAttemptN(id) {
+  let maxN = 0;
+  try {
+    const files = fs.readdirSync(TRASH_DIR);
+    for (const f of files) {
+      const m = f.match(new RegExp(`^${id}-.*\\.attempt(\\d+)$`));
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (n > maxN) maxN = n;
+      }
+    }
+  } catch (_) {}
+  return maxN + 1;
+}
+
+/**
+ * Validate that a restage target has prior history.
+ * Checks: COMMISSIONED event in register, terminal files in queue, or files in trash.
+ */
+function hasPriorHistory(id) {
+  // Check register for COMMISSIONED event
+  try {
+    const lines = fs.readFileSync(REGISTER_FILE, 'utf-8').trim().split('\n').filter(Boolean);
+    if (lines.some(line => {
+      try {
+        const raw = JSON.parse(line);
+        const sid = String(raw.slice_id || raw.id || '');
+        return sid === id && raw.event === 'COMMISSIONED';
+      } catch (_) { return false; }
+    })) return true;
+  } catch (_) {}
+
+  // Check queue for terminal files
+  try {
+    const files = fs.readdirSync(QUEUE_DIR);
+    if (files.some(f => {
+      const m = f.match(/^(\d+)-([A-Z_]+)\.md$/);
+      return m && m[1] === id && TERMINAL_STATES.includes(m[2]);
+    })) return true;
+  } catch (_) {}
+
+  // Check trash for prior attempt files
+  try {
+    const files = fs.readdirSync(TRASH_DIR);
+    if (files.some(f => f.startsWith(`${id}-`) && f.includes('.attempt'))) return true;
+  } catch (_) {}
+
+  return false;
+}
+
+/**
+ * Validate that a restage target is not currently active.
+ * Returns the active state string if active, or null if safe to restage.
+ */
+function findActiveState(id) {
+  const activeStates = ['STAGED', 'IN_PROGRESS', 'QUEUED', 'PENDING', 'EVALUATING'];
+  for (const state of activeStates) {
+    if (fs.existsSync(path.join(STAGED_DIR, `${id}-STAGED.md`)) && state === 'STAGED')
+      return 'STAGED';
+    if (fs.existsSync(path.join(QUEUE_DIR, `${id}-${state}.md`)))
+      return state;
+  }
+  return null;
+}
+
+/**
+ * Archive terminal queue files for `id` to trash with .attempt<N> suffixes.
+ * Returns the attempt number used.
+ */
+function archiveQueueFiles(id) {
+  fs.mkdirSync(TRASH_DIR, { recursive: true });
+  const attemptN = nextAttemptN(id);
+
+  let files;
+  try {
+    files = fs.readdirSync(QUEUE_DIR);
+  } catch (_) {
+    return attemptN;
+  }
+
+  for (const f of files) {
+    const m = f.match(/^(\d+)-([A-Z_]+)\.md$/);
+    if (!m || m[1] !== id || !TERMINAL_STATES.includes(m[2])) continue;
+    const src = path.join(QUEUE_DIR, f);
+    const dst = path.join(TRASH_DIR, `${f}.attempt${attemptN}`);
+    fs.renameSync(src, dst);
+  }
+
+  return attemptN;
+}
+
+/**
+ * Rename git branch slice/<id> to slice/<id>-attempt<N>.
+ * Fails silently (logs warning) if branch doesn't exist or rename fails.
+ */
+function renameGitBranch(id, attemptN) {
+  const from = `slice/${id}`;
+  const to   = `slice/${id}-attempt${attemptN}`;
+  try {
+    execSync(`git branch -m ${from} ${to}`, { stdio: 'pipe' });
+  } catch (err) {
+    const msg = err.stderr ? err.stderr.toString().trim() : err.message;
+    // Not an error if the branch simply doesn't exist
+    if (!msg.includes('not found') && !msg.includes('no branch')) {
+      console.warn(`WARNING: Could not rename branch ${from} → ${to}: ${msg}`);
+    }
+  }
+}
+
+/**
+ * Strip `rounds:` and `round:` lines from the YAML frontmatter block of a body string.
+ * Only removes lines within the opening --- ... --- block.
+ */
+function stripRoundsFields(body) {
+  if (!body.startsWith('---')) return body;
+  const endIdx = body.indexOf('\n---', 3);
+  if (endIdx === -1) return body;
+
+  const frontmatter = body.slice(0, endIdx + 4); // includes closing ---
+  const rest        = body.slice(endIdx + 4);
+
+  const cleaned = frontmatter
+    .split('\n')
+    .filter(line => !/^rounds?:/.test(line.trim()))
+    .join('\n');
+
+  return cleaned + rest;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +279,11 @@ function main() {
     } catch (_) {}
   }
 
+  // Strip rounds:/round: from body frontmatter if body-file was provided
+  if (args['body-file'] && body) {
+    body = stripRoundsFields(body);
+  }
+
   const fields = {
     title:      args.title      || '',
     goal:       args.goal       || '',
@@ -141,18 +300,50 @@ function main() {
   if (errors.length > 0) {
     console.error('ERROR: Slice not created — validation failed:\n');
     errors.forEach(e => console.error(`  • ${e}`));
-    console.error('\nUsage: node bridge/new-slice.js --title "..." --goal "..." [--to rom|leeta] [--priority normal|high|critical] [--depends-on "095,096"] [--amendment "slice/095-fix"] [--timeout 20] [--body-file body.md]');
+    console.error('\nUsage: node bridge/new-slice.js --title "..." --goal "..." [--to rom|leeta] [--priority normal|high|critical] [--depends-on "095,096"] [--amendment "slice/095-fix"] [--timeout 20] [--body-file body.md] [--restage <id>]');
     process.exit(1);
   }
 
-  // Assign ID, ensuring no collision with existing staged files
-  fs.mkdirSync(STAGED_DIR, { recursive: true });
-  fields.id = nextSliceId(QUEUE_DIR);
-  while (fs.existsSync(path.join(STAGED_DIR, `${fields.id}-STAGED.md`))) {
-    fields.id = String(parseInt(fields.id, 10) + 1).padStart(3, '0');
+  // --restage path
+  if (args.restage) {
+    const rawId = args.restage;
+    if (!/^\d+$/.test(rawId)) {
+      console.error(`ERROR: --restage <id>: id must be numeric digits (got: ${rawId})`);
+      process.exit(1);
+    }
+    const id = String(parseInt(rawId, 10)).padStart(3, '0');
+
+    // Validate: must not be currently active
+    const activeState = findActiveState(id);
+    if (activeState) {
+      console.error(`ERROR: --restage ${id}: slice ${id} is currently active (state: ${activeState}); abort or wait`);
+      process.exit(1);
+    }
+
+    // Validate: must have prior history
+    if (!hasPriorHistory(id)) {
+      console.error(`ERROR: --restage ${id}: no prior history for slice ${id}; use a normal stage instead`);
+      process.exit(1);
+    }
+
+    // Archive prior queue artifacts
+    const attemptN = archiveQueueFiles(id);
+
+    // Rename prior git branch
+    renameGitBranch(id, attemptN);
+
+    fields.id = id;
+  } else {
+    // Normal path: assign ID, ensuring no collision with existing staged files
+    fs.mkdirSync(STAGED_DIR, { recursive: true });
+    fields.id = nextSliceId(QUEUE_DIR);
+    while (fs.existsSync(path.join(STAGED_DIR, `${fields.id}-STAGED.md`))) {
+      fields.id = String(parseInt(fields.id, 10) + 1).padStart(3, '0');
+    }
   }
 
   // Build file content
+  fs.mkdirSync(STAGED_DIR, { recursive: true });
   const frontmatter = buildFrontmatter(fields);
   const content = body
     ? `${frontmatter}\n\n${body}\n`

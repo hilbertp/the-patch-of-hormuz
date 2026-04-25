@@ -42,3 +42,6 @@ bridge/worktree-rescue/
 
 # RESTAGED bootstrap marker — written once per install, workspace-local
 bridge/.restaged-bootstrap-done
+
+# Main-lock state marker — transient, written by unlock-main.sh, removed by lock-main.sh
+bridge/.main-unlocked

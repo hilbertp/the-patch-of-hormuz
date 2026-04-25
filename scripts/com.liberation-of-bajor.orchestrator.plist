@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Liberation of Bajor — orchestrator launchd agent
+  ===================================================
+  Install:   cp scripts/com.liberation-of-bajor.orchestrator.plist ~/Library/LaunchAgents/
+             launchctl load ~/Library/LaunchAgents/com.liberation-of-bajor.orchestrator.plist
+  Uninstall: launchctl unload ~/Library/LaunchAgents/com.liberation-of-bajor.orchestrator.plist
+             rm ~/Library/LaunchAgents/com.liberation-of-bajor.orchestrator.plist
+
+  Before loading: replace /private/tmp/ds9 below with the absolute path to your
+  repo checkout (e.g. /Users/philipp/dev/liberation-of-bajor). Do NOT use ~.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.liberation-of-bajor.orchestrator</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <!-- UPDATE this path to your repo root -->
+        <string>/private/tmp/ds9/scripts/start.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- UPDATE this path to your repo root -->
+        <key>REPO_ROOT</key>
+        <string>/private/tmp/ds9</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <!-- UPDATE this path to your repo root -->
+    <string>/private/tmp/ds9/bridge/orchestrator.log</string>
+
+    <key>StandardErrorPath</key>
+    <!-- UPDATE this path to your repo root -->
+    <string>/private/tmp/ds9/bridge/orchestrator.err</string>
+</dict>
+</plist>

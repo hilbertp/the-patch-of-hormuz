@@ -1,13 +1,14 @@
 # Host-Side Health Detector
 
-Monitors the `bajor` Docker container and dashboard API from the Mac host.
-Writes status to `bridge/host-health.json` every 10 seconds. Fires a macOS
+Monitors the native orchestrator processes and dashboard API from the Mac host.
+Reads `bridge/.run.pid` to check if both PIDs are alive. Polls `http://localhost:4747/api/health`
+every 10 seconds. Writes status to `bridge/host-health.json` atomically. Fires a macOS
 notification when the service has been down for 30+ seconds.
 
 ## Prerequisites
 
-- macOS with Docker Desktop installed
-- The `bajor` container defined in `docker-compose.yml`
+- macOS
+- Liberation of Bajor started via `./scripts/start.sh` (creates `bridge/.run.pid`)
 - Bash (ships with macOS)
 
 ## Install
@@ -53,11 +54,11 @@ rm ~/Library/LaunchAgents/com.liberation-of-bajor.health.plist
 
 Every 10 seconds the detector:
 
-1. Runs `docker inspect bajor --format '{{.State.Status}}'` to check if the container is running.
-2. If running, curls `http://localhost:4747/api/health` with a 3-second timeout.
+1. Reads `bridge/.run.pid` and checks both PIDs are alive with `kill -0 $pid`.
+2. Curls `http://localhost:4747/api/health` with a 3-second timeout.
 3. Writes `bridge/host-health.json` atomically (write to `.tmp`, then `mv`).
 4. On state change, appends a line to `bridge/host-health.log`.
 5. If both checks have failed for 30+ consecutive seconds, fires a one-shot macOS notification.
 
 The Ops dashboard reads `bridge/host-health.json` on its normal poll tick and shows a
-"Service up" (green) or "Service down" (red) pill. The Approve button is disabled when red.
+"Service up" (green) or "Service down" (red) indicator. The Approve button is disabled when red.

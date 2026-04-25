@@ -22,4 +22,5 @@ for f in package.json README.md CLAUDE.md; do
   [ -f "$REPO/$f" ] && chmod u+w "$REPO/$f"
 done
 
+touch "$REPO/bridge/.main-unlocked"
 echo "unlock-main: source paths unlocked (owner-writable)"

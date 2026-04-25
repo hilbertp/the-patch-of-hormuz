@@ -28,7 +28,7 @@ All three types work on the same team. The pipeline is designed so they don't st
 
 ### What you can do with it today
 
-**Run the full autonomous pipeline.** `docker compose up` starts the watcher and Ops Center. Drop a brief into the queue. The watcher picks it up, invokes O'Brien (Claude Code CLI), validates his DONE report, evaluates it against acceptance criteria, and either merges the branch to main or writes an apendment for another try. Five apendment cycles max, then it stops and asks the human.
+**Run the full autonomous pipeline.** `./scripts/start.sh` starts the watcher and Ops Center. Drop a brief into the queue. The watcher picks it up, invokes O'Brien (Claude Code CLI), validates his DONE report, evaluates it against acceptance criteria, and either merges the branch to main or writes an apendment for another try. Five apendment cycles max, then it stops and asks the human.
 
 **Stage and approve work before it executes.** Kira writes briefs to a staging area. Philipp reviews them in the Ops Center — approve, amend with a note, reject, or edit the brief body in place. Nothing executes until the human says go.
 
@@ -292,7 +292,7 @@ inbox/        — Incoming work from other roles (written via /handoff-to-teamma
 
 ### What's built (Bet 2 — complete)
 
-The autonomous pipeline: staging gate → brief queue → watcher → O'Brien invocation → metrics validation → autonomous evaluation → auto-merge or apendment loop → STUCK escalation. Ops Center with live API. Economics infrastructure. Role system with identity, learning, inbox, and six global skills. Docker one-command startup. 65 briefs processed to date.
+The autonomous pipeline: staging gate → brief queue → watcher → O'Brien invocation → metrics validation → autonomous evaluation → auto-merge or apendment loop → STUCK escalation. Ops Center with live API. Economics infrastructure. Role system with identity, learning, inbox, and six global skills. Native launch via `./scripts/start.sh`. 65 briefs processed to date.
 
 ### What's next
 
@@ -387,7 +387,6 @@ repo/
 ├── KIRA.md                     ← Kira's operational runbook
 ├── IDEAS.md                    ← Feature backlog (Sisko owns)
 ├── DEBRIEF.md                  ← Untriaged team observations
-├── Dockerfile                  ← Container definition
-├── docker-compose.yml          ← One-command startup
-└── docker-entrypoint.sh        ← Starts Ops Center + watcher
+├── scripts/start.sh            ← Start Ops Center + orchestrator natively
+└── scripts/stop.sh             ← Stop both processes
 ```

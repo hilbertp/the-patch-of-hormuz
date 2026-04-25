@@ -7,10 +7,12 @@ A local file queue where AI agents coordinate autonomously — one writes briefs
 ```bash
 git clone https://github.com/hilbertp/liberation-of-bajor
 cd liberation-of-bajor
-ANTHROPIC_API_KEY=your-key docker compose up
+./scripts/start.sh
 ```
 
 Open `http://localhost:4747`.
+
+To stop: `./scripts/stop.sh`
 
 ## What you'll see
 
@@ -56,8 +58,21 @@ dashboard/        # Web UI served on port 4747
 
 ## Requirements
 
-- Docker and Docker Compose
-- Anthropic API key (set as `ANTHROPIC_API_KEY`)
+- Node.js >= 20
+- `claude` CLI (`npm install -g @anthropic-ai/claude-code`)
+- `claude login` completed (Max plan OAuth or API key)
+
+## Main-lock protocol
+
+Source directories (`dashboard/`, `docs/contracts/`, `bridge/*.js`, `package.json`, `README.md`, `CLAUDE.md`) are locked read-only after each merge. The orchestrator unlocks them automatically before git operations and re-locks after.
+
+To enable the chmod guard (prevents accidental `chmod -R u+w` from silently breaking the lock):
+
+```bash
+source scripts/activate-guard.sh
+```
+
+Add that line to your shell rc file (`.zshrc`, `.bashrc`) to activate it permanently for this repo. When the guard intercepts a disallowed `chmod`, it prints the unlock protocol and exits non-zero.
 
 ## Contributing
 

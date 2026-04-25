@@ -52,7 +52,7 @@ const STAGED_DIR     = path.resolve(__dirname, 'staged');
 const LOG_FILE       = path.resolve(__dirname, config.logFile);
 const HEARTBEAT_FILE = path.resolve(__dirname, config.heartbeatFile);
 const PROJECT_DIR    = path.resolve(__dirname, config.projectDir);
-const REGISTER_FILE  = path.resolve(__dirname, 'register.jsonl');
+let REGISTER_FILE  = path.resolve(__dirname, 'register.jsonl');
 const RESTAGED_BOOTSTRAP_MARKER = path.resolve(__dirname, '.restaged-bootstrap-done');
 const NOG_ACTIVE_FILE = path.resolve(__dirname, 'nog-active.json');
 const TRASH_DIR      = path.resolve(QUEUE_DIR, '..', 'trash');
@@ -1156,11 +1156,18 @@ function selfRestart(reason) {
 /**
  * ensureMainIsFresh(id)
  *
- * Fetches from origin and fast-forwards local main so the branch we're
+ * Fetches from origin and synchronises local main so the branch we're
  * about to create includes all remote work. If the fetch fails (offline,
  * no remote), log a warning but continue — local main is still valid.
- * If local main has diverged from origin, hard-resets to origin/main and
- * triggers a self-restart to ensure clean process state.
+ *
+ * Four cases after fetch:
+ *   in-sync  (ahead=0, behind=0) → nothing to do
+ *   ahead    (ahead>0, behind=0) → push local commits to origin
+ *   behind   (ahead=0, behind>0) → fast-forward local main from origin
+ *   diverged (ahead>0, behind>0) → throw Error; operator must resolve
+ *
+ * The push/ff paths are wrapped in the Layer-2 unlock/relock protocol
+ * inherited from slice 202. True divergence bails before any unlock.
  */
 function ensureMainIsFresh(id) {
   try {
@@ -1178,26 +1185,37 @@ function ensureMainIsFresh(id) {
     return;
   }
 
-  // Check if local has commits not on origin (diverged)
-  const ahead = gitFinalizer.runGit('git log origin/main..main --oneline', { slice_id: id, op: 'ensureMainIsFresh_ahead', encoding: 'utf-8' }).trim();
+  const aheadCount  = Number(gitFinalizer.runGit('git rev-list --count origin/main..main',        { slice_id: id, op: 'ensureMainIsFresh_aheadCount',  encoding: 'utf-8' }).trim());
+  const behindCount = Number(gitFinalizer.runGit('git rev-list --count main..origin/main',        { slice_id: id, op: 'ensureMainIsFresh_behindCount', encoding: 'utf-8' }).trim());
 
-  if (ahead) {
-    // Diverged — discard local-only commits and hard-reset to origin
-    const aheadList = ahead.split('\n').map(l => l.trim()).filter(Boolean);
-    log('warn', 'git_safety', {
-      id,
-      msg: `main has diverged from origin (${aheadList.length} local-only commit(s)) — hard-resetting to origin/main`,
-      discarded: aheadList,
-    });
-    gitFinalizer.runGit('git reset --hard origin/main', { slice_id: id, op: 'ensureMainIsFresh_reset', execOpts: { stdio: 'pipe' } });
-    const after = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'ensureMainIsFresh_verifyReset', encoding: 'utf-8' }).trim();
-    log('info', 'git_safety', { id, msg: `Hard-reset complete: main now at ${after.slice(0, 8)}` });
-    selfRestart(`main was diverged and has been hard-reset to origin/main at ${after.slice(0, 8)}`);
-  } else {
-    // Local is behind origin — safe fast-forward
-    gitFinalizer.runGit('git merge --ff-only origin/main', { slice_id: id, op: 'ensureMainIsFresh_ff', execOpts: { stdio: 'pipe' } });
-    const after = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'ensureMainIsFresh_verifyFF', encoding: 'utf-8' }).trim();
-    log('info', 'git_safety', { id, msg: `Fast-forwarded main: ${local.slice(0, 8)} → ${after.slice(0, 8)}` });
+  // True divergence: local has commits origin doesn't AND origin has commits local doesn't.
+  // This is an operator situation — bail immediately without touching either side.
+  if (aheadCount > 0 && behindCount > 0) {
+    log('error', 'git_safety', { id, msg: 'true divergence detected', ahead: aheadCount, behind: behindCount });
+    throw new Error(`main diverged from origin: local ahead ${aheadCount}, behind ${behindCount}. Operator intervention required.`);
+  }
+
+  // ── Layer 2 enforcement: unlock source paths before git mutations, re-lock after ──
+  const unlockScript = path.join(PROJECT_DIR, 'scripts', 'unlock-main.sh');
+  const lockScript   = path.join(PROJECT_DIR, 'scripts', 'lock-main.sh');
+  try { execSync(`bash "${unlockScript}"`, { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+
+  try {
+    if (aheadCount > 0 && behindCount === 0) {
+      // Local ahead only — push to origin; do NOT reset
+      log('info', 'git_safety', { id, msg: `local ahead of origin by ${aheadCount}; pushing`, ahead: aheadCount });
+      gitFinalizer.runGit('git push origin main', { slice_id: id, op: 'ensureMainIsFresh_push', execOpts: { stdio: 'pipe' } });
+      const after = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'ensureMainIsFresh_verifyPush', encoding: 'utf-8' }).trim();
+      registerEvent(id, 'MAIN_PUSHED_TO_ORIGIN', { sha: after, ahead_count: aheadCount });
+      log('info', 'git_safety', { id, msg: `Pushed main to origin: ${after.slice(0, 8)}, ${aheadCount} commit(s)` });
+    } else {
+      // Local behind only — safe fast-forward (aheadCount === 0, behindCount > 0)
+      gitFinalizer.runGit('git merge --ff-only origin/main', { slice_id: id, op: 'ensureMainIsFresh_ff', execOpts: { stdio: 'pipe' } });
+      const after = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'ensureMainIsFresh_verifyFF', encoding: 'utf-8' }).trim();
+      log('info', 'git_safety', { id, msg: `Fast-forwarded main: ${local.slice(0, 8)} → ${after.slice(0, 8)}` });
+    }
+  } finally {
+    try { execSync(`bash "${lockScript}"`, { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
   }
 }
 
@@ -1541,6 +1559,63 @@ function rescueWorktree(id, branchName, classification, stdout, stderr) {
 
   log('info', 'worktree', { id, msg: `Rescued worktree to ${rescuePath}`, reason: classification.reason });
   return rescuePath;
+}
+
+/**
+ * verifyRomActuallyWorked(id, branchName, actualDurationMs, actualTokensOut)
+ *
+ * Checks that Rom's claimed DONE report corresponds to real work on the slice
+ * branch. Primary gate: commit count. Advisory: metrics divergence.
+ *
+ * Returns { ok: true } or { ok: false, reason: 'rom_no_commits', detail: '...' }.
+ */
+function verifyRomActuallyWorked(id, branchName, actualDurationMs, actualTokensOut) {
+  // Count commits ahead of main on the slice branch
+  let commitCount = 0;
+  try {
+    const countStr = gitFinalizer.runGit(`git rev-list ${branchName} ^main --count`, {
+      slice_id: id, op: 'verifyRomWork_revList', encoding: 'utf-8',
+      execOpts: { stdio: ['pipe', 'pipe', 'pipe'] },
+    }).trim();
+    commitCount = parseInt(countStr, 10) || 0;
+  } catch (err) {
+    log('warn', 'rom_verify', { id, msg: 'git rev-list failed during verification — skipping commit check', error: err.message });
+    return { ok: true };
+  }
+
+  // Read DONE frontmatter for claimed metrics
+  let claimedTokensOut = 0;
+  let claimedElapsedMs = 0;
+  try {
+    const doneContent = fs.readFileSync(path.join(QUEUE_DIR, `${id}-DONE.md`), 'utf-8');
+    const meta = parseFrontmatter(doneContent);
+    if (meta) {
+      claimedTokensOut = parseInt(meta.tokens_out, 10) || 0;
+      claimedElapsedMs = parseInt(meta.elapsed_ms, 10) || 0;
+    }
+  } catch (_) {}
+
+  // Primary gate: skeleton-only branch with substantive claims
+  if (commitCount <= 1 && claimedTokensOut > 1000) {
+    return {
+      ok: false,
+      reason: 'rom_no_commits',
+      detail: `claimed tokens_out=${claimedTokensOut} but ${branchName} has only ${commitCount} commit(s) past main (skeleton only)`,
+    };
+  }
+
+  // Advisory: metrics divergence (soft flag, not blocking)
+  if (actualTokensOut && claimedTokensOut > 10 * actualTokensOut) {
+    log('warn', 'rom_verify', {
+      id,
+      msg: 'Metrics divergence detected (>10× claimed vs actual tokens_out) — soft flag only',
+      claimedTokensOut,
+      actualTokensOut,
+      ratio: Math.round(claimedTokensOut / actualTokensOut),
+    });
+  }
+
+  return { ok: true };
 }
 
 /**
@@ -1938,6 +2013,32 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
             closeSliceBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'Incomplete metrics in DONE report');
             recordSessionResult(false, tokensIn, tokensOut, costUsd);
           } else {
+            // --- Rom verification gate (slice 212) ---
+            const verify = verifyRomActuallyWorked(id, sliceBranch, durationMs, tokensOut);
+            if (!verify.ok) {
+              writeErrorFile(errorPath, id, verify.reason, null, stdout, stderr, { detail: verify.detail, durationMs });
+              registerEvent(id, 'ERROR', {
+                reason: verify.reason,
+                phase: 'rom_verification',
+                detail: verify.detail,
+                durationMs,
+                actualTokensOut: tokensOut,
+                stderr_tail: truncStderr(stderr),
+              });
+              appendKiraEvent({
+                event: 'ERROR',
+                slice_id: id,
+                root_id: sliceMeta.root_commission_id || null,
+                cycle: null,
+                branch: sliceBranch || null,
+                details: `Slice ${id} errored: ${verify.reason}`,
+              });
+              log('warn', 'rom', { id, msg: 'Rom wrote DONE but verification failed — treating as error', reason: verify.reason, detail: verify.detail });
+              closeSliceBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'Rom verification failed: ' + verify.reason);
+              recordSessionResult(false, tokensIn, tokensOut, costUsd);
+              return;
+            }
+
             // --- Write Point 1: append timesheet row (Bet 3) ---
             const sliceMeta = parseFrontmatter(sliceContent) || {};
             const expectedHours = sliceMeta.expected_human_hours && sliceMeta.expected_human_hours !== 'null'
@@ -2298,26 +2399,59 @@ function latestRestagedTs(id, regFile) {
 }
 
 /**
+ * latestAttemptStartTs(id, regFile)
+ *
+ * Returns the ISO timestamp of the most recent event marking the start of the
+ * current attempt. Resolution order: latest RESTAGED → latest COMMISSIONED → null.
+ * Accepts an optional regFile path for testing.
+ */
+function latestAttemptStartTs(id, regFile) {
+  const file = regFile || REGISTER_FILE;
+  try {
+    const lines = fs.readFileSync(file, 'utf-8').trim().split('\n').filter(Boolean);
+    let latestRestaged = null;
+    let latestCommissioned = null;
+    for (const line of lines) {
+      try {
+        const raw = JSON.parse(line);
+        const sid = String(raw.slice_id || raw.id || '');
+        if (sid !== String(id)) continue;
+        if (raw.event === 'RESTAGED') {
+          if (!latestRestaged || raw.ts > latestRestaged) latestRestaged = raw.ts;
+        } else if (raw.event === 'COMMISSIONED') {
+          if (!latestCommissioned || raw.ts > latestCommissioned) latestCommissioned = raw.ts;
+        }
+      } catch (_) {}
+    }
+    return latestRestaged || latestCommissioned || null;
+  } catch (_) { return null; }
+}
+
+/**
  * hasReviewEvent(id, regFile)
  *
- * Returns true if register.jsonl contains a NOG_DECISION, MERGED, or STUCK event
- * for this slice ID after the latest RESTAGED marker — meaning the current attempt
- * has already been evaluated. Pre-RESTAGED events are ignored.
+ * Returns true if the current attempt has reached a terminal review state:
+ * MERGED, STUCK, or NOG_DECISION with verdict ACCEPTED. REJECTED and ESCALATE
+ * verdicts are intermediate — they do not block re-dispatch. The attempt
+ * boundary is latestAttemptStartTs (RESTAGED → COMMISSIONED → null).
  * Accepts an optional regFile path for testing.
  */
 function hasReviewEvent(id, regFile) {
   const file = regFile || REGISTER_FILE;
   try {
-    const cutoff = latestRestagedTs(id, file);
+    const cutoff = latestAttemptStartTs(id, file);
+    if (cutoff === null) return false;
     const lines = fs.readFileSync(file, 'utf-8').trim().split('\n').filter(Boolean);
     resetDedupeState();
     for (const line of lines) {
       try {
         const raw = JSON.parse(line);
         const entry = translateEvent(raw);
-        if (entry && entry.id === String(id) && ['NOG_DECISION', 'MERGED', 'STUCK'].includes(entry.event)) {
-          if (!cutoff || entry.ts > cutoff) return true;
-        }
+        if (!entry || entry.id !== String(id)) continue;
+        if (entry.ts <= cutoff) continue;
+        if (entry.event === 'MERGED') return true;
+        if (entry.event === 'STUCK') return true;
+        if (entry.event === 'NOG_DECISION' && entry.verdict === 'ACCEPTED') return true;
       } catch (_) {}
     }
   } catch (_) {}
@@ -2362,6 +2496,39 @@ function hasMergedEvent(id, regFile) {
  *
  * Returns { success, sha, error } where sha is the merge commit hash on success.
  */
+
+/**
+ * assertMergeIntegrity(id, expectedSha)
+ *
+ * Post-merge local integrity guard (W2). Asserts that expectedSha is both
+ * an ancestor of main and the current tip of main.
+ *
+ * Returns { ok: true } on success.
+ * Returns { ok: false, actualSha, reason } on failure where reason is one of:
+ *   'not_ancestor' | 'tip_mismatch' | 'check_failed'
+ */
+function assertMergeIntegrity(id, expectedSha) {
+  try {
+    // Check 1: expectedSha must be reachable from main
+    try {
+      gitFinalizer.runGit(`git merge-base --is-ancestor ${expectedSha} main`, { slice_id: id, op: 'mergeIntegrity_ancestry', execOpts: { stdio: 'pipe' } });
+    } catch (_) {
+      const actualSha = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'mergeIntegrity_tipAfterAncestryFail', encoding: 'utf-8' }).trim();
+      return { ok: false, actualSha, reason: 'not_ancestor' };
+    }
+
+    // Check 2: main tip must equal expectedSha
+    const actualSha = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'mergeIntegrity_tip', encoding: 'utf-8' }).trim();
+    if (actualSha !== expectedSha) {
+      return { ok: false, actualSha, reason: 'tip_mismatch' };
+    }
+
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, actualSha: null, reason: 'check_failed' };
+  }
+}
+
 function mergeBranch(id, branchName, title) {
   // ── Branch name sanitization (defence against shell injection) ────────
   try {
@@ -2402,6 +2569,19 @@ function mergeBranch(id, branchName, title) {
     // ── Step 2: Fast-forward main to the merge result ──────────────────
     const newSha = gitFinalizer.runGit(`git rev-parse ${branchName}`, { slice_id: id, op: 'mergeBranch_newSha', encoding: 'utf-8' }).trim();
     gitFinalizer.runGit(`git update-ref refs/heads/main ${newSha}`, { slice_id: id, op: 'mergeBranch_updateRef', execOpts: { stdio: 'pipe' } });
+
+    // ── Step 2.5: Post-merge integrity assertion (W2) ─────────────────
+    const integrity = assertMergeIntegrity(id, newSha);
+    if (!integrity.ok) {
+      registerEvent(id, 'MERGE_INTEGRITY_VIOLATION', {
+        slice_id: String(id),
+        expected_sha: newSha,
+        actual_sha: integrity.actualSha,
+        reason: integrity.reason,
+      });
+      log('warn', 'merge', { id, msg: 'Post-merge integrity assertion failed', expected_sha: newSha, actual_sha: integrity.actualSha, reason: integrity.reason });
+      return { success: false, sha: null, error: 'merge_integrity_violation' };
+    }
 
     // ── Step 3: Sync changed files from worktree to PROJECT_DIR ────────
     // FUSE handles writes fine (writeFileSync truncates in-place).
@@ -3140,9 +3320,13 @@ function writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra) {
       ? `The process was killed after ${extra && extra.lastActivitySecondsAgo != null ? extra.lastActivitySecondsAgo : '?'}s of no stdout/stderr output (limit: ${extra && extra.inactivityLimitMinutes != null ? extra.inactivityLimitMinutes : '?'} min).`
       : reason === 'crash'
         ? `The process exited with a non-zero status (exit code ${exitCode ?? 'unknown'}).`
-        : isRomSelfTerminated(reason)
-          ? `The process exited cleanly but wrote no DONE file (${reason}).${extra && extra.rescue_path ? ' Worktree rescued to ' + extra.rescue_path + '.' : ''}`
-          : `Slice frontmatter validation failed. Missing fields: ${(extra && extra.missingFields || []).join(', ')}.`;
+        : reason === 'rom_no_commits'
+          ? `Rom wrote a DONE report but made no commits to slice/${id}. The report is fabricated (likely hit a rate limit or crashed early). ${extra && extra.detail ? extra.detail : ''}`
+          : reason === 'metrics_divergence'
+            ? `Rom's claimed metrics diverged from the actual process metrics by >10×. ${extra && extra.detail ? extra.detail : ''}`
+            : isRomSelfTerminated(reason)
+              ? `The process exited cleanly but wrote no DONE file (${reason}).${extra && extra.rescue_path ? ' Worktree rescued to ' + extra.rescue_path + '.' : ''}`
+              : `Slice frontmatter validation failed. Missing fields: ${(extra && extra.missingFields || []).join(', ')}.`;
 
   const content = [
     ...frontmatter,
@@ -3693,7 +3877,7 @@ function poll() {
       continue;
     }
 
-    // Skip if already reviewed (evaluator has run).
+    // Skip if the current attempt has already been accepted + merged. Rejected verdicts are NOT terminal — Rom reworks and the next DONE must re-dispatch.
     if (hasReviewEvent(doneId)) continue;
 
     // Rom slice-broken fast path (BR invariant #9):
@@ -3818,10 +4002,7 @@ function poll() {
   //   - Remove the QUEUED/PENDING file so the poll loop doesn't re-process it forever
   //   - Continue the poll loop (do not crash)
   // ---------------------------------------------------------------------------
-  const REQUIRED_FIELDS = ['id', 'title', 'from', 'to', 'priority', 'created'];
-  const missingFields = REQUIRED_FIELDS.filter(
-    field => !meta || !meta[field] || meta[field].trim() === ''
-  );
+  const { missingFields } = validateIntakeMeta(meta);
 
   if (missingFields.length > 0) {
     const errId   = (meta && meta.id) || id;
@@ -4249,7 +4430,33 @@ if (require.main === module) {
 }
 
 // ---------------------------------------------------------------------------
+// validateIntakeMeta — intake field validation for the poll loop
+//
+// Rework/apendment files carry rounds[], round>1, or apendment/references
+// signals and only need 4 fields (id, title, from, to); the priority +
+// created pair was captured in the original COMMISSIONED event.
+// ---------------------------------------------------------------------------
+
+function validateIntakeMeta(meta) {
+  const isApendmentFile = !!(meta && (
+    meta.type === 'amendment' ||
+    meta.apendment ||
+    meta.amendment ||
+    (meta.references && meta.references !== 'null') ||
+    (parseInt(meta.round, 10) > 1) ||
+    (Array.isArray(meta.rounds) && meta.rounds.length > 0)
+  ));
+  const REQUIRED_FIELDS = isApendmentFile
+    ? ['id', 'title', 'from', 'to']
+    : ['id', 'title', 'from', 'to', 'priority', 'created'];
+  const missingFields = REQUIRED_FIELDS.filter(
+    field => !meta || !meta[field] || meta[field].trim() === ''
+  );
+  return { ok: missingFields.length === 0, missingFields };
+}
+
+// ---------------------------------------------------------------------------
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, latestRestagedTs, hasReviewEvent, hasMergedEvent, restagedBootstrap };
+module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, validateIntakeMeta, ensureMainIsFresh, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };

@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
-# host-health-detector.sh — Host-side Docker health detector for Liberation of Bajor
+# host-health-detector.sh — Native process health detector for Liberation of Bajor
 #
-# Polls Docker container status + dashboard /api/health every 10 seconds.
-# Writes bridge/host-health.json atomically. Emits macOS notification on
-# sustained downtime (>30s). Logs state changes to bridge/host-health.log.
+# Polls orchestrator PID liveness (bridge/.run.pid) + dashboard /api/health
+# every 10 seconds. Writes bridge/host-health.json atomically.
+# Emits macOS notification on sustained downtime (>30s).
+# Logs state changes to bridge/host-health.log.
+#
+# bridge/host-health.json schema:
+#   orchestrator_status  "running" | "stopped" — both PIDs alive per kill -0
+#   api_status           "ok" | "error" — HTTP 200 from /api/health
+#   last_checked         ISO 8601 UTC timestamp
+#   consecutive_failures integer — incremented each poll where not fully healthy
 #
 # Usage: ./scripts/host-health-detector.sh [REPO_ROOT]
 #   REPO_ROOT defaults to the parent directory of this script's location.
@@ -15,15 +22,15 @@ REPO_ROOT="${1:-$(dirname "$SCRIPT_DIR")}"
 HEALTH_FILE="$REPO_ROOT/bridge/host-health.json"
 HEALTH_TMP="$REPO_ROOT/bridge/.host-health.json.tmp"
 LOG_FILE="$REPO_ROOT/bridge/host-health.log"
+PID_FILE="$REPO_ROOT/bridge/.run.pid"
 
 POLL_INTERVAL=10
 NOTIFICATION_THRESHOLD=30  # seconds of sustained failure before notification
 API_TIMEOUT=3
-CONTAINER_NAME="bajor"
 API_URL="http://localhost:4747/api/health"
 
 # State tracking
-prev_container_status=""
+prev_orchestrator_status=""
 prev_api_status=""
 consecutive_failures=0
 failure_start_ts=0
@@ -35,14 +42,14 @@ log_change() {
 }
 
 write_status() {
-  local container_status="$1"
+  local orchestrator_status="$1"
   local api_status="$2"
   local now
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
   cat > "$HEALTH_TMP" <<ENDJSON
 {
-  "container_status": "$container_status",
+  "orchestrator_status": "$orchestrator_status",
   "api_status": "$api_status",
   "last_checked": "$now",
   "consecutive_failures": $consecutive_failures
@@ -51,17 +58,25 @@ ENDJSON
   mv -f "$HEALTH_TMP" "$HEALTH_FILE"
 }
 
-check_container() {
-  local status
-  if ! command -v docker &>/dev/null; then
-    echo "missing"
+check_orchestrator() {
+  if [ ! -f "$PID_FILE" ]; then
+    echo "stopped"
     return
   fi
-  status="$(docker inspect "$CONTAINER_NAME" --format '{{.State.Status}}' 2>/dev/null)" || {
-    echo "missing"
-    return
-  }
-  echo "$status"
+  mapfile -t pids < "$PID_FILE"
+  local all_alive=true
+  for pid in "${pids[@]}"; do
+    pid="${pid// /}"  # trim whitespace
+    if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+      all_alive=false
+      break
+    fi
+  done
+  if $all_alive && [ "${#pids[@]}" -ge 2 ]; then
+    echo "running"
+  else
+    echo "stopped"
+  fi
 }
 
 check_api() {
@@ -82,21 +97,16 @@ is_healthy() {
 }
 
 send_notification() {
-  osascript -e 'display notification "Container or API is unreachable. Check Docker Desktop." with title "Liberation of Bajor — service down"' 2>/dev/null || true
+  osascript -e 'display notification "Orchestrator or API is unreachable. Run ./scripts/start.sh." with title "Liberation of Bajor — service down"' 2>/dev/null || true
 }
 
 # Main loop
 while true; do
-  container_status="$(check_container)"
-
-  if [ "$container_status" = "running" ]; then
-    api_status="$(check_api)"
-  else
-    api_status="unknown"
-  fi
+  orchestrator_status="$(check_orchestrator)"
+  api_status="$(check_api)"
 
   # Track failures
-  if is_healthy "$container_status" "$api_status"; then
+  if is_healthy "$orchestrator_status" "$api_status"; then
     consecutive_failures=0
     failure_start_ts=0
     notification_sent=0
@@ -108,12 +118,12 @@ while true; do
   fi
 
   # Write status atomically
-  write_status "$container_status" "$api_status"
+  write_status "$orchestrator_status" "$api_status"
 
   # Log state changes
-  if [ "$container_status" != "$prev_container_status" ] || [ "$api_status" != "$prev_api_status" ]; then
-    log_change "container=$container_status api=$api_status failures=$consecutive_failures"
-    prev_container_status="$container_status"
+  if [ "$orchestrator_status" != "$prev_orchestrator_status" ] || [ "$api_status" != "$prev_api_status" ]; then
+    log_change "orchestrator=$orchestrator_status api=$api_status failures=$consecutive_failures"
+    prev_orchestrator_status="$orchestrator_status"
     prev_api_status="$api_status"
   fi
 

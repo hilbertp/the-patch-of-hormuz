@@ -17,6 +17,7 @@ const DASHBOARD    = path.join(__dirname, 'lcars-dashboard.html');
 const FIRST_OUTPUT  = path.join(REPO_ROOT, 'bridge', 'first-output.json');
 const NOG_ACTIVE    = path.join(REPO_ROOT, 'bridge', 'nog-active.json');
 const CONTROL_DIR   = path.join(REPO_ROOT, 'bridge', 'control');
+const SESSIONS      = path.join(REPO_ROOT, 'bridge', 'sessions.jsonl');
 const { translateEvent, resetDedupeState } = require(path.join(REPO_ROOT, 'bridge', 'lifecycle-translate'));
 
 const CORS_ORIGIN  = 'https://dax-dashboard.lovable.app';
@@ -192,6 +193,105 @@ function parseRoundsArray(text) {
   }
   if (current) rounds.push(current);
   return rounds;
+}
+
+// ── Round-section extractor ──────────────────────────────────────────────────
+// Parses a multi-round slice body for per-round rom_report / nog_review sections.
+function extractRoundSections(body) {
+  const sections = {};
+  const lines = body.split('\n');
+  let key = null;
+  let buf = [];
+  for (const line of lines) {
+    const romM = line.match(/^##\s+Round\s+(\d+)/i);
+    const nogM = line.match(/^##\s+Nog\s+(?:Review|Verdict)[^#\n]*Round\s+(\d+)/i);
+    if (romM) {
+      if (key) sections[key] = buf.join('\n').trim();
+      key = `rom_${romM[1]}`; buf = [];
+    } else if (nogM) {
+      if (key) sections[key] = buf.join('\n').trim();
+      key = `nog_${nogM[1]}`; buf = [];
+    } else if (key) {
+      buf.push(line);
+    }
+  }
+  if (key) sections[key] = buf.join('\n').trim();
+  return sections;
+}
+
+// ── Slice investigation builder ──────────────────────────────────────────────
+// Returns { id, prompt, report, reviews } for a given slice ID.
+// Accepts optional dirs override for testability: { queueDir, stagedDir }.
+function buildSliceInvestigation(id, dirs) {
+  const qDir = (dirs && dirs.queueDir) || QUEUE_DIR;
+  const sDir = (dirs && dirs.stagedDir) || STAGED_DIR;
+  const q = f => path.join(qDir, f);
+  const s = f => path.join(sDir, f);
+
+  // Prompt: earliest available file per precedence
+  const promptFiles = [
+    q(`${id}-IN_PROGRESS.md`), q(`${id}-QUEUED.md`), s(`${id}-STAGED.md`),
+    q(`${id}-PARKED.md`), q(`${id}-STUCK.md`),
+    q(`${id}-DONE.md`), q(`${id}-ERROR.md`), q(`${id}-ACCEPTED.md`),
+  ];
+  let prompt = null;
+  for (const p of promptFiles) {
+    if (fs.existsSync(p)) { prompt = extractBody(fs.readFileSync(p, 'utf8')); break; }
+  }
+
+  // Report: body of terminal file
+  const termFiles = [
+    q(`${id}-DONE.md`), q(`${id}-STUCK.md`), q(`${id}-ERROR.md`), q(`${id}-ACCEPTED.md`),
+  ];
+  let report = null;
+  for (const p of termFiles) {
+    if (fs.existsSync(p)) { report = extractBody(fs.readFileSync(p, 'utf8')); break; }
+  }
+
+  // Reviews: PARKED or STUCK (multi-round) → rounds[] → per-round entries
+  let reviews = [];
+  const parkedPath = q(`${id}-PARKED.md`);
+  const stuckPath  = q(`${id}-STUCK.md`);
+  const nogPath    = q(`${id}-NOG.md`);
+  const multiPath  = fs.existsSync(parkedPath) ? parkedPath : fs.existsSync(stuckPath) ? stuckPath : null;
+
+  if (multiPath) {
+    const raw = fs.readFileSync(multiPath, 'utf8');
+    const rounds = parseRoundsArray(raw);
+    if (rounds.length > 0) {
+      const secs = extractRoundSections(extractBody(raw));
+      reviews = rounds.map(r => {
+        const rn = typeof r.round === 'number' ? r.round : Number(r.round) || 1;
+        return {
+          round:      rn,
+          verdict:    r.nog_verdict  ?? null,
+          summary:    r.nog_reason   ?? null,
+          rom_report: secs[`rom_${rn}`] || null,
+          nog_review: secs[`nog_${rn}`] || r.nog_reason || null,
+          done_at:    r.done_at      ?? null,
+          durationMs: r.durationMs   ?? null,
+          costUsd:    r.costUsd      ?? null,
+        };
+      });
+    }
+  } else if (fs.existsSync(nogPath)) {
+    const nogRaw = fs.readFileSync(nogPath, 'utf8');
+    const fm = parseFrontmatter(nogRaw);
+    reviews = [{ round: 1, verdict: fm.verdict ?? null, summary: fm.summary ?? null,
+                 rom_report: null, nog_review: extractBody(nogRaw) || null,
+                 done_at: fm.completed ?? null, durationMs: null, costUsd: null }];
+  }
+
+  // 404 if nothing found
+  const allDirs = [qDir, sDir];
+  const found = allDirs.some(d => {
+    try { return fs.readdirSync(d).some(f => f.startsWith(`${id}-`)); } catch (_) { return false; }
+  });
+  if (!found) {
+    const e = new Error(`No slice found for ID ${id}`); e.status = 404; throw e;
+  }
+
+  return { id, prompt, report, reviews };
 }
 
 // ── Register reader ──────────────────────────────────────────────────────────
@@ -417,6 +517,97 @@ function buildBridgeData() {
   } catch (_) {}
 
   return { heartbeat, queue, slices, recent, economics, queueOrder, stagedOrder, nogActive, apiRetries, events };
+}
+
+// ── Cost Center aggregation ──────────────────────────────────────────────────
+function buildCostsData() {
+  // Rom — sum DONE events from register.jsonl
+  const romRow = { role: 'rom', model: 'claude-sonnet-4-6', count: 0,
+                   tokens_in: 0, tokens_out: 0, cost_usd: 0 };
+  try {
+    const raw = fs.readFileSync(REGISTER, 'utf8');
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue;
+      let ev;
+      try { ev = JSON.parse(line); } catch (_) { continue; }
+      if (ev.event !== 'DONE') continue;
+      romRow.count++;
+      romRow.tokens_in  += ev.tokensIn  ?? 0;
+      romRow.tokens_out += ev.tokensOut ?? 0;
+      romRow.cost_usd   += ev.costUsd   ?? 0;
+    }
+  } catch (_) { /* register.jsonl absent */ }
+
+  // Nog — sum rounds[] across all DONE.md files in queue/
+  const nogRow = { role: 'nog', model: 'claude-sonnet-4-6', count: 0,
+                   tokens_in: 0, tokens_out: 0, cost_usd: 0 };
+  try {
+    const files = fs.readdirSync(QUEUE_DIR).filter(f => f.endsWith('-DONE.md'));
+    for (const file of files) {
+      let text;
+      try { text = fs.readFileSync(path.join(QUEUE_DIR, file), 'utf8'); }
+      catch (_) { continue; }
+      const rounds = parseRoundsArray(text);
+      for (const r of rounds) {
+        nogRow.count++;
+        nogRow.tokens_in  += r.tokensIn  ?? 0;
+        nogRow.tokens_out += r.tokensOut ?? 0;
+        nogRow.cost_usd   += r.costUsd   ?? 0;
+      }
+    }
+  } catch (_) {}
+
+  // Sessions — group by role from sessions.jsonl
+  const sessionsByRole = {};
+  let updatedAt = new Date().toISOString();
+  try {
+    const raw = fs.readFileSync(SESSIONS, 'utf8');
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue;
+      let entry;
+      try { entry = JSON.parse(line); } catch (_) { continue; }
+      const role = entry.role ?? 'unknown';
+      if (!sessionsByRole[role]) {
+        sessionsByRole[role] = {
+          role,
+          model: entry.model ?? 'claude-sonnet-4-6',
+          count: 0,
+          tokens_in: 0,
+          tokens_out: 0,
+          cost_usd: 0,
+          _has_cost: false,
+        };
+      }
+      const row = sessionsByRole[role];
+      row.count++;
+      if (entry.tokens_in  != null) row.tokens_in  += entry.tokens_in;
+      if (entry.tokens_out != null) row.tokens_out += entry.tokens_out;
+      if (entry.cost_usd   != null) { row.cost_usd += entry.cost_usd; row._has_cost = true; }
+      if (entry.ts && entry.ts > updatedAt) updatedAt = entry.ts;
+    }
+  } catch (_) {}
+
+  // Normalise session rows: null out aggregates when no values were present
+  const sessionRows = Object.values(sessionsByRole).map(row => {
+    const out = { role: row.role, model: row.model, count: row.count,
+                  tokens_in: null, tokens_out: null, cost_usd: null };
+    if (row._has_cost || row.tokens_in > 0) {
+      if (row.tokens_in  > 0) out.tokens_in  = row.tokens_in;
+      if (row.tokens_out > 0) out.tokens_out = row.tokens_out;
+      if (row._has_cost)      out.cost_usd   = row.cost_usd;
+    }
+    return out;
+  });
+
+  const by_role = [romRow, nogRow, ...sessionRows];
+
+  // Total: sum only non-null cost entries
+  let total_cost_usd = romRow.cost_usd + nogRow.cost_usd;
+  for (const row of sessionRows) {
+    if (row.cost_usd != null) total_cost_usd += row.cost_usd;
+  }
+
+  return { by_role, total_cost_usd, updated_at: updatedAt };
 }
 
 // ── HTTP server ──────────────────────────────────────────────────────────────
@@ -758,38 +949,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── Unaccept (move PENDING back to staged) ──────────────────────────────────
-  const queueUnacceptMatch = pathname.match(/^\/api\/queue\/(\d+)\/unaccept$/);
-  if (queueUnacceptMatch && req.method === 'POST') {
-    const id = queueUnacceptMatch[1];
-    const queuedPath  = path.join(QUEUE_DIR, `${id}-QUEUED.md`);
-    const pendingPath = path.join(QUEUE_DIR, `${id}-PENDING.md`);
-    const activePath  = fs.existsSync(queuedPath) ? queuedPath : fs.existsSync(pendingPath) ? pendingPath : null;
-    if (!activePath) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: `No queued slice ${id}` }));
-      return;
-    }
-    try {
-      let content = fs.readFileSync(activePath, 'utf8');
-      content = updateFrontmatter(content, { status: 'STAGED' });
-      fs.writeFileSync(path.join(STAGED_DIR, `${id}-STAGED.md`), content, 'utf8');
-      try { fs.renameSync(activePath, path.join(TRASH_DIR, `${id}-QUEUED.unaccepted`)); } catch (_) {}
-      // Remove from queue order
-      const order = readQueueOrder();
-      const idx = order.indexOf(id);
-      if (idx !== -1) order.splice(idx, 1);
-      writeQueueOrder(order);
-      writeRegisterEvent({ event: 'HUMAN_APPROVAL', slice_id: id, action: 'unaccepted' });
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true }));
-    } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: String(err) }));
-    }
-    return;
-  }
-
   // ── Return-to-stage (writes control file for watcher) ────────────────────
   const returnMatch = pathname.match(/^\/api\/bridge\/return-to-stage\/(\d+)$/);
   if (returnMatch && req.method === 'POST') {
@@ -863,6 +1022,28 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Slice investigation: prompt + report + per-round reviews ─────────────
+  const sliceInvMatch = pathname.match(/^\/api\/slice\/(\d+)$/);
+  if (sliceInvMatch && req.method === 'GET') {
+    const id = sliceInvMatch[1];
+    try {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(buildSliceInvestigation(id)));
+    } catch (err) {
+      const status = err.status === 404 ? 404 : 500;
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // 400 for any /api/slice/* that didn't match a valid route above (non-numeric ID)
+  if (pathname.startsWith('/api/slice/') && req.method === 'GET') {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Slice ID must be numeric' }));
+    return;
+  }
+
   // ── Queue order persistence (drag-reorder) ──────────────────────────────────
   if (pathname === '/api/queue/order' && req.method === 'POST') {
     let body = '';
@@ -922,10 +1103,27 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Cost Center ─────────────────────────────────────────────────────────
+  if (pathname === '/api/costs' && req.method === 'GET') {
+    try {
+      const result = buildCostsData();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
   res.writeHead(404, { 'Content-Type': 'text/plain' });
   res.end('Not Found');
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`LCARS dashboard server running at http://${HOST}:${PORT}`);
-});
+if (require.main === module) {
+  server.listen(PORT, HOST, () => {
+    console.log(`LCARS dashboard server running at http://${HOST}:${PORT}`);
+  });
+}
+
+module.exports = { buildSliceInvestigation, parseFrontmatter, extractBody, parseRoundsArray, extractRoundSections };

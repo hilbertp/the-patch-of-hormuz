@@ -10,6 +10,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+rm -f "$REPO/bridge/.main-unlocked"
+
 # --- directories (recursive) ---
 for dir in dashboard docs/contracts; do
   [ -d "$REPO/$dir" ] && chmod -R a-w "$REPO/$dir"

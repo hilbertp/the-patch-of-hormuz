@@ -13,17 +13,17 @@
  *   7.  Orchestrator row: down state (heartbeat stale/missing)
  *   8.  Server row: up state (api/health returns 200 quickly)
  *   9.  Server row: down state (fetch fails)
- *  10.  Detector row: up state (host-health.json fresh, container running, api ok)
+ *  10.  Detector row: up state (host-health.json fresh, orchestrator running, api ok)
  *  11.  Detector row: down — file missing → install instructions shown
  *  12.  Detector row: down — file stale (>30s)
- *  13.  Detector row: down — container_status !== running
+ *  13.  Detector row: down — orchestrator_status !== running
  *  14.  Detector row: down — api_status !== ok
  *  15.  Approve gate: disabled when orchestrator down
  *  16.  Approve gate: disabled when server down
  *  17.  Approve gate: enabled when only detector is down
  *  18.  Approve gate: enabled when all services up
  *  19.  Detector-down does not set serviceHealthDown flag
- *  20.  README-health-detector.md install reference present in detector-missing message
+ *  20.  health plist install reference present in detector-missing message
  *
  * Run: node test/services-panel.test.js
  */
@@ -200,10 +200,10 @@ test('Each service row has a hover tooltip element', () => {
   assert.ok(dashboardSource.includes('id="svc-detector-tooltip"'),     'Missing detector tooltip');
 });
 
-test('Detector missing → references README-health-detector.md', () => {
+test('Detector missing → references health plist for install', () => {
   assert.ok(
-    dashboardSource.includes('scripts/README-health-detector.md'),
-    'Missing install reference to scripts/README-health-detector.md'
+    dashboardSource.includes('com.liberation-of-bajor.health.plist'),
+    'Missing install reference to scripts/com.liberation-of-bajor.health.plist'
   );
 });
 
@@ -218,10 +218,10 @@ test('Approve gate still uses serviceHealthDown flag', () => {
   );
 });
 
-test('Approve button tooltip mentions Docker + watcher when disabled', () => {
+test('Approve button tooltip mentions start.sh when disabled', () => {
   assert.ok(
-    dashboardSource.includes('down — start Docker'),
-    'Disabled approve tooltip should instruct operator to start Docker + watcher'
+    dashboardSource.includes('down — run ./scripts/start.sh'),
+    'Disabled approve tooltip should instruct operator to run ./scripts/start.sh'
   );
 });
 
@@ -244,7 +244,7 @@ const downWatcher = {
   elapsedSeconds: null, lastActivityAge_s: null, processedTotal: 5,
 };
 const freshHostHealth = {
-  container_status: 'running', api_status: 'ok',
+  orchestrator_status: 'running', api_status: 'ok',
   last_checked: new Date().toISOString(), consecutive_failures: 0,
 };
 
@@ -343,12 +343,12 @@ test('Detector up: dot class is "service-dot up"', async () => {
   );
 });
 
-test('Detector up: tooltip says container running + API ok', async () => {
+test('Detector up: tooltip says orchestrator running + API ok', async () => {
   const health = { watcher: freshWatcher, hostHealth: freshHostHealth, ts: new Date().toISOString() };
   const { elements } = await runPanel({ health });
   assert.ok(
-    elements['svc-detector-tooltip'].innerHTML.includes('container running'),
-    'Tooltip should say "container running"'
+    elements['svc-detector-tooltip'].innerHTML.includes('orchestrator running'),
+    'Tooltip should say "orchestrator running"'
   );
 });
 
@@ -361,18 +361,18 @@ test('Detector missing (hostHealth null): dot class is "service-dot down"', asyn
   );
 });
 
-test('Detector missing: tooltip references README-health-detector.md', async () => {
+test('Detector missing: tooltip references health plist for install', async () => {
   const health = { watcher: freshWatcher, hostHealth: null, ts: new Date().toISOString() };
   const { elements } = await runPanel({ health });
   assert.ok(
-    elements['svc-detector-tooltip'].innerHTML.includes('README-health-detector.md'),
-    'Tooltip should reference README-health-detector.md for install instructions'
+    elements['svc-detector-tooltip'].innerHTML.includes('com.liberation-of-bajor.health.plist'),
+    'Tooltip should reference com.liberation-of-bajor.health.plist for install instructions'
   );
 });
 
 test('Detector stale (last_checked > 30s ago): dot class is "service-dot down"', async () => {
   const staleHH = {
-    container_status: 'running', api_status: 'ok',
+    orchestrator_status: 'running', api_status: 'ok',
     last_checked: new Date(Date.now() - 60000).toISOString(),
     consecutive_failures: 6,
   };
@@ -384,22 +384,22 @@ test('Detector stale (last_checked > 30s ago): dot class is "service-dot down"',
   );
 });
 
-test('Detector container not running: dot class is "service-dot down"', async () => {
-  const exitedHH = {
-    container_status: 'exited', api_status: 'unknown',
+test('Detector orchestrator not running: dot class is "service-dot down"', async () => {
+  const stoppedHH = {
+    orchestrator_status: 'stopped', api_status: 'error',
     last_checked: new Date().toISOString(), consecutive_failures: 3,
   };
-  const health = { watcher: freshWatcher, hostHealth: exitedHH, ts: new Date().toISOString() };
+  const health = { watcher: freshWatcher, hostHealth: stoppedHH, ts: new Date().toISOString() };
   const { elements } = await runPanel({ health });
   assert.ok(
     elements['svc-detector-dot'].className.includes('down'),
-    `Expected "down" for exited container, got "${elements['svc-detector-dot'].className}"`
+    `Expected "down" for stopped orchestrator, got "${elements['svc-detector-dot'].className}"`
   );
 });
 
 test('Detector api_status not ok: dot class is "service-dot down"', async () => {
   const badApiHH = {
-    container_status: 'running', api_status: 'error',
+    orchestrator_status: 'running', api_status: 'error',
     last_checked: new Date().toISOString(), consecutive_failures: 1,
   };
   const health = { watcher: freshWatcher, hostHealth: badApiHH, ts: new Date().toISOString() };

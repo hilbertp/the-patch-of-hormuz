@@ -3,10 +3,10 @@
 /**
  * host-health-detector.test.js
  *
- * Tests for slice 183 — Host-side Docker health detector + Ops service-health pill:
+ * Tests for the native host-side health detector + Ops service-health pill:
  *   1. Detector script writes valid JSON for "running" state
- *   2. Detector script writes valid JSON for "exited" state
- *   3. Detector script writes valid JSON for "missing" state
+ *   2. Detector script writes valid JSON for "stopped" state (no PID file)
+ *   3. Detector script writes valid JSON for "stopped" state (dead PIDs)
  *   4. Dashboard has #service-health-pill element
  *   5. Dashboard pill reads hostHealth and applies pill-red class
  *   6. Approve button gets disabled attribute when service is down
@@ -77,7 +77,7 @@ function test(name, fn) {
  * running a small bash snippet that sources the write_status function,
  * and checking the resulting JSON.
  */
-function testDetectorOutput(label, containerStatus, apiStatus, expectedShape) {
+function testDetectorOutput(label, orchestratorStatus, apiStatus, expectedShape) {
   test(`Detector output shape for ${label}`, () => {
     const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'health-test-'));
     const bridgeDir = path.join(tmpDir, 'bridge');
@@ -91,13 +91,13 @@ function testDetectorOutput(label, containerStatus, apiStatus, expectedShape) {
       consecutive_failures=2
 
       write_status() {
-        local container_status="$1"
+        local orchestrator_status="$1"
         local api_status="$2"
         local now
         now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         cat > "$HEALTH_TMP" <<ENDJSON
 {
-  "container_status": "$container_status",
+  "orchestrator_status": "$orchestrator_status",
   "api_status": "$api_status",
   "last_checked": "$now",
   "consecutive_failures": $consecutive_failures
@@ -106,15 +106,15 @@ ENDJSON
         mv -f "$HEALTH_TMP" "$HEALTH_FILE"
       }
 
-      write_status "${containerStatus}" "${apiStatus}"
+      write_status "${orchestratorStatus}" "${apiStatus}"
     `;
 
     execSync(script, { shell: '/bin/bash' });
 
     const result = JSON.parse(fs.readFileSync(path.join(bridgeDir, 'host-health.json'), 'utf-8'));
 
-    assert.strictEqual(result.container_status, expectedShape.container_status,
-      `container_status should be "${expectedShape.container_status}"`);
+    assert.strictEqual(result.orchestrator_status, expectedShape.orchestrator_status,
+      `orchestrator_status should be "${expectedShape.orchestrator_status}"`);
     assert.strictEqual(result.api_status, expectedShape.api_status,
       `api_status should be "${expectedShape.api_status}"`);
     assert.strictEqual(typeof result.last_checked, 'string', 'last_checked should be a string');
@@ -129,15 +129,15 @@ ENDJSON
 console.log('\n── Detector JSON output shape ──');
 
 testDetectorOutput('running', 'running', 'ok', {
-  container_status: 'running', api_status: 'ok'
+  orchestrator_status: 'running', api_status: 'ok'
 });
 
-testDetectorOutput('exited', 'exited', 'unknown', {
-  container_status: 'exited', api_status: 'unknown'
+testDetectorOutput('stopped (no pid file)', 'stopped', 'ok', {
+  orchestrator_status: 'stopped', api_status: 'ok'
 });
 
-testDetectorOutput('missing', 'missing', 'unknown', {
-  container_status: 'missing', api_status: 'unknown'
+testDetectorOutput('stopped (dead pids)', 'stopped', 'error', {
+  orchestrator_status: 'stopped', api_status: 'error'
 });
 
 // ---------------------------------------------------------------------------
@@ -178,10 +178,10 @@ test('Dashboard reads hostHealth from /api/health response', () => {
   );
 });
 
-test('Dashboard updateServicesPanel checks container_status and api_status', () => {
+test('Dashboard updateServicesPanel checks orchestrator_status and api_status', () => {
   assert.ok(
-    dashboardSource.includes('container_status'),
-    'Should reference container_status field'
+    dashboardSource.includes('orchestrator_status'),
+    'Should reference orchestrator_status field'
   );
   assert.ok(
     dashboardSource.includes('api_status'),
@@ -208,8 +208,8 @@ test('Approve button gets disabled attribute when service is down', () => {
 
 test('Approve button has tooltip explaining why disabled', () => {
   assert.ok(
-    dashboardSource.includes('down — start Docker'),
-    'Disabled approve should show service-down tooltip with Docker instructions'
+    dashboardSource.includes('down — run ./scripts/start.sh'),
+    'Disabled approve should show service-down tooltip with start.sh instructions'
   );
 });
 
@@ -280,10 +280,10 @@ test('Detector uses atomic write (mv)', () => {
   );
 });
 
-test('Detector uses docker inspect', () => {
+test('Detector checks PID file for orchestrator liveness', () => {
   assert.ok(
-    detectorSource.includes('docker inspect'),
-    'Should use docker inspect to check container'
+    detectorSource.includes('.run.pid'),
+    'Should check bridge/.run.pid for orchestrator liveness'
   );
 });
 
