@@ -668,6 +668,59 @@ function updateFrontmatter(text, updates) {
 }
 
 /**
+ * computeNextAttemptNumber(sliceFilePath, round)
+ *
+ * Reads the slice file's frontmatter rounds: array and returns the next
+ * attempt_number for the given round value. Returns 1 if the round doesn't
+ * appear yet; returns max(existing attempt_number for that round) + 1 otherwise.
+ */
+function computeNextAttemptNumber(sliceFilePath, round) {
+  let content;
+  try {
+    content = fs.readFileSync(sliceFilePath, 'utf-8');
+  } catch (_) {
+    return 1;
+  }
+
+  const lines = content.split('\n');
+  let fmStart = -1, fmEnd = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() === '---') {
+      if (fmStart === -1) { fmStart = i; } else { fmEnd = i; break; }
+    }
+  }
+  if (fmStart === -1 || fmEnd === -1) return 1;
+
+  const fmLines = lines.slice(fmStart + 1, fmEnd);
+  let maxAttempt = 0;
+  let currentRound = null;
+  for (const line of fmLines) {
+    const roundMatch = line.match(/^\s+-\s*round:\s*(\d+)/);
+    if (roundMatch) {
+      currentRound = parseInt(roundMatch[1], 10);
+      continue;
+    }
+    const attemptMatch = line.match(/^\s+attempt_number:\s*(\d+)/);
+    if (attemptMatch && currentRound === round) {
+      const a = parseInt(attemptMatch[1], 10);
+      if (a > maxAttempt) maxAttempt = a;
+    }
+  }
+
+  // If round appeared but no attempt_number lines, treat existing entries as attempt 1.
+  if (maxAttempt === 0) {
+    // Check if the round appears at all.
+    const hasRound = fmLines.some(l => {
+      const m = l.match(/^\s+-\s*round:\s*(\d+)/);
+      return m && parseInt(m[1], 10) === round;
+    });
+    if (hasRound) return 2; // existing entry is implicitly attempt 1
+  }
+
+  return maxAttempt > 0 ? maxAttempt + 1 : 1;
+}
+
+/**
  * appendRoundEntry(sliceFilePath, roundEntry)
  *
  * Appends a round entry to the slice file's frontmatter `rounds:` YAML array
@@ -2998,6 +3051,7 @@ function invokeNog(id) {
     const romTelemetryExhausted = extractRomTelemetry(doneReportContents);
     appendRoundEntry(resolvedParkedPath, {
       round: 5,
+      attempt_number: computeNextAttemptNumber(resolvedParkedPath, 5),
       commissioned_at: romTelemetryExhausted.commissioned_at,
       done_at: romTelemetryExhausted.done_at,
       durationMs: romTelemetryExhausted.durationMs,
@@ -3183,6 +3237,7 @@ function invokeNog(id) {
         const romTelemetryUnread = extractRomTelemetry(doneReportContents);
         appendRoundEntry(resolvedParkedPath, {
           round,
+          attempt_number: computeNextAttemptNumber(resolvedParkedPath, round),
           commissioned_at: romTelemetryUnread.commissioned_at,
           done_at: romTelemetryUnread.done_at,
           durationMs: romTelemetryUnread.durationMs,
@@ -3228,6 +3283,7 @@ function invokeNog(id) {
         const romTelemetryEsc = extractRomTelemetry(doneReportContents);
         appendRoundEntry(resolvedParkedPath, {
           round,
+          attempt_number: computeNextAttemptNumber(resolvedParkedPath, round),
           commissioned_at: romTelemetryEsc.commissioned_at,
           done_at: romTelemetryEsc.done_at,
           durationMs: romTelemetryEsc.durationMs,
@@ -3290,6 +3346,7 @@ function invokeNog(id) {
         const romTelemetry = extractRomTelemetry(doneReportContents);
         appendRoundEntry(resolvedParkedPath, {
           round,
+          attempt_number: computeNextAttemptNumber(resolvedParkedPath, round),
           commissioned_at: romTelemetry.commissioned_at,
           done_at: romTelemetry.done_at,
           durationMs: romTelemetry.durationMs,
@@ -3328,6 +3385,7 @@ function invokeNog(id) {
       const romTelemetryReturn = extractRomTelemetry(doneReportContents);
       appendRoundEntry(resolvedParkedPath, {
         round,
+        attempt_number: computeNextAttemptNumber(resolvedParkedPath, round),
         commissioned_at: romTelemetryReturn.commissioned_at,
         done_at: romTelemetryReturn.done_at,
         durationMs: romTelemetryReturn.durationMs,
