@@ -1562,6 +1562,63 @@ function rescueWorktree(id, branchName, classification, stdout, stderr) {
 }
 
 /**
+ * verifyRomActuallyWorked(id, branchName, actualDurationMs, actualTokensOut)
+ *
+ * Checks that Rom's claimed DONE report corresponds to real work on the slice
+ * branch. Primary gate: commit count. Advisory: metrics divergence.
+ *
+ * Returns { ok: true } or { ok: false, reason: 'rom_no_commits', detail: '...' }.
+ */
+function verifyRomActuallyWorked(id, branchName, actualDurationMs, actualTokensOut) {
+  // Count commits ahead of main on the slice branch
+  let commitCount = 0;
+  try {
+    const countStr = gitFinalizer.runGit(`git rev-list ${branchName} ^main --count`, {
+      slice_id: id, op: 'verifyRomWork_revList', encoding: 'utf-8',
+      execOpts: { stdio: ['pipe', 'pipe', 'pipe'] },
+    }).trim();
+    commitCount = parseInt(countStr, 10) || 0;
+  } catch (err) {
+    log('warn', 'rom_verify', { id, msg: 'git rev-list failed during verification — skipping commit check', error: err.message });
+    return { ok: true };
+  }
+
+  // Read DONE frontmatter for claimed metrics
+  let claimedTokensOut = 0;
+  let claimedElapsedMs = 0;
+  try {
+    const doneContent = fs.readFileSync(path.join(QUEUE_DIR, `${id}-DONE.md`), 'utf-8');
+    const meta = parseFrontmatter(doneContent);
+    if (meta) {
+      claimedTokensOut = parseInt(meta.tokens_out, 10) || 0;
+      claimedElapsedMs = parseInt(meta.elapsed_ms, 10) || 0;
+    }
+  } catch (_) {}
+
+  // Primary gate: skeleton-only branch with substantive claims
+  if (commitCount <= 1 && claimedTokensOut > 1000) {
+    return {
+      ok: false,
+      reason: 'rom_no_commits',
+      detail: `claimed tokens_out=${claimedTokensOut} but ${branchName} has only ${commitCount} commit(s) past main (skeleton only)`,
+    };
+  }
+
+  // Advisory: metrics divergence (soft flag, not blocking)
+  if (actualTokensOut && claimedTokensOut > 10 * actualTokensOut) {
+    log('warn', 'rom_verify', {
+      id,
+      msg: 'Metrics divergence detected (>10× claimed vs actual tokens_out) — soft flag only',
+      claimedTokensOut,
+      actualTokensOut,
+      ratio: Math.round(claimedTokensOut / actualTokensOut),
+    });
+  }
+
+  return { ok: true };
+}
+
+/**
  * cleanupDeadWorktrees()
  *
  * Startup scan: removes .dead entries left by cleanupWorktree from a prior
