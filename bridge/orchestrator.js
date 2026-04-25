@@ -2715,6 +2715,98 @@ function mergeBranch(id, branchName, title) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Post-merge archival — ACCEPTED → ARCHIVED + sibling cleanup
+// ---------------------------------------------------------------------------
+
+/**
+ * archiveSiblingStateFiles(id, terminalState, opts)
+ *
+ * After a terminal write (ERROR, ARCHIVED), moves sibling state files to
+ * bridge/trash/ with suffix `.cleanup-{terminalState}-{ISO_date}`.
+ * Returns the count of files moved.
+ */
+function archiveSiblingStateFiles(id, terminalState, opts) {
+  const queueDir = (opts && opts.queueDir) || QUEUE_DIR;
+  const trashDir = (opts && opts.trashDir) || TRASH_DIR;
+  const suffixes = ['-DONE.md', '-IN_PROGRESS.md', '-PARKED.md', '-EVALUATING.md', '-IN_REVIEW.md', '-ACCEPTED.md'];
+  const terminalSuffix = `-${terminalState}.md`;
+  const isoDate = new Date().toISOString().replace(/[:.]/g, '-');
+  const moved = [];
+
+  for (const suffix of suffixes) {
+    if (suffix === terminalSuffix) continue;
+    const filePath = path.join(queueDir, `${id}${suffix}`);
+    if (fs.existsSync(filePath)) {
+      const trashName = `${id}${suffix}.cleanup-${terminalState}-${isoDate}`;
+      try {
+        fs.renameSync(filePath, path.join(trashDir, trashName));
+        moved.push(`${id}${suffix}`);
+      } catch (err) {
+        log('warn', 'archive', { id, msg: `Failed to move sibling ${suffix} to trash`, error: err.message });
+      }
+    }
+  }
+
+  if (moved.length > 0) {
+    registerEvent(id, 'STATE_FILES_ARCHIVED', { slice_id: String(id), terminal_state: terminalState, moved });
+  }
+  return moved.length;
+}
+
+/**
+ * archiveAcceptedSlice(id, branchName, opts)
+ *
+ * Rename {id}-ACCEPTED.md → {id}-ARCHIVED.md. Prune worktree. Delete branch.
+ * Emit ARCHIVED register event. Idempotent (no-op if ARCHIVED already exists).
+ * Returns { archived: bool, reason: string }.
+ */
+function archiveAcceptedSlice(id, branchName, opts) {
+  const queueDir = (opts && opts.queueDir) || QUEUE_DIR;
+  const trashDir = (opts && opts.trashDir) || TRASH_DIR;
+  const source = (opts && opts.source) || 'merge';
+
+  const archivedPath = path.join(queueDir, `${id}-ARCHIVED.md`);
+  if (fs.existsSync(archivedPath)) {
+    return { archived: false, reason: 'already_archived' };
+  }
+
+  const acceptedPath = path.join(queueDir, `${id}-ACCEPTED.md`);
+  if (!fs.existsSync(acceptedPath)) {
+    return { archived: false, reason: 'no_accepted_file' };
+  }
+
+  // Rename ACCEPTED → ARCHIVED
+  fs.renameSync(acceptedPath, archivedPath);
+
+  // Prune worktree if present
+  const wtPath = getWorktreePath(id);
+  if (fs.existsSync(wtPath)) {
+    try { fs.rmSync(wtPath, { recursive: true, force: true }); } catch (_) {}
+    try { gitFinalizer.runGit('git worktree prune', { slice_id: id, op: 'archiveAccepted_prune', execOpts: { stdio: 'pipe' } }); } catch (_) {}
+  }
+
+  // Delete branch
+  if (branchName) {
+    try {
+      gitFinalizer.runGit(`git branch -D ${branchName}`, { slice_id: id, op: 'archiveAccepted_branchD', execOpts: { stdio: 'pipe' } });
+    } catch (_) {}
+  }
+
+  // Get sha for the event
+  let sha = null;
+  try {
+    sha = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'archiveAccepted_sha', encoding: 'utf-8' }).trim();
+  } catch (_) {}
+
+  registerEvent(id, 'ARCHIVED', { slice_id: String(id), branch: branchName || `slice/${id}`, sha, source });
+
+  // Clean up sibling state files
+  archiveSiblingStateFiles(id, 'ARCHIVED', { queueDir, trashDir });
+
+  return { archived: true, reason: 'ok' };
+}
+
 /**
  * handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationMs)
  *
@@ -2764,6 +2856,12 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
     print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}Merged ${branchName}${SYM.arrow}main (${shortSha})`);
     // Clean up the worktree after successful merge
     try { cleanupWorktree(id, branchName); } catch (_) {}
+    // ACCEPTED → ARCHIVED transition (best-effort — merge is the contract)
+    try {
+      archiveAcceptedSlice(id, branchName);
+    } catch (archErr) {
+      log('warn', 'archive', { id, msg: 'Post-merge archival failed (non-fatal)', error: archErr.message });
+    }
   } else {
     registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, slice_id: id });
     log('error', 'merge', { id, msg: `Merge failed for ${branchName}`, branch: branchName, reason: result.error });
@@ -3464,6 +3562,11 @@ function writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra) {
   } catch (_) {
     // Must never crash the orchestrator
   }
+
+  // Clean up sibling state files (DONE, IN_PROGRESS, etc.) — best-effort
+  try {
+    archiveSiblingStateFiles(id, 'ERROR');
+  } catch (_) {}
 }
 
 // ---------------------------------------------------------------------------
@@ -4445,6 +4548,75 @@ function restagedBootstrap(opts) {
 }
 
 // ---------------------------------------------------------------------------
+// Backfill archive — one-shot pass to archive merged ACCEPTED files
+// ---------------------------------------------------------------------------
+
+const BACKFILL_ARCHIVE_MARKER = path.resolve(__dirname, '.backfill-archive-done');
+
+/**
+ * backfillArchive(opts)
+ *
+ * Runs once per install (guarded by BACKFILL_ARCHIVE_MARKER).
+ * For each {id}-ACCEPTED.md in queue whose branch is already merged on main,
+ * transitions to ARCHIVED via archiveAcceptedSlice + archiveSiblingStateFiles.
+ * Skips unmerged ones.
+ */
+function backfillArchive(opts) {
+  const queueDir   = (opts && opts.queueDir)   || QUEUE_DIR;
+  const trashDir   = (opts && opts.trashDir)   || TRASH_DIR;
+  const markerFile = (opts && opts.markerFile) || BACKFILL_ARCHIVE_MARKER;
+
+  if (fs.existsSync(markerFile)) return;
+
+  let acceptedFiles;
+  try {
+    acceptedFiles = fs.readdirSync(queueDir).filter(f => /^\d+-ACCEPTED\.md$/.test(f));
+  } catch (_) { return; }
+
+  let processed = 0;
+  let skipped = 0;
+
+  for (const file of acceptedFiles) {
+    const id = file.replace('-ACCEPTED.md', '');
+
+    // Read branch name from frontmatter
+    let branchName = `slice/${id}`;
+    try {
+      const content = fs.readFileSync(path.join(queueDir, file), 'utf-8');
+      const meta = parseFrontmatter(content);
+      if (meta && meta.branch) branchName = meta.branch;
+    } catch (_) {}
+
+    // Check if branch is merged on main
+    let isMerged = false;
+    try {
+      const mergedBranches = gitFinalizer.runGit('git branch --merged main', { slice_id: id, op: 'backfill_checkMerged', encoding: 'utf-8' });
+      isMerged = mergedBranches.split('\n').some(b => b.trim() === branchName);
+    } catch (_) {}
+
+    if (isMerged) {
+      try {
+        archiveAcceptedSlice(id, branchName, { queueDir, trashDir, source: 'backfill' });
+        processed++;
+      } catch (err) {
+        log('warn', 'backfill', { id, msg: 'Backfill archive failed for slice', error: err.message });
+        skipped++;
+      }
+    } else {
+      skipped++;
+    }
+  }
+
+  registerEvent('backfill', 'BACKFILL_ARCHIVE_COMPLETE', { processed, skipped });
+
+  try {
+    fs.writeFileSync(markerFile, new Date().toISOString() + '\n');
+  } catch (err) {
+    log('warn', 'backfill', { msg: 'Failed to write backfill archive marker', error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Startup — only runs when this file is executed directly (not when required)
 // ---------------------------------------------------------------------------
 
@@ -4476,6 +4648,7 @@ if (require.main === module) {
 
   const recoveryActions = crashRecovery();
   restagedBootstrap();
+  backfillArchive();
   printStartupBlock(recoveryActions);
 
   // Initial heartbeat write so the file exists immediately on startup.
@@ -4543,4 +4716,4 @@ function validateIntakeMeta(meta) {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
+module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
