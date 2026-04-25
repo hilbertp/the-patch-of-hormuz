@@ -4726,6 +4726,60 @@ function backfillArchive(opts) {
 }
 
 // ---------------------------------------------------------------------------
+// backfillBranches — one-shot cleanup of stale local slice branches (slice 217)
+// ---------------------------------------------------------------------------
+
+const BACKFILL_BRANCHES_MARKER = path.resolve(__dirname, '.backfill-branches-done');
+
+/**
+ * backfillBranches(opts)
+ *
+ * Walks local `slice/*` branches; for each whose slice ID has an
+ * `-ARCHIVED.md` file in queue, runs `git branch -D`. Marker-guarded
+ * so it runs only once.
+ */
+function backfillBranches(opts) {
+  const queueDir   = (opts && opts.queueDir)   || QUEUE_DIR;
+  const markerFile = (opts && opts.markerFile) || BACKFILL_BRANCHES_MARKER;
+
+  if (fs.existsSync(markerFile)) return;
+
+  let branches;
+  try {
+    const raw = gitFinalizer.runGit('git branch --list "slice/*"', { slice_id: 'backfill', op: 'backfillBranches_list', encoding: 'utf-8' });
+    branches = raw.split('\n').map(b => b.trim().replace(/^\* /, '')).filter(Boolean);
+  } catch (_) { return; }
+
+  let processed = 0;
+  let skipped = 0;
+
+  for (const branch of branches) {
+    const match = branch.match(/^slice\/(\d+)/);
+    if (!match) { skipped++; continue; }
+    const id = match[1];
+
+    const archivedPath = path.join(queueDir, `${id}-ARCHIVED.md`);
+    if (!fs.existsSync(archivedPath)) { skipped++; continue; }
+
+    try {
+      gitFinalizer.runGit(`git branch -D ${branch}`, { slice_id: id, op: 'backfillBranches_delete', execOpts: { stdio: 'pipe' } });
+      processed++;
+    } catch (err) {
+      log('warn', 'backfill', { id, msg: 'Failed to delete stale branch', branch, error: err.message });
+      skipped++;
+    }
+  }
+
+  registerEvent('backfill', 'BACKFILL_BRANCHES_COMPLETE', { processed, skipped });
+
+  try {
+    fs.writeFileSync(markerFile, new Date().toISOString() + '\n');
+  } catch (err) {
+    log('warn', 'backfill', { msg: 'Failed to write backfill branches marker', error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // backfillAcceptedFiles — one-shot fix for missing ACCEPTED files (slice 216)
 // ---------------------------------------------------------------------------
 
@@ -4851,6 +4905,7 @@ if (require.main === module) {
   restagedBootstrap();
   backfillAcceptedFiles();
   backfillArchive();
+  backfillBranches();
   printStartupBlock(recoveryActions);
 
   // Initial heartbeat write so the file exists immediately on startup.
@@ -4918,4 +4973,4 @@ function validateIntakeMeta(meta) {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
+module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
