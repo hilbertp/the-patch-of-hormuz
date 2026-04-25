@@ -211,25 +211,7 @@ function renameGitBranch(id, attemptN) {
   }
 }
 
-/**
- * Strip `rounds:` and `round:` lines from the YAML frontmatter block of a body string.
- * Only removes lines within the opening --- ... --- block.
- */
-function stripRoundsFields(body) {
-  if (!body.startsWith('---')) return body;
-  const endIdx = body.indexOf('\n---', 3);
-  if (endIdx === -1) return body;
-
-  const frontmatter = body.slice(0, endIdx + 4); // includes closing ---
-  const rest        = body.slice(endIdx + 4);
-
-  const cleaned = frontmatter
-    .split('\n')
-    .filter(line => !/^rounds?:/.test(line.trim()))
-    .join('\n');
-
-  return cleaned + rest;
-}
+// rounds: is preserved verbatim — see feedback_reuse_slice_id.md
 
 // ---------------------------------------------------------------------------
 // Frontmatter builder
@@ -279,10 +261,6 @@ function main() {
     } catch (_) {}
   }
 
-  // Strip rounds:/round: from body frontmatter if body-file was provided
-  if (args['body-file'] && body) {
-    body = stripRoundsFields(body);
-  }
 
   const fields = {
     title:      args.title      || '',
