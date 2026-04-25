@@ -2013,6 +2013,31 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
             closeSliceBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'Incomplete metrics in DONE report');
             recordSessionResult(false, tokensIn, tokensOut, costUsd);
           } else {
+            // --- Rom verification gate (slice 212) ---
+            const verify = verifyRomActuallyWorked(id, sliceBranch, durationMs, tokensOut);
+            if (!verify.ok) {
+              writeErrorFile(errorPath, id, verify.reason, null, stdout, stderr, { detail: verify.detail, durationMs });
+              registerEvent(id, 'ERROR', {
+                reason: verify.reason,
+                phase: 'rom_verification',
+                detail: verify.detail,
+                durationMs,
+                actualTokensOut: tokensOut,
+              });
+              appendKiraEvent({
+                event: 'ERROR',
+                slice_id: id,
+                root_id: sliceMeta.root_commission_id || null,
+                cycle: null,
+                branch: sliceBranch || null,
+                details: `Slice ${id} errored: ${verify.reason}`,
+              });
+              log('warn', 'rom', { id, msg: 'Rom wrote DONE but verification failed — treating as error', reason: verify.reason, detail: verify.detail });
+              closeSliceBlock(false, durationMs, tokensIn, tokensOut, costUsd, 'Rom verification failed: ' + verify.reason);
+              recordSessionResult(false, tokensIn, tokensOut, costUsd);
+              return;
+            }
+
             // --- Write Point 1: append timesheet row (Bet 3) ---
             const sliceMeta = parseFrontmatter(sliceContent) || {};
             const expectedHours = sliceMeta.expected_human_hours && sliceMeta.expected_human_hours !== 'null'
