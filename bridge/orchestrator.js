@@ -2496,6 +2496,39 @@ function hasMergedEvent(id, regFile) {
  *
  * Returns { success, sha, error } where sha is the merge commit hash on success.
  */
+
+/**
+ * assertMergeIntegrity(id, expectedSha)
+ *
+ * Post-merge local integrity guard (W2). Asserts that expectedSha is both
+ * an ancestor of main and the current tip of main.
+ *
+ * Returns { ok: true } on success.
+ * Returns { ok: false, actualSha, reason } on failure where reason is one of:
+ *   'not_ancestor' | 'tip_mismatch' | 'check_failed'
+ */
+function assertMergeIntegrity(id, expectedSha) {
+  try {
+    // Check 1: expectedSha must be reachable from main
+    try {
+      gitFinalizer.runGit(`git merge-base --is-ancestor ${expectedSha} main`, { slice_id: id, op: 'mergeIntegrity_ancestry', execOpts: { stdio: 'pipe' } });
+    } catch (_) {
+      const actualSha = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'mergeIntegrity_tipAfterAncestryFail', encoding: 'utf-8' }).trim();
+      return { ok: false, actualSha, reason: 'not_ancestor' };
+    }
+
+    // Check 2: main tip must equal expectedSha
+    const actualSha = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'mergeIntegrity_tip', encoding: 'utf-8' }).trim();
+    if (actualSha !== expectedSha) {
+      return { ok: false, actualSha, reason: 'tip_mismatch' };
+    }
+
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, actualSha: null, reason: 'check_failed' };
+  }
+}
+
 function mergeBranch(id, branchName, title) {
   // ── Branch name sanitization (defence against shell injection) ────────
   try {
@@ -2536,6 +2569,19 @@ function mergeBranch(id, branchName, title) {
     // ── Step 2: Fast-forward main to the merge result ──────────────────
     const newSha = gitFinalizer.runGit(`git rev-parse ${branchName}`, { slice_id: id, op: 'mergeBranch_newSha', encoding: 'utf-8' }).trim();
     gitFinalizer.runGit(`git update-ref refs/heads/main ${newSha}`, { slice_id: id, op: 'mergeBranch_updateRef', execOpts: { stdio: 'pipe' } });
+
+    // ── Step 2.5: Post-merge integrity assertion (W2) ─────────────────
+    const integrity = assertMergeIntegrity(id, newSha);
+    if (!integrity.ok) {
+      registerEvent(id, 'MERGE_INTEGRITY_VIOLATION', {
+        slice_id: String(id),
+        expected_sha: newSha,
+        actual_sha: integrity.actualSha,
+        reason: integrity.reason,
+      });
+      log('warn', 'merge', { id, msg: 'Post-merge integrity assertion failed', expected_sha: newSha, actual_sha: integrity.actualSha, reason: integrity.reason });
+      return { success: false, sha: null, error: 'merge_integrity_violation' };
+    }
 
     // ── Step 3: Sync changed files from worktree to PROJECT_DIR ────────
     // FUSE handles writes fine (writeFileSync truncates in-place).
@@ -4413,4 +4459,4 @@ function validateIntakeMeta(meta) {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, validateIntakeMeta, ensureMainIsFresh, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
+module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, validateIntakeMeta, ensureMainIsFresh, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
