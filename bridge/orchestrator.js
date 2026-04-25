@@ -1942,13 +1942,44 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
   heartbeatState.pickupTime = pickupTime;
   writeHeartbeat();
 
+  // ── Session resume for rework rounds ─────────────────────────────────────
+  // On round > 1, reuse Rom's prior session to avoid expensive re-orientation.
+  // Falls back to fresh session when: no session_id, keyword trigger, or long
+  // rejection (indicating substantial rework).
+  // ──────────────────────────────────────────────────────────────────────────
+  const romRound = parseInt(sliceMeta.round, 10) || 1;
+  const romSessionId = sliceMeta.rom_session_id || null;
+  let clauseArgs = config.claudeArgs;
+  let sessionResumed = false;
+
+  if (romRound > 1 && romSessionId) {
+    // Extract the Nog rejection reason from the latest "### Nog review summary" section.
+    const nogSummaryMatch = sliceContent.match(/### Nog review summary\s*\n+([\s\S]*?)(?=\n###|\n## |$)/);
+    const nogReason = nogSummaryMatch ? nogSummaryMatch[1].trim() : '';
+
+    if (shouldForceFreshSession(nogReason)) {
+      const freshReason = nogReason.length > 500 ? 'long_feedback' : 'trigger_keyword';
+      log('info', 'session', { id, msg: `Rework round ${romRound} — forcing fresh session`, reason: freshReason });
+      registerEvent(id, 'ROM_SESSION_FRESH', { session_id: romSessionId, round: romRound, reason_for_fresh: freshReason });
+    } else {
+      clauseArgs = ['--resume', romSessionId, ...config.claudeArgs.filter(a => a !== '-p')];
+      sessionResumed = true;
+      log('info', 'session', { id, msg: `Rework round ${romRound} — resuming session ${romSessionId}` });
+      registerEvent(id, 'ROM_SESSION_RESUMED', { session_id: romSessionId, round: romRound, reason_for_fresh: null });
+    }
+  } else if (romRound > 1 && !romSessionId) {
+    log('info', 'session', { id, msg: `Rework round ${romRound} — no session_id available, using fresh session` });
+    registerEvent(id, 'ROM_SESSION_FRESH', { session_id: null, round: romRound, reason_for_fresh: 'no_session_id' });
+  }
+
   log('info', 'invoke', {
     id,
     msg: 'Invoking claude -p',
     command: config.claudeCommand,
-    args: config.claudeArgs,
+    args: clauseArgs,
     cwd: worktreePath,
     inactivityTimeoutMs: effectiveInactivityMs,
+    sessionResumed,
   });
 
   // Progress tick: every 60s while Rom is running — stdout only, not bridge.log.
@@ -1958,7 +1989,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
 
   const child = execFile(
     config.claudeCommand,
-    config.claudeArgs,
+    clauseArgs,
     {
       cwd: worktreePath,
       encoding: 'utf-8',
