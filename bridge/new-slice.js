@@ -310,6 +310,38 @@ function main() {
     // Rename prior git branch
     renameGitBranch(id, attemptN);
 
+    // Inject re-stage notice into body when this is attempt 2+.
+    if (attemptN > 1) {
+      const today = new Date().toISOString().slice(0, 10);
+      const notice = [
+        `## Re-stage notice — attempt ${attemptN + 1} (${today})`,
+        '',
+        `This is attempt ${attemptN + 1} of slice ${id}. Prior attempt(s) archived to \`bridge/trash/${id}-*-attempt-${attemptN}/\`.`,
+        `Branches preserved as \`slice/${id}-attempt-${attemptN}\` for reference.`,
+        '',
+        'See the rounds: array in frontmatter for the per-round telemetry across all attempts.',
+        'See history sections below this notice for full Rom DONE reports and Nog verdicts from prior rounds.',
+        '',
+      ].join('\n');
+
+      // Strip body frontmatter to get the pure body content, then prepend notice.
+      let bodyContent = body;
+      if (body.startsWith('---')) {
+        const endIdx = body.indexOf('\n---', 3);
+        if (endIdx !== -1) {
+          // Keep frontmatter as-is, prepend notice to the body portion.
+          const fm = body.slice(0, endIdx + 4);
+          const rest = body.slice(endIdx + 4).replace(/^\n+/, '\n');
+          bodyContent = fm + '\n\n' + notice + rest;
+        } else {
+          bodyContent = notice + '\n' + body;
+        }
+      } else {
+        bodyContent = notice + '\n' + body;
+      }
+      body = bodyContent;
+    }
+
     fields.id = id;
   } else {
     // Normal path: assign ID, ensuring no collision with existing staged files
