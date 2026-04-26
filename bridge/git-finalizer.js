@@ -118,6 +118,136 @@ function pruneOrphanLock(sliceId, op) {
 }
 
 // ---------------------------------------------------------------------------
+// Refs-lock helpers — extends self-heal to .git/refs/heads/**/*.lock
+// and .git/packed-refs.lock (slice 219)
+// ---------------------------------------------------------------------------
+
+/** Minimum age in seconds before a refs lock is eligible for pruning. */
+const MIN_LOCK_AGE_SECONDS = 30;
+
+/**
+ * isLockHeldByProcess(lockPath)
+ *
+ * Returns true if a live process holds the given lock file.
+ * Generalised version of isGitProcessAlive() that accepts any path.
+ */
+function isLockHeldByProcess(lockPath) {
+  try {
+    const { execFileSync } = require('child_process');
+    const out = execFileSync('lsof', [lockPath], { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'] });
+    return out.trim().length > 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * findOrphanRefsLocks()
+ *
+ * Walks .git/refs/heads/ recursively for *.lock files.
+ * Also checks .git/packed-refs.lock.
+ * Returns array of absolute paths.
+ */
+function findOrphanRefsLocks() {
+  const locks = [];
+  const refsHeadsDir = path.join(PROJECT_DIR, '.git', 'refs', 'heads');
+  const packedRefsLock = path.join(PROJECT_DIR, '.git', 'packed-refs.lock');
+
+  // Recursive walk of .git/refs/heads/
+  function walkDir(dir) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walkDir(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith('.lock')) {
+        locks.push(fullPath);
+      }
+    }
+  }
+
+  walkDir(refsHeadsDir);
+
+  // Check packed-refs.lock
+  if (fs.existsSync(packedRefsLock)) {
+    locks.push(packedRefsLock);
+  }
+
+  return locks;
+}
+
+/**
+ * pruneOrphanRefsLocks(diagnostics)
+ *
+ * For each refs lock found by findOrphanRefsLocks():
+ *   - If held by a live process → emit REFS_LOCK_DETECTED (decline_reason: process_alive)
+ *   - If younger than MIN_LOCK_AGE_SECONDS → emit REFS_LOCK_DETECTED (decline_reason: too_young)
+ *   - Otherwise → prune and emit REFS_LOCK_ORPHAN_PRUNED
+ *
+ * Returns { pruned: number, skipped: number }
+ */
+function pruneOrphanRefsLocks(diagnostics) {
+  const locks = findOrphanRefsLocks();
+  let pruned = 0;
+  let skipped = 0;
+
+  for (const lockPath of locks) {
+    let stat;
+    try {
+      stat = fs.statSync(lockPath);
+    } catch (_) {
+      continue; // Lock vanished between find and stat
+    }
+
+    const lockAgeS = Math.round((Date.now() - stat.mtimeMs) / 1000);
+
+    if (isLockHeldByProcess(lockPath)) {
+      skipped++;
+      registerEvent('0', 'REFS_LOCK_DETECTED', {
+        lock_path: lockPath,
+        lock_age_s: lockAgeS,
+        decline_reason: 'process_alive',
+      });
+      log('info', 'sweep', { msg: `Refs lock held by process: ${lockPath}` });
+      continue;
+    }
+
+    if (lockAgeS < MIN_LOCK_AGE_SECONDS) {
+      skipped++;
+      registerEvent('0', 'REFS_LOCK_DETECTED', {
+        lock_path: lockPath,
+        lock_age_s: lockAgeS,
+        decline_reason: 'too_young',
+      });
+      log('info', 'sweep', { msg: `Refs lock too young (${lockAgeS}s): ${lockPath}` });
+      continue;
+    }
+
+    // Safe to prune
+    try {
+      fs.unlinkSync(lockPath);
+      pruned++;
+      registerEvent('0', 'REFS_LOCK_ORPHAN_PRUNED', {
+        lock_path: lockPath,
+        lock_age_s: lockAgeS,
+        lock_mtime: stat.mtime.toISOString(),
+      });
+      log('info', 'sweep', { msg: `Pruned orphan refs lock (age ${lockAgeS}s): ${lockPath}` });
+    } catch (err) {
+      skipped++;
+      log('warn', 'sweep', { msg: `Failed to prune refs lock: ${lockPath}`, error: err.message });
+    }
+  }
+
+  return { pruned, skipped };
+}
+
+// ---------------------------------------------------------------------------
 // runGit — the centralised git invocation wrapper
 // ---------------------------------------------------------------------------
 
@@ -262,6 +392,18 @@ function sweepStaleResources() {
       log('info', 'sweep', { msg: 'Cycle-start: stale lock detected but declined to prune', diagnostics });
       // Something is in flight — skip dispatch this tick
       return false;
+    }
+  }
+
+  // ── 1b. Refs-lock sweep (slice 219) ─────────────────────────────────
+  // Runs under the same gate as index.lock — if we got here, heartbeat is
+  // idle, no IN_PROGRESS files, and no live git process on index.lock.
+  // Refs locks get their own per-lock lsof + age checks inside
+  // pruneOrphanRefsLocks.
+  {
+    const result = pruneOrphanRefsLocks({});
+    if (result.pruned > 0) {
+      log('info', 'sweep', { msg: `Cycle-start: pruned ${result.pruned} orphan refs lock(s)` });
     }
   }
 
@@ -416,9 +558,13 @@ module.exports = {
   createWorktreeWithRetry,
   pruneOrphanLock,
   assertWorktreePath,
+  findOrphanRefsLocks,
+  pruneOrphanRefsLocks,
   // Exposed for testing
   _isGitProcessAlive: isGitProcessAlive,
+  _isLockHeldByProcess: isLockHeldByProcess,
   _lockExists: lockExists,
   _indexLockPath: indexLockPath,
   _sleepSync: sleepSync,
+  _MIN_LOCK_AGE_SECONDS: MIN_LOCK_AGE_SECONDS,
 };
