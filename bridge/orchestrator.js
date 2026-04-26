@@ -76,6 +76,36 @@ if (hasDeprecatedTimeoutMs) {
 }
 
 // ---------------------------------------------------------------------------
+// Canonical lifecycle suffixes (slice 218)
+//
+// Only files whose name ends with one of these suffixes are considered live
+// pipeline state. Everything else (e.g. -BRIEF.md, -COMMISSION.md, -SLICE.md,
+// -NEEDS_AMENDMENT.md, -NEEDS_APENDMENT.md) is pre-terminology residue or an
+// unknown future state and must be ignored by the dispatcher, crashRecovery,
+// heartbeat counters, and all other queue-directory scans.
+//
+// Source of truth: docs/contracts/slice-pipeline.md §4.
+// ---------------------------------------------------------------------------
+
+const CANONICAL_LIVE_SUFFIXES = [
+  '-STAGED.md',
+  '-QUEUED.md',
+  '-PENDING.md',       // legacy alias for QUEUED — dual-read tolerated
+  '-IN_PROGRESS.md',
+  '-DONE.md',
+  '-IN_REVIEW.md',
+  '-REVIEWED.md',      // legacy alias for IN_REVIEW
+  '-EVALUATING.md',
+  '-PARKED.md',
+  '-ACCEPTED.md',
+  '-ARCHIVED.md',
+  '-ERROR.md',
+  '-STUCK.md',
+];
+
+const CANONICAL_SUFFIX_RE = /-(STAGED|QUEUED|PENDING|IN_PROGRESS|DONE|IN_REVIEW|REVIEWED|EVALUATING|PARKED|ACCEPTED|ARCHIVED|ERROR|STUCK)\.md$/;
+
+// ---------------------------------------------------------------------------
 // Activity tracking — updated by invokeRom when child process produces output.
 // Exposed at module level so writeHeartbeat can include last_activity_ts.
 // ---------------------------------------------------------------------------
@@ -389,10 +419,11 @@ function getQueueSnapshot(queueDir) {
   } catch (_) {
     return { waiting: 0, in_progress: 0, completed: 0, failed: 0, awaiting_review: 0 };
   }
-  const waiting     = files.filter(f => f.endsWith('-QUEUED.md') || f.endsWith('-PENDING.md')).length;
-  const in_progress = files.filter(f => f.endsWith('-IN_PROGRESS.md')).length;
-  const completed   = files.filter(f => f.endsWith('-DONE.md')).length;
-  const failed      = files.filter(f => f.endsWith('-ERROR.md')).length;
+  const canonical   = files.filter(f => CANONICAL_SUFFIX_RE.test(f));
+  const waiting     = canonical.filter(f => f.endsWith('-QUEUED.md') || f.endsWith('-PENDING.md')).length;
+  const in_progress = canonical.filter(f => f.endsWith('-IN_PROGRESS.md')).length;
+  const completed   = canonical.filter(f => f.endsWith('-DONE.md')).length;
+  const failed      = canonical.filter(f => f.endsWith('-ERROR.md')).length;
   return { waiting, in_progress, completed, failed, awaiting_review: completed };
 }
 
@@ -4109,8 +4140,9 @@ function poll() {
   }
 
   // Scan both DONE and QUEUED/PENDING up front so counts are available for logging.
-  const doneFiles = files.filter(f => f.endsWith('-DONE.md')).sort();
-  const pendingFiles = files
+  const canonicalFiles = files.filter(f => CANONICAL_SUFFIX_RE.test(f));
+  const doneFiles = canonicalFiles.filter(f => f.endsWith('-DONE.md')).sort();
+  const pendingFiles = canonicalFiles
     .filter(f => f.endsWith('-QUEUED.md') || f.endsWith('-PENDING.md'))
     .sort((a, b) => {
       // Priority sorting: apendments (rejections) jump the queue.
@@ -4384,7 +4416,7 @@ function crashRecovery() {
   const actions = [];
   let files;
   try {
-    files = fs.readdirSync(QUEUE_DIR);
+    files = fs.readdirSync(QUEUE_DIR).filter(f => CANONICAL_SUFFIX_RE.test(f));
   } catch (err) {
     log('warn', 'startup_recovery', { msg: 'Cannot read queue dir for crash recovery', error: err.message });
     return actions;
@@ -4615,7 +4647,7 @@ function restagedBootstrap(opts) {
 
   let doneFiles;
   try {
-    doneFiles = fs.readdirSync(queueDir).filter(f => /^\d+-DONE\.md$/.test(f));
+    doneFiles = fs.readdirSync(queueDir).filter(f => CANONICAL_SUFFIX_RE.test(f) && /^\d+-DONE\.md$/.test(f));
   } catch (_) { return; }
 
   for (const file of doneFiles) {
@@ -4805,7 +4837,7 @@ function backfillAcceptedFiles(opts) {
   } catch (_) { return; }
 
   // Find slices that have a -DONE.md but no -ACCEPTED.md.
-  const doneFiles = files.filter(f => /^\d+-DONE\.md$/.test(f));
+  const doneFiles = files.filter(f => CANONICAL_SUFFIX_RE.test(f) && /^\d+-DONE\.md$/.test(f));
   let processed = 0;
   let skipped = 0;
 
@@ -4872,6 +4904,25 @@ function backfillAcceptedFiles(opts) {
 }
 
 // ---------------------------------------------------------------------------
+// auditLegacyFiles — warn about pre-terminology residue at startup (slice 218)
+// ---------------------------------------------------------------------------
+
+function auditLegacyFiles(opts) {
+  const queueDir = (opts && opts.queueDir) || QUEUE_DIR;
+  let files;
+  try {
+    files = fs.readdirSync(queueDir).filter(f => f.endsWith('.md'));
+  } catch (_) { return; }
+
+  const nonCanonical = files.filter(f => !CANONICAL_SUFFIX_RE.test(f));
+  if (nonCanonical.length === 0) return;
+
+  const sample = nonCanonical.slice(0, 10);
+  registerEvent('audit', 'LEGACY_FILES_DETECTED', { count: nonCanonical.length, sample });
+  log('warn', 'audit', { msg: `${nonCanonical.length} non-canonical file(s) in queue`, sample });
+}
+
+// ---------------------------------------------------------------------------
 // Startup — only runs when this file is executed directly (not when required)
 // ---------------------------------------------------------------------------
 
@@ -4906,6 +4957,7 @@ if (require.main === module) {
   backfillAcceptedFiles();
   backfillArchive();
   backfillBranches();
+  auditLegacyFiles();
   printStartupBlock(recoveryActions);
 
   // Initial heartbeat write so the file exists immediately on startup.
@@ -4973,4 +5025,4 @@ function validateIntakeMeta(meta) {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
+module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
