@@ -76,6 +76,36 @@ if (hasDeprecatedTimeoutMs) {
 }
 
 // ---------------------------------------------------------------------------
+// Canonical lifecycle suffixes (slice 218)
+//
+// Only files whose name ends with one of these suffixes are considered live
+// pipeline state. Everything else (e.g. -BRIEF.md, -COMMISSION.md, -SLICE.md,
+// -NEEDS_AMENDMENT.md, -NEEDS_APENDMENT.md) is pre-terminology residue or an
+// unknown future state and must be ignored by the dispatcher, crashRecovery,
+// heartbeat counters, and all other queue-directory scans.
+//
+// Source of truth: docs/contracts/slice-pipeline.md §4.
+// ---------------------------------------------------------------------------
+
+const CANONICAL_LIVE_SUFFIXES = [
+  '-STAGED.md',
+  '-QUEUED.md',
+  '-PENDING.md',       // legacy alias for QUEUED — dual-read tolerated
+  '-IN_PROGRESS.md',
+  '-DONE.md',
+  '-IN_REVIEW.md',
+  '-REVIEWED.md',      // legacy alias for IN_REVIEW
+  '-EVALUATING.md',
+  '-PARKED.md',
+  '-ACCEPTED.md',
+  '-ARCHIVED.md',
+  '-ERROR.md',
+  '-STUCK.md',
+];
+
+const CANONICAL_SUFFIX_RE = /-(STAGED|QUEUED|PENDING|IN_PROGRESS|DONE|IN_REVIEW|REVIEWED|EVALUATING|PARKED|ACCEPTED|ARCHIVED|ERROR|STUCK)\.md$/;
+
+// ---------------------------------------------------------------------------
 // Activity tracking — updated by invokeRom when child process produces output.
 // Exposed at module level so writeHeartbeat can include last_activity_ts.
 // ---------------------------------------------------------------------------
