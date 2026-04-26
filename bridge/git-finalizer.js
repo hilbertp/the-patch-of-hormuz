@@ -72,20 +72,94 @@ function lockExists() {
 }
 
 /**
- * isGitProcessAlive()
+ * isPidAlive(pid)
  *
- * Returns true if a live git process holds .git/index.lock.
- * Uses lsof as a quick heuristic — if lsof fails or finds nothing,
- * the lock is considered orphaned.
+ * Returns true if the given PID is a running process.
+ * Uses signal 0 (existence check, no signal sent).
+ * EPERM means the process exists but we lack permission — still alive.
  */
-function isGitProcessAlive() {
+function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === 'EPERM';
+  }
+}
+
+/**
+ * readLockPid(lockPath)
+ *
+ * Reads PID from a lockfile. Git writes the owning PID into newer lockfiles.
+ * Returns the PID as a number, or null if unreadable / not a valid PID.
+ */
+function readLockPid(lockPath) {
+  try {
+    const content = fs.readFileSync(lockPath, 'utf-8').trim();
+    const pid = parseInt(content, 10);
+    return (pid > 0 && String(pid) === content) ? pid : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * isGitProcessAlive(lockPath)
+ *
+ * Combined lsof + age + PID-alive check. Returns { alive: boolean, reason: string }.
+ *
+ * Prune allowed (alive=false) when ANY of:
+ *   - lsof returns empty (no file descriptor held)
+ *   - lock is older than LOCK_AGE_FORCE_PRUNE_S (10min) regardless of lsof
+ *   - lock is older than LOCK_AGE_PID_THRESHOLD_S (60s) AND PID in file is dead
+ *
+ * Decline (alive=true) when:
+ *   - lock < 60s old AND lsof non-empty AND no readable PID
+ *   - lock has live PID and is not dramatically old
+ */
+function isGitProcessAlive(lockPath) {
+  if (!lockPath) lockPath = indexLockPath();
+
+  // Signal 1: lsof
+  let lsofHeld = false;
   try {
     const { execFileSync } = require('child_process');
-    const out = execFileSync('lsof', [indexLockPath()], { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'] });
-    return out.trim().length > 0;
+    const out = execFileSync('lsof', [lockPath], { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'] });
+    lsofHeld = out.trim().length > 0;
   } catch (_) {
-    return false;
+    lsofHeld = false;
   }
+
+  if (!lsofHeld) {
+    return { alive: false, reason: 'lsof_empty' };
+  }
+
+  // Signal 2: lock age
+  let lockAgeS = 0;
+  try {
+    const stat = fs.statSync(lockPath);
+    lockAgeS = Math.round((Date.now() - stat.mtimeMs) / 1000);
+  } catch (_) {
+    return { alive: false, reason: 'lock_vanished' };
+  }
+
+  if (lockAgeS > LOCK_AGE_FORCE_PRUNE_S) {
+    return { alive: false, reason: `lock_age_${lockAgeS}s_exceeds_max` };
+  }
+
+  // Signal 3: PID check (only meaningful if lock is old enough)
+  if (lockAgeS >= LOCK_AGE_PID_THRESHOLD_S) {
+    const pid = readLockPid(lockPath);
+    if (pid !== null && !isPidAlive(pid)) {
+      return { alive: false, reason: `pid_${pid}_dead_lock_age_${lockAgeS}s` };
+    }
+  }
+
+  // Conservative default: lsof says held, lock not dramatically old
+  const reason = lockAgeS < LOCK_AGE_PID_THRESHOLD_S
+    ? `lsof_held_lock_young_${lockAgeS}s`
+    : 'lsof_held_pid_alive_or_unreadable';
+  return { alive: true, reason };
 }
 
 /**
@@ -96,8 +170,9 @@ function isGitProcessAlive() {
  */
 function pruneOrphanLock(sliceId, op) {
   if (!lockExists()) return false;
-  if (isGitProcessAlive()) {
-    log('warn', 'git_finalizer', { slice_id: sliceId, op, msg: 'index.lock exists and a git process is alive — leaving lock' });
+  const check = isGitProcessAlive();
+  if (check.alive) {
+    log('warn', 'git_finalizer', { slice_id: sliceId, op, msg: 'index.lock exists and a git process is alive — leaving lock', reason: check.reason });
     return false;
   }
   try {
@@ -125,20 +200,20 @@ function pruneOrphanLock(sliceId, op) {
 /** Minimum age in seconds before a refs lock is eligible for pruning. */
 const MIN_LOCK_AGE_SECONDS = 30;
 
+/** Lock must be at least this old before PID-based pruning kicks in (seconds). */
+const LOCK_AGE_PID_THRESHOLD_S = 60;
+
+/** Lock age at which we prune regardless of other signals (10 minutes). */
+const LOCK_AGE_FORCE_PRUNE_S = 600;
+
 /**
  * isLockHeldByProcess(lockPath)
  *
  * Returns true if a live process holds the given lock file.
- * Generalised version of isGitProcessAlive() that accepts any path.
+ * Delegates to the combined isGitProcessAlive check.
  */
 function isLockHeldByProcess(lockPath) {
-  try {
-    const { execFileSync } = require('child_process');
-    const out = execFileSync('lsof', [lockPath], { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'] });
-    return out.trim().length > 0;
-  } catch (_) {
-    return false;
-  }
+  return isGitProcessAlive(lockPath).alive;
 }
 
 /**
@@ -366,10 +441,14 @@ function sweepStaleResources() {
       }
     }
 
-    // Condition C: no live git process
-    if (shouldPrune && isGitProcessAlive()) {
-      shouldPrune = false;
-      diagnostics.decline_reason = 'git_process_alive';
+    // Condition C: no live git process (combined lsof + age + PID check)
+    if (shouldPrune) {
+      const check = isGitProcessAlive();
+      if (check.alive) {
+        shouldPrune = false;
+        diagnostics.decline_reason = 'git_process_alive';
+        diagnostics.alive_reason = check.reason;
+      }
     }
 
     if (shouldPrune) {
@@ -563,8 +642,12 @@ module.exports = {
   // Exposed for testing
   _isGitProcessAlive: isGitProcessAlive,
   _isLockHeldByProcess: isLockHeldByProcess,
+  _isPidAlive: isPidAlive,
+  _readLockPid: readLockPid,
   _lockExists: lockExists,
   _indexLockPath: indexLockPath,
   _sleepSync: sleepSync,
   _MIN_LOCK_AGE_SECONDS: MIN_LOCK_AGE_SECONDS,
+  _LOCK_AGE_PID_THRESHOLD_S: LOCK_AGE_PID_THRESHOLD_S,
+  _LOCK_AGE_FORCE_PRUNE_S: LOCK_AGE_FORCE_PRUNE_S,
 };
