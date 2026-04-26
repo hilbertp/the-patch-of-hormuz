@@ -567,7 +567,7 @@ function buildBridgeData() {
   // Build terminal ID set: filesystem ACCEPTED/ARCHIVED/SLICE markers + MERGED events
   const terminalIds = new Set(mergedIds);
   for (const f of files) {
-    const tm = f.match(/^(.+?)-(ACCEPTED|ARCHIVED|SLICE)\.md$/);
+    const tm = f.match(/^(.+?)-(ACCEPTED|ARCHIVED|ERROR|STUCK|SLICE)\.md$/);
     if (tm) terminalIds.add(String(tm[1]));
   }
 
