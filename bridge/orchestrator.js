@@ -4904,6 +4904,25 @@ function backfillAcceptedFiles(opts) {
 }
 
 // ---------------------------------------------------------------------------
+// auditLegacyFiles — warn about pre-terminology residue at startup (slice 218)
+// ---------------------------------------------------------------------------
+
+function auditLegacyFiles(opts) {
+  const queueDir = (opts && opts.queueDir) || QUEUE_DIR;
+  let files;
+  try {
+    files = fs.readdirSync(queueDir).filter(f => f.endsWith('.md'));
+  } catch (_) { return; }
+
+  const nonCanonical = files.filter(f => !CANONICAL_SUFFIX_RE.test(f));
+  if (nonCanonical.length === 0) return;
+
+  const sample = nonCanonical.slice(0, 10);
+  registerEvent('audit', 'LEGACY_FILES_DETECTED', { count: nonCanonical.length, sample });
+  log('warn', 'audit', { msg: `${nonCanonical.length} non-canonical file(s) in queue`, sample });
+}
+
+// ---------------------------------------------------------------------------
 // Startup — only runs when this file is executed directly (not when required)
 // ---------------------------------------------------------------------------
 
@@ -4938,6 +4957,7 @@ if (require.main === module) {
   backfillAcceptedFiles();
   backfillArchive();
   backfillBranches();
+  auditLegacyFiles();
   printStartupBlock(recoveryActions);
 
   // Initial heartbeat write so the file exists immediately on startup.
@@ -5005,4 +5025,4 @@ function validateIntakeMeta(meta) {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
+module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
