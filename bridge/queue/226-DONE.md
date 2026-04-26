@@ -6,30 +6,33 @@ to: nog
 status: DONE
 slice_id: "226"
 branch: "slice/226"
-completed: "2026-04-26T13:50:00.000Z"
-tokens_in: 18000
-tokens_out: 3500
+completed: "2026-04-26T13:55:00.000Z"
+tokens_in: 22000
+tokens_out: 4000
 elapsed_ms: 300000
-estimated_human_hours: 0.3
+estimated_human_hours: 0.2
 compaction_occurred: false
 ---
 
 ## Summary
 
-Amendment round 1: Fixed the timestamp mismatch identified by Nog. The Return-to-Stage notice (line 3900) and the archive filename (line 3926) now both use the same `nowIso` variable, ensuring the path in the notice matches the actual file on disk.
+Amendment round 2: Fixed the `nowIso` scoping bug identified by Nog. The variable was declared with `const` inside the first `if (isErrorSidecar)` block (line 3899) but referenced in a second, separate `if (isErrorSidecar)` block (line 3926), causing a `ReferenceError` at runtime that broke the entire ERROR sidecar code path.
 
 ## Nog finding addressed
 
-**Timestamp mismatch (lines 3899 vs 3926):** The notice was built with `nowIso` from a `new Date()` call at line 3899, but the archive filename at line 3926 called `new Date()` again, producing a different timestamp. An operator following the notice path would get a miss. Fixed by replacing the second `new Date().toISOString()` with `nowIso`.
+**`nowIso` scoping bug (round 2):** `const nowIso` was declared inside the first `if (isErrorSidecar)` block (scope ends at line 3911). The reference at line 3926 is inside a different `if (isErrorSidecar)` block within a `try` (lines 3923–3936) — a separate scope. At runtime this throws `ReferenceError: nowIso is not defined`.
+
+**Fix:** Declared `let nowIso = null;` at line 3880 alongside `bodySource` and `stagedContent` (the shared scope for both blocks). Changed line 3900 from `const nowIso = ...` to `nowIso = ...` (assignment only). The reference at line 3927 now resolves correctly.
 
 ## Changes
 
-- `bridge/orchestrator.js:3926` — replaced `new Date().toISOString()` with `nowIso` (1 line changed).
+- `bridge/orchestrator.js:3880` — added `let nowIso = null;` in shared scope.
+- `bridge/orchestrator.js:3900` — changed `const nowIso = new Date().toISOString()` to `nowIso = new Date().toISOString()`.
 
 ## Commits
 
-- `5549533` — slice 226 — fix timestamp mismatch: reuse nowIso for archive filename
+- `debb401` — slice 226 — fix nowIso scoping: hoist to shared scope for both if-blocks
 
 ## Acceptance Criteria
 
-All ACs remain satisfied from round 1. The only change is a 1-line fix that makes the notice path and the actual archive path use the same timestamp.
+All ACs satisfied. The scoping fix restores the ERROR sidecar code path so Tests B, C, E pass again (nowIso is accessible in both if-blocks).
