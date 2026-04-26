@@ -61,6 +61,7 @@ const WORKTREE_BASE  = '/tmp/ds9-worktrees';
 const LOGS_DIR       = path.resolve(__dirname, 'logs');
 const ESCALATIONS_DIR = path.resolve(__dirname, 'kira-escalations');
 const CONTROL_DIR    = path.resolve(__dirname, 'control');
+const PIPELINE_PAUSED_FILE = path.resolve(__dirname, '.pipeline-paused');
 
 // Ensure queue + trash + logs + escalations + control directories exist.
 fs.mkdirSync(QUEUE_DIR, { recursive: true });
@@ -2720,6 +2721,24 @@ function assertMergeIntegrity(id, expectedSha) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// verifyOriginAdvanced — read-back origin/main SHA after push (W1 guard)
+// ---------------------------------------------------------------------------
+
+function verifyOriginAdvanced(id, expectedSha) {
+  try {
+    const raw = gitFinalizer.runGit('git ls-remote origin main', { slice_id: id, op: 'verifyOrigin_lsRemote', encoding: 'utf-8' }).trim();
+    // ls-remote output: "<sha>\trefs/heads/main"
+    const originSha = raw.split(/\s+/)[0] || '';
+    if (originSha === expectedSha) {
+      return { ok: true, originSha, reason: null };
+    }
+    return { ok: false, originSha, reason: 'push_succeeded_but_remote_did_not_advance' };
+  } catch (err) {
+    return { ok: false, originSha: null, reason: 'ls_remote_failed: ' + err.message };
+  }
+}
+
 function mergeBranch(id, branchName, title) {
   // ── Branch name sanitization (defence against shell injection) ────────
   try {
@@ -2809,7 +2828,28 @@ function mergeBranch(id, branchName, title) {
     } catch (pushErr) {
       // Push failure is non-fatal — the merge succeeded locally.
       log('warn', 'merge', { id, msg: 'git push origin main failed (merge succeeded locally)', error: pushErr.message });
+      return { success: true, sha: newSha, error: null };
     }
+
+    // ── Step 5.5: W1 — Verify origin actually advanced (ls-remote read-back) ──
+    const originCheck = verifyOriginAdvanced(id, newSha);
+    if (!originCheck.ok) {
+      const payload = {
+        slice_id: String(id),
+        local_sha: newSha,
+        origin_sha: originCheck.originSha,
+        reason: originCheck.reason,
+      };
+      registerEvent(id, 'MERGE_NOT_PUSHED', payload);
+      log('error', 'merge', { id, msg: 'Push appeared to succeed but origin did not advance', ...payload });
+      try {
+        fs.writeFileSync(PIPELINE_PAUSED_FILE, JSON.stringify(Object.assign({ ts: new Date().toISOString(), event: 'MERGE_NOT_PUSHED' }, payload), null, 2) + '\n');
+      } catch (flagErr) {
+        log('warn', 'merge', { id, msg: 'Failed to write .pipeline-paused flag', error: flagErr.message });
+      }
+      return { success: false, sha: null, error: 'merge_not_pushed' };
+    }
+
     return { success: true, sha: newSha, error: null };
   } catch (err) {
     // Abort any in-progress merge in the worktree to leave git in a clean state.
@@ -4263,6 +4303,17 @@ function poll() {
     print(`  ${C.green}${SYM.check}${C.reset} Rate limit window passed — resuming dispatch`);
   }
 
+  // Pipeline-paused guard (W1): skip dispatch if .pipeline-paused flag exists.
+  if (fs.existsSync(PIPELINE_PAUSED_FILE)) {
+    try {
+      const pausePayload = JSON.parse(fs.readFileSync(PIPELINE_PAUSED_FILE, 'utf-8'));
+      log('warn', 'dispatch', { msg: 'Pipeline paused — skipping dispatch', reason: pausePayload.reason || 'unknown', event: pausePayload.event });
+    } catch (_) {
+      log('warn', 'dispatch', { msg: 'Pipeline paused — skipping dispatch (could not read flag file)' });
+    }
+    return;
+  }
+
   let files;
   try {
     files = fs.readdirSync(QUEUE_DIR);
@@ -5175,4 +5226,4 @@ function validateIntakeMeta(meta) {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; } };
+module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; } };
