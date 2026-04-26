@@ -48,15 +48,15 @@ const { config, hasDeprecatedTimeoutMs } = loadConfig();
 // Resolved paths
 // ---------------------------------------------------------------------------
 
-const QUEUE_DIR      = path.resolve(__dirname, config.queueDir);
-const STAGED_DIR     = path.resolve(__dirname, 'staged');
+let QUEUE_DIR        = path.resolve(__dirname, config.queueDir);
+let STAGED_DIR       = path.resolve(__dirname, 'staged');
 const LOG_FILE       = path.resolve(__dirname, config.logFile);
 const HEARTBEAT_FILE = path.resolve(__dirname, config.heartbeatFile);
 const PROJECT_DIR    = path.resolve(__dirname, config.projectDir);
 let REGISTER_FILE  = path.resolve(__dirname, 'register.jsonl');
 const RESTAGED_BOOTSTRAP_MARKER = path.resolve(__dirname, '.restaged-bootstrap-done');
 const NOG_ACTIVE_FILE = path.resolve(__dirname, 'nog-active.json');
-const TRASH_DIR      = path.resolve(QUEUE_DIR, '..', 'trash');
+let TRASH_DIR        = path.resolve(QUEUE_DIR, '..', 'trash');
 const WORKTREE_BASE  = '/tmp/ds9-worktrees';
 const LOGS_DIR       = path.resolve(__dirname, 'logs');
 const ESCALATIONS_DIR = path.resolve(__dirname, 'kira-escalations');
@@ -3745,6 +3745,58 @@ const TERMINAL_SUFFIXES = [
 ];
 
 /**
+ * findOriginalSliceBody(id)
+ *
+ * Recovers the original slice content for an ERROR sidecar. Checks:
+ * 1. bridge/trash/{id}-IN_PROGRESS.md.cleanup-ERROR-* (most recent by mtime)
+ * 2. bridge/trash/{id}-IN_PROGRESS.md.cleanup-* (most recent by mtime)
+ * 3. Most recent COMMISSIONED register event with body field for this slice.
+ * Returns { source: "trash"|"register", content: string } or null.
+ */
+function findOriginalSliceBody(id) {
+  const sid = String(id);
+
+  // 1. Try trash: cleanup-ERROR-* files first, then any cleanup-* files.
+  const patterns = [
+    new RegExp(`^${sid}-IN_PROGRESS\\.md\\.cleanup-ERROR-`),
+    new RegExp(`^${sid}-IN_PROGRESS\\.md\\.cleanup-`),
+  ];
+  for (const pattern of patterns) {
+    try {
+      const matches = fs.readdirSync(TRASH_DIR)
+        .filter(f => pattern.test(f))
+        .map(f => ({ name: f, mtime: fs.statSync(path.join(TRASH_DIR, f)).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime);
+      if (matches.length > 0) {
+        const content = fs.readFileSync(path.join(TRASH_DIR, matches[0].name), 'utf-8');
+        if (content && content.trim()) {
+          return { source: 'trash', content };
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 2. Fallback: COMMISSIONED event in register with body field.
+  try {
+    const lines = fs.readFileSync(REGISTER_FILE, 'utf-8').trim().split('\n').filter(Boolean);
+    let latestBody = null;
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line);
+        if (String(entry.slice_id || entry.id || '') === sid && entry.event === 'COMMISSIONED' && entry.body) {
+          latestBody = entry.body;
+        }
+      } catch (_) {}
+    }
+    if (latestBody) {
+      return { source: 'register', content: latestBody };
+    }
+  } catch (_) {}
+
+  return null;
+}
+
+/**
  * handleReturnToStage(sliceId)
  *
  * Validates the slice is in a terminal state, emits RETURN_TO_STAGE, and
@@ -3819,19 +3871,66 @@ function handleReturnToStage(sliceId) {
     }
   } catch (_) {}
 
+  // Detect ERROR sidecar: written by orchestrator, lacks required slice fields.
+  const fm = parseFrontmatter(content) || {};
+  const isErrorSidecar = fm.status === 'ERROR' && fm.from === 'orchestrator';
+
+  let bodySource = 'none';
+  let stagedContent = content;
+
+  if (isErrorSidecar) {
+    // ERROR sidecars lack required frontmatter + body — reconstruct from trash/register.
+    const recovered = findOriginalSliceBody(id);
+    if (!recovered) {
+      registerEvent(id, 'RETURN_TO_STAGE', { from_event: fromEvent, reason: 'manual', body_source: 'none' });
+      return { ok: false, error: `Slice ${id}: ERROR sidecar has no usable body and no recoverable source found in trash or register. Cannot return to stage.` };
+    }
+
+    // Validate recovered content has all required frontmatter fields.
+    const recoveredFm = parseFrontmatter(recovered.content) || {};
+    const requiredFields = ['id', 'title', 'goal', 'from', 'to', 'priority', 'created'];
+    const missing = requiredFields.filter(f => !recoveredFm[f]);
+    if (missing.length > 0) {
+      registerEvent(id, 'RETURN_TO_STAGE', { from_event: fromEvent, reason: 'manual', body_source: recovered.source });
+      return { ok: false, error: `Slice ${id}: recovered body from ${recovered.source} is missing required fields: ${missing.join(', ')}. Cannot return to stage.` };
+    }
+
+    // Inject Return-to-Stage notice at the top of the body.
+    const nowIso = new Date().toISOString();
+    const notice = `## Return-to-Stage notice (${nowIso})\n\nThis slice was returned to STAGED via the Ops button after a prior failure.\nPrior attempt's ERROR file archived to \`bridge/trash/${id}-ERROR.md.return-to-stage-${nowIso.replace(/[:.]/g, '-')}\`.\nSee register events for the full failure history.\n`;
+
+    // Split recovered content into frontmatter + body, inject notice.
+    const fmMatch = recovered.content.match(/^(---\n[\s\S]*?\n---)\n?([\s\S]*)$/);
+    if (fmMatch) {
+      stagedContent = fmMatch[1] + '\n\n' + notice + '\n' + fmMatch[2];
+    } else {
+      stagedContent = recovered.content + '\n\n' + notice;
+    }
+
+    bodySource = recovered.source;
+  }
+
   // Emit RETURN_TO_STAGE register event.
   registerEvent(id, 'RETURN_TO_STAGE', {
     from_event: fromEvent,
     reason: 'manual',
+    body_source: bodySource,
   });
 
   // Update frontmatter status to STAGED and move to staged dir.
-  const updatedContent = updateFrontmatter(content, { status: 'STAGED' });
+  const updatedContent = updateFrontmatter(stagedContent, { status: 'STAGED' });
   const stagedPath = path.join(STAGED_DIR, `${id}-STAGED.md`);
   try {
+    // Archive terminal file to trash (with return-to-stage suffix for ERROR sidecars).
+    if (isErrorSidecar) {
+      const archiveName = `${id}-ERROR.md.return-to-stage-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+      fs.renameSync(terminalPath, path.join(TRASH_DIR, archiveName));
+    }
     fs.writeFileSync(stagedPath, updatedContent);
-    fs.unlinkSync(terminalPath);
-    log('info', 'control', { id, from: fromEvent, to: 'STAGED', msg: `Return-to-stage: moved slice ${id} from ${fromEvent} to STAGED` });
+    if (!isErrorSidecar) {
+      fs.unlinkSync(terminalPath);
+    }
+    log('info', 'control', { id, from: fromEvent, to: 'STAGED', msg: `Return-to-stage: moved slice ${id} from ${fromEvent} to STAGED`, body_source: bodySource });
   } catch (err) {
     return { ok: false, error: `Failed to move slice ${id} to staged: ${err.message}` };
   }
@@ -5075,4 +5174,4 @@ function validateIntakeMeta(meta) {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, _testSetRegisterFile: (p) => { REGISTER_FILE = p; } };
+module.exports = { nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; } };
