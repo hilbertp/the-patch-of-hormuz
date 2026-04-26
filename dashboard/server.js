@@ -415,6 +415,45 @@ function getTitleAndGoal(id, commissioned) {
   }
 }
 
+// ── Result-level caches (mtime-keyed) ───────────────────────────────────────
+// Caches the full return value of buildBridgeData / buildCostsData so that
+// downstream processing (translateEvent over 29K+ events, O(N) loops) is
+// skipped entirely on cache hit.  Invalidated when source file mtimes change.
+let _bridgeDataCache = { regMtime: null, hbMtime: null, value: null };
+let _costsDataCache  = { regMtime: null, queueMtime: null, sessMtime: null, value: null };
+
+function _getMtimeMs(filePath) {
+  try { return fs.statSync(filePath).mtimeMs; } catch (_) { return null; }
+}
+
+function getCachedBridgeData() {
+  const regMtime = _getMtimeMs(REGISTER);
+  const hbMtime  = _getMtimeMs(HEARTBEAT);
+  if (_bridgeDataCache.value !== null &&
+      _bridgeDataCache.regMtime === regMtime &&
+      _bridgeDataCache.hbMtime === hbMtime) {
+    return _bridgeDataCache.value;
+  }
+  const value = buildBridgeData();
+  _bridgeDataCache = { regMtime, hbMtime, value };
+  return value;
+}
+
+function getCachedCostsData() {
+  const regMtime   = _getMtimeMs(REGISTER);
+  const queueMtime = _getMtimeMs(QUEUE_DIR);
+  const sessMtime  = _getMtimeMs(SESSIONS);
+  if (_costsDataCache.value !== null &&
+      _costsDataCache.regMtime === regMtime &&
+      _costsDataCache.queueMtime === queueMtime &&
+      _costsDataCache.sessMtime === sessMtime) {
+    return _costsDataCache.value;
+  }
+  const value = buildCostsData();
+  _costsDataCache = { regMtime, queueMtime, sessMtime, value };
+  return value;
+}
+
 // ── Bridge data builder ──────────────────────────────────────────────────────
 function buildBridgeData() {
   // Heartbeat
@@ -1178,7 +1217,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     let data;
-    try { data = buildBridgeData(); }
+    try { data = getCachedBridgeData(); }
     catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: String(err) })); return; }
     res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
     res.end(JSON.stringify(data));
@@ -1188,7 +1227,7 @@ const server = http.createServer(async (req, res) => {
   // ── Cost Center ─────────────────────────────────────────────────────────
   if (pathname === '/api/costs' && req.method === 'GET') {
     try {
-      const result = buildCostsData();
+      const result = getCachedCostsData();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result));
     } catch (err) {
@@ -1208,4 +1247,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildSliceInvestigation, parseFrontmatter, extractBody, parseRoundsArray, extractRoundSections, getCachedFile, getCachedDir, _cache };
+module.exports = { buildSliceInvestigation, parseFrontmatter, extractBody, parseRoundsArray, extractRoundSections, getCachedFile, getCachedDir, _cache, getCachedBridgeData, getCachedCostsData, buildBridgeData, buildCostsData };
