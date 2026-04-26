@@ -2,7 +2,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const { execFile, execSync } = require('child_process');
 const { appendTimesheet, updateTimesheet, rebuildMerged } = require('./slicelog');
 const { appendKiraEvent } = require('./kira-events');
@@ -1848,7 +1847,6 @@ let heartbeatState = {
   processed_total: 0,
 };
 
-let _lastHeartbeatHash = null;
 
 function writeHeartbeat() {
   const elapsedSeconds = heartbeatState.pickupTime
@@ -1876,18 +1874,6 @@ function writeHeartbeat() {
     processed_total: heartbeatState.processed_total,
     queue,
   };
-
-  // Hash-dedup: skip disk write if state hasn't changed (ts excluded from hash).
-  const hashPayload = JSON.stringify({
-    status: snapshot.status,
-    current_slice: snapshot.current_slice,
-    slice_elapsed_seconds: snapshot.slice_elapsed_seconds,
-    processed_total: snapshot.processed_total,
-    queue: snapshot.queue,
-  });
-  const hash = crypto.createHash('md5').update(hashPayload).digest('hex');
-  if (hash === _lastHeartbeatHash) return;
-  _lastHeartbeatHash = hash;
 
   try {
     fs.writeFileSync(HEARTBEAT_FILE, JSON.stringify(snapshot, null, 2) + '\n');
