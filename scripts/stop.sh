@@ -16,7 +16,10 @@ if [ ! -f "$PID_FILE" ]; then
   exit 0
 fi
 
-mapfile -t PIDS < "$PID_FILE"
+PIDS=()
+while IFS= read -r line; do
+  PIDS+=("$line")
+done < "$PID_FILE"
 if [ "${#PIDS[@]}" -lt 2 ]; then
   echo "ERROR: PID file malformed (expected 2 lines)." >&2
   exit 1
