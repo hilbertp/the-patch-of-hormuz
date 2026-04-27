@@ -1696,6 +1696,16 @@ function rescueWorktree(id, branchName, classification, stdout, stderr) {
  * Returns { ok: true } or { ok: false, reason: 'rom_no_commits', detail: '...' }.
  */
 function verifyRomActuallyWorked(id, branchName, actualDurationMs, actualTokensOut) {
+  // Guard: skip rev-list if branch no longer exists (deleted after merge/cleanup).
+  const branchExists = (() => {
+    try {
+      gitFinalizer.runGit(`git rev-parse --verify refs/heads/${branchName}`,
+        { slice_id: id, op: 'auditBranchCheck', execOpts: { stdio: ['pipe', 'pipe', 'pipe'] } });
+      return true;
+    } catch (_) { return false; }
+  })();
+  if (!branchExists) return { ok: true };
+
   // Count commits ahead of main on the slice branch
   let commitCount = 0;
   try {
