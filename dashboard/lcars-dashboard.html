@@ -1751,6 +1751,59 @@
     padding: 24px 0;
   }
 
+  /* ── Two-stage funnel section labels + divider ───── */
+  .queue-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    padding: 8px 0 4px;
+    margin-top: 4px;
+  }
+  .queue-section-label:first-child { margin-top: 0; }
+
+  .queue-section-divider {
+    border: none;
+    border-top: 2px dashed #d1d5db;
+    margin: 12px 0 8px;
+  }
+
+  .queue-section-empty {
+    font-size: 12px;
+    color: #9ca3af;
+    padding: 10px 0;
+    text-align: center;
+  }
+
+  .queue-position-num {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    font-family: monospace;
+    flex-shrink: 0;
+    min-width: 18px;
+    text-align: right;
+  }
+
+  .queue-btn-reject {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    border: 1px solid #ef4444;
+    background: #ffffff;
+    color: #ef4444;
+    transition: background 0.15s, color 0.15s;
+  }
+  .queue-btn-reject:hover {
+    background: #fef2f2;
+  }
+
   /* ── Per-state queue-row rules ───────────────────────── */
   .queue-row[data-state="IN_PROGRESS"]    { background: #fffbeb; }
   .queue-row[data-state="DONE"]           { background: #f0fdf4; }
@@ -4216,93 +4269,99 @@
     return [...stagedRows, ...needsAmendRows, ...apendmentRows2, ...queuedRows, ...inProgressRows, ...doneRows, ...errorRows];
   }
 
-  function renderQueueList() {
-    const container = document.getElementById('queue-list');
-    const rows = buildQueueRows();
+  function renderQueueRow(row, opts) {
+    const eid = escHtml(row.id);
+    const sprintLabel = row.sprint ? `Sprint ${row.sprint}` : '';
+    const rowState = row.rowState;
+    const isAmd = row.isApendment;
+    const isQueued = rowState === 'QUEUED';
+    const isStaged = rowState === 'STAGED';
 
-    if (rows.length === 0) {
-      container.innerHTML = '<div class="queue-empty">Queue is clear.</div>';
-      return;
+    // Drag handle — only approved non-amendment rows are draggable
+    let handleClass = 'locked';
+    let draggable = 'false';
+    if (isQueued && !isAmd) {
+      handleClass = 'active';
+      draggable = 'true';
     }
 
-    container.innerHTML = rows.map(row => {
-      const eid = escHtml(row.id);
-      const sprintLabel = row.sprint ? `Sprint ${row.sprint}` : '';
-      const rowState = row.rowState;
-      const isAmd = row.isApendment;
-      const isQueued = rowState === 'QUEUED';
-      const isStaged = rowState === 'STAGED';
+    // Position number for approved rows
+    const posHtml = (opts && opts.position != null)
+      ? `<span class="queue-position-num">${opts.position}.</span>`
+      : '';
 
-      // Drag handle
-      let handleClass = '';
-      let draggable = 'false';
-      if (isQueued && !isAmd) {
-        handleClass = 'active';
-        draggable = 'true';
-      } else if (isQueued && isAmd) {
-        handleClass = 'locked';
-      } else if (isStaged) {
-        handleClass = 'active';
-        draggable = 'true';
-      } else {
-        handleClass = 'locked';
-      }
+    // Action buttons
+    let actionsHtml;
+    if (isQueued) {
+      actionsHtml = `<button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
+    } else if (isStaged) {
+      actionsHtml = `
+        <button class="queue-btn-accept" onclick="queueAccept('${eid}')">&#10003; Approve</button>
+        <button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>
+        <button class="queue-btn-reject" onclick="queueReject('${eid}')">&#10005; Reject</button>`;
+    } else {
+      actionsHtml = '';
+    }
 
-      // State badge (visually distinguishes non-STAGED states)
-      let stateBadgeHtml = '';
-      if (rowState === 'QUEUED') {
-        stateBadgeHtml = '<span class="queue-state-badge state-queued">Queued</span>';
-      } else if (rowState === 'IN_PROGRESS') {
-        stateBadgeHtml = '<span class="queue-state-badge state-in-progress">In Progress</span>';
-      } else if (rowState === 'DONE') {
-        stateBadgeHtml = '<span class="queue-state-badge state-done">Done</span>';
-      } else if (rowState === 'ERROR') {
-        stateBadgeHtml = '<span class="queue-state-badge state-error">Error</span>';
-      } else if (rowState === 'NEEDS_APENDMENT') {
-        stateBadgeHtml = '<span class="queue-state-badge state-needs-apendment">Needs Amend</span>';
-      }
+    // Chevron expand for both approved and staged rows
+    const expandHtml = `<div class="queue-expand" id="queue-expand-${eid}" data-row-state="${rowState}"><span class="queue-expand-goal" style="color:#9ca3af;font-style:italic">Loading\u2026</span></div>`;
+    const chevronHtml = `<span class="queue-chevron" id="queue-chevron-${eid}" onclick="toggleQueueExpand('${eid}')">&rsaquo;</span>`;
 
-      // Action buttons per state
-      let actionsHtml;
-      if (isQueued) {
-        actionsHtml = `
-          <span class="queue-accepted-pill">&#10003; Accepted</span>
-          <button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
-      } else if (isStaged) {
-        actionsHtml = `
-          <button class="queue-btn-accept" onclick="queueAccept('${eid}')">Accept</button>
-          <button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
-      } else if (rowState === 'NEEDS_APENDMENT') {
-        actionsHtml = `<button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
-      } else if (rowState === 'IN_PROGRESS' || rowState === 'DONE' || rowState === 'ERROR') {
-        actionsHtml = `<button class="return-to-stage-btn" onclick="returnToStage('${eid}', this)">&#x21a9; Return</button>`;
-      } else {
-        actionsHtml = '';
-      }
+    const retryCount = row.apiRetryCount || 0;
+    const retryBadge = retryCount > 0
+      ? `<span class="queue-retry-badge" title="Automatically re-queued after Anthropic API outage">&#8635; API retry ${retryCount}</span>`
+      : '';
 
-      // Every approved (QUEUED) and staged row gets a chevron expand
-      const hasExpandableContent = isQueued || isStaged;
-      const expandHtml = hasExpandableContent
-        ? `<div class="queue-expand" id="queue-expand-${eid}" data-row-state="${rowState}"><span class="queue-expand-goal" style="color:#9ca3af;font-style:italic">Loading\u2026</span></div>`
-        : '';
-      const chevronHtml = hasExpandableContent ? `<span class="queue-chevron" id="queue-chevron-${eid}" onclick="toggleQueueExpand('${eid}')">&rsaquo;</span>` : '';
-      const retryCount = row.apiRetryCount || 0;
-      const retryBadge = retryCount > 0
-        ? `<span class="queue-retry-badge" title="Automatically re-queued after Anthropic API outage">&#8635; API retry ${retryCount}</span>`
-        : '';
-      return `<div class="queue-row-wrap">
+    return `<div class="queue-row-wrap">
       <div class="queue-row" data-id="${eid}" data-state="${rowState}" data-apendment="${isAmd}" draggable="${draggable}">
         <span class="queue-drag-handle ${handleClass}">&#10303;</span>
+        ${posHtml}
         <span class="queue-row-id">#${eid}</span>
         <span class="sprint-badge">${escHtml(sprintLabel)}</span>
-        ${stateBadgeHtml}
         <span class="queue-row-title">${escHtml(row.title || '')}</span>
         ${retryBadge}${chevronHtml}
         <span class="queue-row-actions">${actionsHtml}</span>
       </div>${expandHtml}</div>`;
-    }).join('');
+  }
 
-    // Attach drag events to QUEUED non-apendment and STAGED rows
+  function renderQueueList() {
+    const container = document.getElementById('queue-list');
+    const rows = buildQueueRows();
+
+    // Separate into approved (QUEUED) and staged sections
+    const approvedRows = rows.filter(r => r.rowState === 'QUEUED');
+    const stagedRows = rows.filter(r => r.rowState === 'STAGED' || r.rowState === 'NEEDS_APENDMENT');
+    // In-flight slices (IN_PROGRESS, DONE, ERROR) excluded from both sections (AC9)
+
+    if (approvedRows.length === 0 && stagedRows.length === 0) {
+      container.innerHTML = '<div class="queue-empty">Queue is clear.</div>';
+      return;
+    }
+
+    let html = '';
+
+    // ── Approved section (top) ──
+    html += '<div class="queue-section-label">Approved</div>';
+    if (approvedRows.length === 0) {
+      html += '<div class="queue-section-empty">No approved slices in queue</div>';
+    } else {
+      html += approvedRows.map((row, idx) => renderQueueRow(row, { position: idx + 1 })).join('');
+    }
+
+    // ── Dashed divider ──
+    html += '<hr class="queue-section-divider">';
+
+    // ── Staged section (bottom) ──
+    html += '<div class="queue-section-label">Staged</div>';
+    if (stagedRows.length === 0) {
+      html += '<div class="queue-section-empty">No staged proposals</div>';
+    } else {
+      html += stagedRows.map(row => renderQueueRow(row, {})).join('');
+    }
+
+    container.innerHTML = html;
+
+    // Attach drag events to approved (QUEUED) rows only
     setupDragAndDrop();
     // Restore chevron expanded state after re-render
     restoreQueueExpanded();
@@ -4429,6 +4488,17 @@
         cachedStagedOrder = cachedStagedOrder.filter(sid => sid !== id);
         fetchCombinedQueue();
         fetchBridge();
+      }
+    } catch (_) {}
+  }
+
+  async function queueReject(id) {
+    if (!confirm('Reject and archive slice #' + id + '?')) return;
+    try {
+      const res = await fetch('/api/bridge/staged/' + id + '/reject', { method: 'POST' });
+      if (res.ok) {
+        cachedStagedOrder = cachedStagedOrder.filter(sid => sid !== id);
+        fetchCombinedQueue();
       }
     } catch (_) {}
   }
