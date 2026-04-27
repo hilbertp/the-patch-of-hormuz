@@ -2660,7 +2660,12 @@ function hasMergedEvent(id, regFile) {
  * event in the register. Returns true when depends_on is absent/empty/null.
  */
 function depsAreMet(sliceMeta) {
-  // TODO: implement dependency gate
+  const raw = sliceMeta && sliceMeta.depends_on;
+  if (!raw || raw === 'null' || raw === '') return true;
+  const ids = String(raw).split(',').map(s => s.trim()).filter(Boolean);
+  for (const depId of ids) {
+    if (!hasMergedEvent(depId)) return false;
+  }
   return true;
 }
 
@@ -4495,7 +4500,23 @@ function poll() {
     return;
   }
 
-  const pendingFile = pendingFiles[0];
+  // Dependency gate: skip slices whose depends_on IDs haven't all merged yet.
+  let pendingFile = null;
+  for (const candidate of pendingFiles) {
+    const candPath = path.join(QUEUE_DIR, candidate);
+    try {
+      const candMeta = parseFrontmatter(fs.readFileSync(candPath, 'utf-8'));
+      if (!depsAreMet(candMeta)) {
+        const candId = candidate.replace(/-(?:QUEUED|PENDING)\.md$/, '');
+        const unmet = String(candMeta.depends_on).split(',').map(s => s.trim()).filter(s => s && !hasMergedEvent(s));
+        print(`  ${C.yellow}\u23F8${C.reset}  Slice ${candId}${SYM.dash}blocked on #${unmet.join(', #')} (not yet merged)`);
+        continue;
+      }
+    } catch (_) { /* unreadable — let downstream validation handle it */ }
+    pendingFile = candidate;
+    break;
+  }
+  if (!pendingFile) return;
   const pendingPath = path.join(QUEUE_DIR, pendingFile);
 
   // Derive the slice ID from the filename (e.g. "003-QUEUED.md" → "003").
