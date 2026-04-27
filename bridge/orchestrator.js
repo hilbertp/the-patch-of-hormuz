@@ -4712,7 +4712,7 @@ function crashRecovery() {
     let alreadyMerged = false;
     try {
       // Fast path: check if ref still exists and is in main's ancestry
-      gitFinalizer.runGit(`git rev-parse --verify "${branchName}"`, { slice_id: id, op: 'startupRecovery_verifyRef', encoding: 'utf-8' });
+      gitFinalizer.runGit(`git rev-parse --verify "${branchName}"`, { slice_id: id, op: 'startupRecovery_verifyRef', encoding: 'utf-8', execOpts: { stdio: ['pipe', 'pipe', 'pipe'] } });
       const merged = gitFinalizer.runGit('git branch --merged main', { slice_id: id, op: 'startupRecovery_mergedCheck', encoding: 'utf-8' });
       alreadyMerged = merged.split('\n').some(line => line.trim() === branchName);
     } catch (_) {
