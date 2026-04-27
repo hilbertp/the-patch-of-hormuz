@@ -4354,7 +4354,8 @@
       if (approvalEvents.length > 0) {
         const ev = approvalEvents[approvalEvents.length - 1];
         const ts = ev.ts ? new Date(ev.ts).toLocaleString() : '';
-        metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">Approved</span> ${escHtml(ts)}</span>`);
+        const approver = ev.approver || ev.actor || 'Kira';
+        metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">Approved</span> ${escHtml(approver)} &middot; ${escHtml(ts)}</span>`);
       }
       if (frontmatter.from) metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">From</span> ${escHtml(frontmatter.from)}</span>`);
       if (frontmatter.depends_on) {

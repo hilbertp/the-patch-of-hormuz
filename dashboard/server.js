@@ -625,10 +625,6 @@ function buildBridgeData() {
       ? getTitleAndGoal(id, commissioned)
       : { title: null, goal: null };
 
-    // Include body + depends_on for QUEUED items (expand panel needs them)
-    const includeBody = (state === 'QUEUED' || state === 'PENDING');
-    const bodyText = includeBody ? extractBody(fs.readFileSync(path.join(QUEUE_DIR, filename), 'utf8')) : null;
-
     slices.push({
       id,
       title:     betterTitle ?? fm.title ?? filename,
@@ -640,8 +636,6 @@ function buildBridgeData() {
       references:     fm.references ?? null,
       sprint:         fm.sprint ? parseInt(fm.sprint, 10) : getSprintForId(id),
       apiRetryCount:  fm._api_retry_count ? parseInt(fm._api_retry_count, 10) : 0,
-      depends_on:     fm.depends_on ?? null,
-      body:           bodyText,
     });
   }
 
@@ -849,8 +843,6 @@ const server = http.createServer(async (req, res) => {
           references:      fm.references ?? null,
           sprint:          fm.sprint ? parseInt(fm.sprint, 10) : getSprintForId(itemId),
           body,
-          from:            fm.from ?? null,
-          depends_on:      fm.depends_on ?? null,
         });
       } catch (_) {}
     }
