@@ -3139,7 +3139,6 @@
     if (progressBlock) progressBlock.style.display = '';
 
     const invokedAt = nogActive.invokedAt ? new Date(nogActive.invokedAt) : null;
-    const title = nogActive.title ? `#${nogActive.sliceId} ${nogActive.title}` : `#${nogActive.sliceId}`;
     const round = nogActive.round ?? 1;
 
     function formatNogElapsed() {
@@ -3151,16 +3150,15 @@
       return m > 0 ? `${m}m ${String(sec).padStart(2, '0')}s` : `${sec}s`;
     }
 
-    // Update slice title
+    // Update slice ID + title (separate elements now)
+    const sliceIdEl = document.getElementById('nog-slice-id-label');
     const sliceTitleEl = document.getElementById('nog-slice-title');
-    if (sliceTitleEl) sliceTitleEl.textContent = title;
+    if (sliceIdEl) sliceIdEl.textContent = `#${nogActive.sliceId}`;
+    if (sliceTitleEl) sliceTitleEl.textContent = nogActive.title || '';
 
-    // Update round badge + label
-    const roundClass = round === 1 ? 'r1' : round >= 5 ? 'r5' : 'r2-4';
-    const roundBadge = document.getElementById('nog-round-badge');
+    // Update round label in subtitle
     const roundLabel = document.getElementById('nog-round-label');
-    if (roundBadge) { roundBadge.textContent = `R${round}`; roundBadge.className = `round-badge ${roundClass}`; }
-    if (roundLabel) roundLabel.textContent = `Round ${round} of 5`;
+    if (roundLabel) roundLabel.textContent = `Dual-gate review \u00b7 round ${round} of 5`;
 
     // Previous NOG_RETURN reason for round >= 2
     const prevReturnForSlice = (events || [])
@@ -3175,50 +3173,52 @@
       }
     }
 
-    // Gate 1 — populate AC rows from slice data if available
-    const gate1Rows = document.getElementById('nog-gate1-rows');
-    if (gate1Rows) {
+    // Gate 1 — update AC check icon in grid
+    const gate1Ac = document.getElementById('nog-gate1-ac');
+    if (gate1Ac) {
       const acs = nogActive.acs || [];
-      if (acs.length > 0) {
-        gate1Rows.innerHTML = acs.map(ac => {
-          const icon = ac.status === 'pass' ? '<span class="nog-check-icon pass">&#10003;</span>'
-                     : ac.status === 'fail' ? '<span class="nog-check-icon fail">&#10007;</span>'
-                     : '<span class="nog-check-icon pending">&#9675;</span>';
-          return `<div class="nog-check-row">${icon} ${escHtml(ac.label || ac.text || 'AC')}</div>`;
-        }).join('');
-      } else {
-        gate1Rows.innerHTML = '<div class="nog-check-row"><span class="nog-check-icon pending">&#9675;</span> Acceptance criteria check</div>';
+      // Determine overall gate 1 status from AC items
+      const g1Status = acs.length > 0
+        ? (acs.every(ac => ac.status === 'pass') ? 'pass'
+           : acs.some(ac => ac.status === 'fail') ? 'fail' : 'pending')
+        : 'pending';
+      const iconEl = gate1Ac.querySelector('.nog-check-icon');
+      if (iconEl) {
+        iconEl.className = `nog-check-icon ${g1Status}`;
+        iconEl.innerHTML = g1Status === 'pass' ? '&#10003;' : g1Status === 'fail' ? '&#10007;' : '&#9675;';
       }
     }
 
-    // Gate 2 — reset all to pending (static labels)
-    const gate2 = document.getElementById('nog-gate2');
-    if (gate2) {
-      const g2Items = (nogActive.gate2 || []);
-      const g2Labels = ['Lint', 'Readability', 'Naming', 'Anti-patterns', 'Dead code'];
-      const rows = gate2.querySelectorAll('.nog-check-row');
-      rows.forEach((row, i) => {
-        const g2 = g2Items[i];
-        const iconEl = row.querySelector('.nog-check-icon');
-        if (iconEl && g2) {
-          iconEl.className = `nog-check-icon ${g2.status || 'pending'}`;
-          iconEl.innerHTML = g2.status === 'pass' ? '&#10003;' : g2.status === 'fail' ? '&#10007;' : '&#9675;';
-        }
-      });
-    }
+    // Gate 2 — update each check icon in grid
+    const g2Ids = ['nog-gate2-lint', 'nog-gate2-readability', 'nog-gate2-naming', 'nog-gate2-deadcode'];
+    const g2Items = nogActive.gate2 || [];
+    g2Ids.forEach((id, i) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const g2 = g2Items[i];
+      const iconEl = el.querySelector('.nog-check-icon');
+      if (iconEl && g2) {
+        iconEl.className = `nog-check-icon ${g2.status || 'pending'}`;
+        iconEl.innerHTML = g2.status === 'pass' ? '&#10003;' : g2.status === 'fail' ? '&#10007;' : '&#9675;';
+      }
+    });
 
     // Progress stage label
     const stageEl = document.getElementById('nog-progress-stage');
     if (stageEl) stageEl.textContent = `Reviewing\u2026`;
 
-    // Elapsed timer
+    // Elapsed timer — update both inline and progress block
     const elapsedEl = document.getElementById('nog-elapsed-val');
+    const elapsedInline = document.getElementById('nog-elapsed-val-inline');
     if (elapsedEl) elapsedEl.textContent = formatNogElapsed();
+    if (elapsedInline) elapsedInline.textContent = formatNogElapsed();
 
     clearInterval(nogElapsedInterval);
     nogElapsedInterval = setInterval(() => {
       const el = document.getElementById('nog-elapsed-val');
+      const inl = document.getElementById('nog-elapsed-val-inline');
       if (el) el.textContent = formatNogElapsed();
+      if (inl) inl.textContent = formatNogElapsed();
     }, 1000);
   }
 
