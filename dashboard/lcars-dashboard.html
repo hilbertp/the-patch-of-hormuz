@@ -4151,14 +4151,11 @@
     return historyDone;
   }
 
-  // Map of queue row data by id (for body rendering after DOM insert)
-  let queueRowDataMap = {};
-
   function buildQueueRows() {
     // 1. STAGED rows — newest unordered first, then cachedStagedOrder
     const stagedBase = cachedStagedItems
       .filter(s => s.status !== 'NEEDS_APENDMENT')
-      .map(s => ({ id: s.id, title: s.title, goal: s.goal, sprint: s.sprint, references: s.references, rowState: 'STAGED', isApendment: false, body: s.body || null, from: s.from || null, depends_on: s.depends_on || null }));
+      .map(s => ({ id: s.id, title: s.title, goal: s.goal, sprint: s.sprint, references: s.references, rowState: 'STAGED', isApendment: false }));
     const stagedOrdered = [];
     for (const oid of cachedStagedOrder) {
       const found = stagedBase.find(s => s.id === oid);
@@ -4173,7 +4170,7 @@
     const needsAmendRows = cachedStagedItems
       .filter(s => s.status === 'NEEDS_APENDMENT')
       .sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10))
-      .map(s => ({ id: s.id, title: s.title, goal: s.goal, sprint: s.sprint, references: s.references, rowState: 'NEEDS_APENDMENT', isApendment: false, body: s.body || null, from: s.from || null, depends_on: s.depends_on || null }));
+      .map(s => ({ id: s.id, title: s.title, goal: s.goal, sprint: s.sprint, references: s.references, rowState: 'NEEDS_APENDMENT', isApendment: false }));
 
     // 3. QUEUED/PENDING apendment rows — locked at top of QUEUED group
     const queuedSlices = cachedBridgeSlices.filter(b => b.state === 'QUEUED' || b.state === 'PENDING');
@@ -4227,10 +4224,6 @@
       container.innerHTML = '<div class="queue-empty">Queue is clear.</div>';
       return;
     }
-
-    // Build data map for deferred body rendering
-    queueRowDataMap = {};
-    rows.forEach(r => { if (r.body && r.body.trim()) queueRowDataMap[r.id] = r.body; });
 
     container.innerHTML = rows.map(row => {
       const eid = escHtml(row.id);
@@ -4287,57 +4280,11 @@
         actionsHtml = '';
       }
 
-      // Build rich expand content based on row state
-      let expandInner = '';
-      const hasBody = row.body && row.body.trim();
-      const hasExpandableContent = hasBody || row.goal || isQueued || isStaged;
-
-      if (hasExpandableContent) {
-        // Rendered body (markdown)
-        if (hasBody) {
-          expandInner += `<div class="queue-expand-body" id="queue-expand-body-${eid}"></div>`;
-        } else if (row.goal) {
-          expandInner += `<span class="queue-expand-goal">${escHtml(row.goal)}</span>`;
-        }
-
-        // Meta section
-        const metaParts = [];
-        if (isStaged) {
-          // Staged: proposer + deps
-          if (row.from) metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">Proposer</span> ${escHtml(row.from)}</span>`);
-          if (row.depends_on) {
-            const depId = row.depends_on;
-            const depSatisfied = isDependencySatisfied(depId);
-            const depClass = depSatisfied ? 'queue-dep-satisfied' : 'queue-dep-unsatisfied';
-            const depIcon = depSatisfied ? '&#10003;' : '&#9679;';
-            metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">Depends on</span> <span class="${depClass}">${depIcon} #${escHtml(depId)}</span></span>`);
-          }
-        } else if (isQueued) {
-          // Approved: approval log from register events
-          const approvalEvents = cachedRegisterEvents.filter(e =>
-            String(e.slice_id || e.id) === String(row.id) && e.event === 'HUMAN_APPROVAL' && e.action === 'approved'
-          );
-          if (approvalEvents.length > 0) {
-            const ev = approvalEvents[approvalEvents.length - 1];
-            const ts = ev.ts ? new Date(ev.ts).toLocaleString() : '';
-            metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">Approved</span> ${escHtml(ts)}</span>`);
-          }
-          if (row.from) metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">From</span> ${escHtml(row.from)}</span>`);
-          if (row.depends_on) {
-            const depId = row.depends_on;
-            const depSatisfied = isDependencySatisfied(depId);
-            const depClass = depSatisfied ? 'queue-dep-satisfied' : 'queue-dep-unsatisfied';
-            const depIcon = depSatisfied ? '&#10003;' : '&#9679;';
-            metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">Depends on</span> <span class="${depClass}">${depIcon} #${escHtml(depId)}</span></span>`);
-          }
-        }
-
-        if (metaParts.length > 0) {
-          expandInner += `<div class="queue-expand-meta">${metaParts.join('')}</div>`;
-        }
-      }
-
-      const expandHtml = hasExpandableContent ? `<div class="queue-expand" id="queue-expand-${eid}">${expandInner}</div>` : '';
+      // Every approved (QUEUED) and staged row gets a chevron expand
+      const hasExpandableContent = isQueued || isStaged;
+      const expandHtml = hasExpandableContent
+        ? `<div class="queue-expand" id="queue-expand-${eid}" data-row-state="${rowState}"><span class="queue-expand-goal" style="color:#9ca3af;font-style:italic">Loading\u2026</span></div>`
+        : '';
       const chevronHtml = hasExpandableContent ? `<span class="queue-chevron" id="queue-chevron-${eid}" onclick="toggleQueueExpand('${eid}')">&rsaquo;</span>` : '';
       const retryCount = row.apiRetryCount || 0;
       const retryBadge = retryCount > 0
@@ -4355,25 +4302,15 @@
       </div>${expandHtml}</div>`;
     }).join('');
 
-    // Render markdown bodies into expand panels
-    renderQueueExpandBodies();
     // Attach drag events to QUEUED non-apendment and STAGED rows
     setupDragAndDrop();
     // Restore chevron expanded state after re-render
     restoreQueueExpanded();
   }
 
-  function renderQueueExpandBodies() {
-    for (const [id, body] of Object.entries(queueRowDataMap)) {
-      const el = document.getElementById('queue-expand-body-' + id);
-      if (el && typeof marked !== 'undefined') {
-        el.innerHTML = marked.parse(body);
-      }
-    }
-  }
-
-  // ── Queue row chevron expand (single-row-at-a-time) ─────────────────────
+  // ── Queue row chevron expand (single-row-at-a-time, lazy-load) ──────────
   let queueExpandedId = null;
+  const queueExpandCache = {};
 
   function collapseQueueRow(id) {
     const expand = document.getElementById('queue-expand-' + id);
@@ -4389,12 +4326,78 @@
     if (chevron) chevron.classList.add('open');
   }
 
+  function buildQueueExpandContent(id, rowState, body, frontmatter) {
+    let html = '';
+    const isQueued = rowState === 'QUEUED';
+    const isStaged = rowState === 'STAGED';
+
+    // Rendered body (markdown)
+    if (body && body.trim()) {
+      html += `<div class="queue-expand-body">${typeof marked !== 'undefined' ? marked.parse(body) : escHtml(body)}</div>`;
+    }
+
+    // Meta section
+    const metaParts = [];
+    if (isStaged) {
+      if (frontmatter.from) metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">Proposer</span> ${escHtml(frontmatter.from)}</span>`);
+      if (frontmatter.depends_on) {
+        const depId = String(frontmatter.depends_on);
+        const sat = isDependencySatisfied(depId);
+        const cls = sat ? 'queue-dep-satisfied' : 'queue-dep-unsatisfied';
+        const icon = sat ? '&#10003;' : '&#9679;';
+        metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">Depends on</span> <span class="${cls}">${icon} #${escHtml(depId)}</span></span>`);
+      }
+    } else if (isQueued) {
+      const approvalEvents = cachedRegisterEvents.filter(e =>
+        String(e.slice_id || e.id) === String(id) && e.event === 'HUMAN_APPROVAL' && e.action === 'approved'
+      );
+      if (approvalEvents.length > 0) {
+        const ev = approvalEvents[approvalEvents.length - 1];
+        const ts = ev.ts ? new Date(ev.ts).toLocaleString() : '';
+        metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">Approved</span> ${escHtml(ts)}</span>`);
+      }
+      if (frontmatter.from) metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">From</span> ${escHtml(frontmatter.from)}</span>`);
+      if (frontmatter.depends_on) {
+        const depId = String(frontmatter.depends_on);
+        const sat = isDependencySatisfied(depId);
+        const cls = sat ? 'queue-dep-satisfied' : 'queue-dep-unsatisfied';
+        const icon = sat ? '&#10003;' : '&#9679;';
+        metaParts.push(`<span class="queue-expand-meta-item"><span class="queue-expand-meta-label">Depends on</span> <span class="${cls}">${icon} #${escHtml(depId)}</span></span>`);
+      }
+    }
+
+    if (metaParts.length > 0) {
+      html += `<div class="queue-expand-meta">${metaParts.join('')}</div>`;
+    }
+    return html || '<span class="queue-expand-goal" style="color:#9ca3af;font-style:italic">No details available</span>';
+  }
+
+  async function loadQueueExpandContent(id) {
+    const expand = document.getElementById('queue-expand-' + id);
+    if (!expand) return;
+    if (queueExpandCache[id]) {
+      expand.innerHTML = queueExpandCache[id];
+      return;
+    }
+    try {
+      const res = await fetch(`/api/queue/${id}/content`);
+      if (!res.ok) { expand.innerHTML = '<span class="queue-expand-goal" style="color:#dc2626">Failed to load</span>'; return; }
+      const data = await res.json();
+      const rowState = expand.dataset.rowState || '';
+      const html = buildQueueExpandContent(id, rowState, data.body, data.frontmatter || {});
+      queueExpandCache[id] = html;
+      expand.innerHTML = html;
+    } catch (_) {
+      expand.innerHTML = '<span class="queue-expand-goal" style="color:#dc2626">Failed to load</span>';
+    }
+  }
+
   function toggleQueueExpand(id) {
     const expand = document.getElementById('queue-expand-' + id);
     if (!expand) return;
     const isOpen = expand.classList.contains('open');
 
-    // Collapse currently expanded row (if different)
+    // Collapse currently expanded row (if different) — single-expand behavior
     if (queueExpandedId && queueExpandedId !== id) {
       collapseQueueRow(queueExpandedId);
     }
@@ -4405,12 +4408,14 @@
     } else {
       expandQueueRow(id);
       queueExpandedId = id;
+      loadQueueExpandContent(id);
     }
   }
 
   function restoreQueueExpanded() {
     if (queueExpandedId) {
       expandQueueRow(queueExpandedId);
+      loadQueueExpandContent(queueExpandedId);
     }
   }
 
