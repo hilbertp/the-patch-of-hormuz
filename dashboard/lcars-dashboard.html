@@ -3389,9 +3389,11 @@
       }
 
       if (heartbeat.slice_elapsed_seconds != null) {
-        if (sliceStartTime == null || mission.id !== lastSliceId) {
+        const hbPickupTs = heartbeat.pickup_ts || null;
+        if (sliceStartTime == null || mission.id !== lastSliceId || hbPickupTs !== lastPickupTs) {
           sliceStartTime = Date.now() - (heartbeat.slice_elapsed_seconds * 1000);
           lastSliceId    = mission.id;
+          lastPickupTs   = hbPickupTs;
         }
         const elapsed = Math.floor((Date.now() - sliceStartTime) / 1000);
         elapsedEl.textContent = fmtElapsed(elapsed);
@@ -3455,6 +3457,7 @@
       frozenElapsed = null;
       sliceStartTime = null;
       lastSliceId    = null;
+      lastPickupTs   = null;
       currentMission = null;
 
       const primaryEl   = idleEl.querySelector('.active-slice-idle-primary');

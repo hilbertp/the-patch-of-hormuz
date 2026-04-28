@@ -1882,7 +1882,9 @@ function writeHeartbeat() {
 
   const snapshot = {
     ts: new Date().toISOString(),
-    pickup_ts: null,
+    pickup_ts: heartbeatState.pickupTime
+      ? new Date(heartbeatState.pickupTime).toISOString()
+      : null,
     status: heartbeatState.status,
     current_slice: heartbeatState.current_slice,
     current_slice_title: heartbeatState.current_slice_title,
