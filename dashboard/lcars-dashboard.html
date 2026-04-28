@@ -4386,8 +4386,17 @@
       ? `<span class="queue-retry-badge" title="Automatically re-queued after Anthropic API outage">&#8635; API retry ${retryCount}</span>`
       : '';
 
+    const enterClass = _pendingEnterIds.has(row.id) ? ' row-entering' : '';
+    if (_pendingEnterIds.has(row.id)) {
+      _pendingEnterIds.delete(row.id);
+      setTimeout(() => {
+        const el = document.querySelector(`.queue-row[data-id="${eid}"]`);
+        if (el) el.classList.remove('row-entering');
+      }, 300);
+    }
+
     return `<div class="queue-row-wrap">
-      <div class="queue-row" data-id="${eid}" data-state="${rowState}" data-apendment="${isAmd}" draggable="${draggable}">
+      <div class="queue-row${enterClass}" data-id="${eid}" data-state="${rowState}" data-apendment="${isAmd}" draggable="${draggable}">
         <span class="queue-drag-handle ${handleClass}">&#10303;</span>
         ${posHtml}
         <span class="queue-row-id">#${eid}</span>
@@ -4555,11 +4564,20 @@
 
   // ── Accept / Unaccept actions ───────────────────────────────────────────────
   async function queueAccept(id) {
+    // Exit animation on the staged row
+    const rowEl = document.querySelector(`.queue-row[data-id="${id}"]`);
+    if (rowEl) {
+      const wrap = rowEl.closest('.queue-row-wrap');
+      if (wrap) wrap.style.overflow = 'hidden';
+      rowEl.classList.add('row-exiting');
+    }
+    await new Promise(r => setTimeout(r, 260));
     try {
       const res = await fetch('/api/bridge/staged/' + id + '/approve', { method: 'POST' });
       if (res.ok) {
         if (!cachedQueueOrder.includes(id)) cachedQueueOrder = [...cachedQueueOrder, id];
         cachedStagedOrder = cachedStagedOrder.filter(sid => sid !== id);
+        _pendingEnterIds.add(id);
         fetchCombinedQueue();
         fetchBridge();
       }
@@ -4568,8 +4586,23 @@
 
   async function queueReject(id) {
     if (!confirm('Reject and archive slice #' + id + '?')) return;
+    // Start exit animation and POST simultaneously
+    const rowEl = document.querySelector(`.queue-row[data-id="${id}"]`);
+    if (rowEl) {
+      const wrap = rowEl.closest('.queue-row-wrap');
+      if (wrap) {
+        wrap.style.maxHeight = wrap.offsetHeight + 'px';
+        wrap.style.overflow = 'hidden';
+        // Force reflow before adding class
+        void wrap.offsetHeight;
+        wrap.classList.add('row-removing');
+      }
+    }
     try {
-      const res = await fetch('/api/bridge/staged/' + id + '/reject', { method: 'POST' });
+      const [, res] = await Promise.all([
+        new Promise(r => setTimeout(r, 210)),
+        fetch('/api/bridge/staged/' + id + '/reject', { method: 'POST' }),
+      ]);
       if (res.ok) {
         cachedStagedOrder = cachedStagedOrder.filter(sid => sid !== id);
         fetchCombinedQueue();
