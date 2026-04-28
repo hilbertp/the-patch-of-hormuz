@@ -4414,6 +4414,7 @@ function poll() {
     if (!fs.existsSync(parkedPath)) {
       if (fs.existsSync(legacyParkedPath)) {
         log('warn', 'state', { id: doneId, msg: 'Legacy ARCHIVED suffix found — pre-slice-145 file' });
+        continue;
       } else {
         continue;
       }
