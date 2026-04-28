@@ -2590,6 +2590,68 @@
   /* Clickable rows cursor hint */
   .queue-row { cursor: pointer; }
   .history-row-main { cursor: pointer; }
+
+  /* ── Button variant system ─────────────────────────────── */
+  .btn {
+    font-size: 12px; font-weight: 500; padding: 6px 12px;
+    border-radius: var(--radius-sm); border: 1px solid var(--border-strong);
+    background: var(--bg-panel); color: var(--ink-2); cursor: pointer;
+    transition: background var(--motion-standard);
+  }
+
+  .btn-ghost   { background: transparent; color: var(--ink-3); border-color: transparent; }
+  .btn-ghost:hover { background: var(--bg-hover); }
+
+  .btn-stop    { background: var(--err-bg); color: var(--err); border-color: var(--err-border); }
+  .btn-stop:hover { filter: brightness(0.97); }
+
+  .btn-approve { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-border); }
+  .btn-approve:hover { filter: brightness(0.97); }
+
+  .btn-reject  { background: var(--bg-panel); color: var(--err); border-color: var(--err-border); }
+  .btn-reject:hover { background: var(--err-bg); }
+
+  .btn-primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .btn-primary:hover { filter: brightness(1.1); }
+
+  .merge-btn {
+    background: var(--ok); color: #fff; border-color: var(--ok);
+    box-shadow: var(--shadow-cta);
+    padding: 7px 16px; border-radius: var(--radius-pill); font-weight: 600;
+  }
+  .merge-btn:hover { filter: brightness(1.05); }
+
+  /* Universal active press */
+  .btn:active, .btn-ghost:active, .btn-stop:active, .btn-approve:active,
+  .btn-reject:active, .btn-primary:active, .merge-btn:active {
+    transform: translateY(1px); transition: transform var(--motion-fast);
+  }
+
+  /* ── Role chip ─────────────────────────────────────────── */
+  .role-chip .role-avatar { display: none; }
+
+  /* ── Lane status pill ──────────────────────────────────── */
+  .lane-status {
+    font-size: 11px; font-weight: 600; padding: 2px 8px;
+    border-radius: var(--radius-pill); border: 1px solid transparent;
+  }
+  .lane-status-active {
+    background: var(--ok-bg); color: var(--ok); border-color: var(--ok-border);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .lane-status-active::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ok); animation: livePulse var(--motion-pulse);
+  }
+  .lane-status-idle {
+    background: var(--bg-subtle); color: var(--ink-4); border-color: var(--border);
+  }
+
+  @keyframes livePulse {
+    0%   { opacity: 1; transform: scale(1); }
+    50%  { opacity: 0.4; transform: scale(0.85); }
+    100% { opacity: 1; transform: scale(1); }
+  }
 </style>
 </head>
 <body>
@@ -2662,7 +2724,7 @@
         <div class="active-slice-progress-block" id="active-slice-progress-block">
           <!-- Footer: builder + pause button (only during active) -->
           <div class="active-slice-footer" id="active-slice-footer" style="display:none">
-            <span class="active-slice-builder">Rom &middot; Backend Engineer</span>
+            <span class="active-slice-builder">Rom &middot; Backend</span>
             <button class="pause-build-btn" onclick="pauseBuild()">
               &#9208; Pause
             </button>
@@ -2690,6 +2752,7 @@
           <div class="postbuild-lane-header">
             <span class="postbuild-lane-name">Nog &middot; Code Reviewer</span>
             <span class="postbuild-badge" id="nog-badge" style="display:none"></span>
+            <span class="lane-status lane-status-idle" id="nog-lane-status">standing by</span>
           </div>
 
           <!-- Idle state -->
@@ -2751,8 +2814,8 @@
               <div>
                 <div class="nog-progress-stage" id="nog-progress-stage">Reviewing&hellip;</div>
                 <div class="nog-progress-actions">
-                  <a onclick="viewNogLog()">View live log</a>
-                  <a onclick="stopNogReview()" style="color:#dc2626">Stop review</a>
+                  <a class="btn btn-ghost" onclick="viewNogLog()">View live log</a>
+                  <a class="btn btn-stop" onclick="stopNogReview()">Stop review</a>
                 </div>
               </div>
               <div class="nog-progress-elapsed">
@@ -2952,8 +3015,8 @@
     <div class="stop-confirm-title" id="stop-confirm-title">Stop build?</div>
     <div class="stop-confirm-body" id="stop-confirm-body">Rom's current work will be preserved but the slice returns to pending.</div>
     <div class="stop-confirm-actions">
-      <button class="stop-confirm-btn stop-confirm-btn-cancel" onclick="hideStopConfirm()">Keep Building</button>
-      <button class="stop-confirm-btn stop-confirm-btn-confirm" onclick="confirmStopBuild()">Confirm Stop</button>
+      <button class="btn stop-confirm-btn stop-confirm-btn-cancel" onclick="hideStopConfirm()">Keep Building</button>
+      <button class="btn btn-stop stop-confirm-btn stop-confirm-btn-confirm" onclick="confirmStopBuild()">Confirm Stop</button>
     </div>
   </div>
 </div>
@@ -3142,6 +3205,7 @@
     const idleState      = document.getElementById('nog-idle-state');
     const runningState   = document.getElementById('nog-running-state');
     const progressBlock  = document.getElementById('nog-progress-block');
+    const laneStatus     = document.getElementById('nog-lane-status');
     if (!panel || !lane || !badge || !idleState || !runningState) return;
 
     // Find latest NOG_RETURN event for context
@@ -3157,6 +3221,7 @@
       badge.style.display = 'none';
       runningState.style.display = 'none';
       if (progressBlock) progressBlock.style.display = 'none';
+      if (laneStatus) { laneStatus.className = 'lane-status lane-status-idle'; laneStatus.textContent = 'standing by'; }
 
       // Check if we just had a NOG_RETURN (just-fired state)
       const recentReturn = lastNogReturn && (Date.now() - new Date(lastNogReturn.ts).getTime()) < 120000;
@@ -3191,6 +3256,7 @@
     idleState.style.display = 'none';
     runningState.style.display = '';
     if (progressBlock) progressBlock.style.display = '';
+    if (laneStatus) { laneStatus.className = 'lane-status lane-status-active'; laneStatus.textContent = 'reviewing'; }
 
     const invokedAt = nogActive.invokedAt ? new Date(nogActive.invokedAt) : null;
     const round = nogActive.round ?? 1;
@@ -4429,12 +4495,12 @@
     let actionsHtml;
     if (isQueued) {
       actionsHtml = `<button class="queue-accepted-pill clickable" onclick="returnToStage('${eid}', this)" title="Click to return to stage">&#10003; Accepted</button>
-        <button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
+        <button class="btn queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
     } else if (isStaged) {
       actionsHtml = `
-        <button class="queue-btn-accept" onclick="queueAccept('${eid}')">&#10003; Approve</button>
-        <button class="queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>
-        <button class="queue-btn-reject" onclick="queueReject('${eid}')">&#10005; Reject</button>`;
+        <button class="btn btn-approve queue-btn-accept" onclick="queueAccept('${eid}')">&#10003; Approve</button>
+        <button class="btn queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>
+        <button class="btn btn-reject queue-btn-reject" onclick="queueReject('${eid}')">&#10005; Reject</button>`;
     } else {
       actionsHtml = '';
     }
@@ -4656,8 +4722,8 @@
     // Show inline confirm strip
     actionsEl.innerHTML = `
       <span class="q-reject-confirm-text">Reject?</span>
-      <button class="q-reject-confirm-btn">Reject</button>
-      <button class="q-reject-cancel-btn">Cancel</button>`;
+      <button class="btn btn-reject q-reject-confirm-btn">Reject</button>
+      <button class="btn btn-ghost q-reject-cancel-btn">Cancel</button>`;
 
     function restoreActions() {
       actionsEl.innerHTML = originalHtml;
@@ -4846,10 +4912,10 @@
     if (s.context === 'staged') {
       const approveDisabled = serviceHealthDown ? ' disabled title="Orchestrator/Server down — run ./scripts/start.sh before approving."' : '';
       container.innerHTML = `
-        <button class="slice-action-btn slice-action-approve" onclick="sliceDetailApprove()"${approveDisabled}>Approve</button>
-        <button class="slice-action-btn slice-action-refine" onclick="sliceDetailRefine()">Refine</button>
+        <button class="btn btn-approve slice-action-btn slice-action-approve" onclick="sliceDetailApprove()"${approveDisabled}>Approve</button>
+        <button class="btn slice-action-btn slice-action-refine" onclick="sliceDetailRefine()">Refine</button>
         <div class="slice-detail-actions-spacer"></div>
-        <button class="slice-action-btn slice-action-destructive" onclick="sliceDetailReject()">Reject</button>
+        <button class="btn btn-reject slice-action-btn slice-action-destructive" onclick="sliceDetailReject()">Reject</button>
       `;
     } else {
       container.innerHTML = `
