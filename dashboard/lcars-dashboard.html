@@ -1830,6 +1830,28 @@
   .queue-row[data-state="ERROR"]          { background: var(--err-bg); }
   .queue-row[data-state="NEEDS_APENDMENT"]{ background: var(--warn-bg); }
 
+  /* ── Queue row animations (approve / reject) ────────── */
+  .row-exiting {
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 250ms ease, transform 250ms ease;
+  }
+  .row-entering {
+    animation: rowEnter 250ms ease forwards;
+  }
+  @keyframes rowEnter {
+    from { opacity: 0; transform: translateY(8px); background: var(--bg-active, #eef2ff); }
+    to   { opacity: 1; transform: translateY(0);   background: transparent; }
+  }
+  .row-removing {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    transition: opacity 200ms ease, max-height 200ms ease, padding 200ms ease;
+  }
+
   .queue-state-badge {
     display: inline-block;
     padding: 1px 7px;
@@ -4235,6 +4257,7 @@
   let cachedQueueOrder = [];
   let cachedStagedOrder = [];
   let dragSrcId = null;
+  let _pendingEnterIds = new Set();
 
   function isApendment(item) {
     return item.references && item.references !== 'null';
