@@ -4692,6 +4692,43 @@ function migrateArchivedToParked() {
 }
 
 /**
+ * pruneOrphanDoneFiles()
+ *
+ * At startup: scan queue/ for DONE files that have a companion ARCHIVED file.
+ * These are residual from the pre-slice-145 archival path that created
+ * xxx-ARCHIVED.md but left xxx-DONE.md behind.
+ * Move them to trash/ so they don't pollute the poll loop.
+ */
+function pruneOrphanDoneFiles() {
+  let files;
+  try {
+    files = fs.readdirSync(QUEUE_DIR);
+  } catch (_) { return; }
+
+  let pruned = 0;
+  for (const f of files) {
+    if (!f.endsWith('-DONE.md')) continue;
+    const id = f.replace('-DONE.md', '');
+    const archivedPath = path.join(QUEUE_DIR, `${id}-ARCHIVED.md`);
+    if (!fs.existsSync(archivedPath)) continue;
+    // DONE + ARCHIVED → slice fully processed; DONE is orphan
+    try {
+      fs.renameSync(
+        path.join(QUEUE_DIR, f),
+        path.join(TRASH_DIR, f)
+      );
+      pruned++;
+    } catch (err) {
+      log('warn', 'startup', { id, msg: 'Failed to prune orphan DONE file', error: err.message });
+    }
+  }
+  if (pruned > 0) {
+    log('info', 'startup', { msg: `Pruned ${pruned} orphan DONE files (companion ARCHIVED exists)` });
+    print(`  ${C.dim}·${C.reset}  Startup: pruned ${pruned} orphan DONE files from queue`);
+  }
+}
+
+/**
  * crashRecovery()
  *
  * Runs at startup before entering the poll loop. Scans the queue directory for
@@ -5246,6 +5283,7 @@ if (require.main === module) {
   cleanupDeadWorktrees();
 
   const recoveryActions = crashRecovery();
+  pruneOrphanDoneFiles();
   migrateArchivedToParked();
   restagedBootstrap();
   backfillAcceptedFiles();
