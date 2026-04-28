@@ -4641,30 +4641,66 @@
     } catch (_) {}
   }
 
-  async function queueReject(id) {
-    if (!confirm('Reject and archive slice #' + id + '?')) return;
-    // Start exit animation and POST simultaneously
+  function queueReject(id) {
     const rowEl = document.querySelector(`.queue-row[data-id="${id}"]`);
-    if (rowEl) {
+    if (!rowEl) return;
+    const actionsEl = rowEl.querySelector('.queue-row-actions');
+    if (!actionsEl) return;
+
+    // Already showing confirm strip — ignore duplicate clicks
+    if (actionsEl.querySelector('.q-reject-confirm-btn')) return;
+
+    // Save original actions HTML for cancel/restore
+    const originalHtml = actionsEl.innerHTML;
+
+    // Show inline confirm strip
+    actionsEl.innerHTML = `
+      <span class="q-reject-confirm-text">Reject?</span>
+      <button class="q-reject-confirm-btn">Reject</button>
+      <button class="q-reject-cancel-btn">Cancel</button>`;
+
+    function restoreActions() {
+      actionsEl.innerHTML = originalHtml;
+      document.removeEventListener('click', outsideClickHandler, true);
+    }
+
+    function outsideClickHandler(e) {
+      if (!rowEl.contains(e.target)) restoreActions();
+    }
+
+    // Cancel button
+    actionsEl.querySelector('.q-reject-cancel-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      restoreActions();
+    });
+
+    // Confirm button — fire POST and animate removal
+    actionsEl.querySelector('.q-reject-confirm-btn').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      document.removeEventListener('click', outsideClickHandler, true);
+
+      // Start exit animation and POST simultaneously
       const wrap = rowEl.closest('.queue-row-wrap');
       if (wrap) {
         wrap.style.maxHeight = wrap.offsetHeight + 'px';
         wrap.style.overflow = 'hidden';
-        // Force reflow before adding class
         void wrap.offsetHeight;
         wrap.classList.add('row-removing');
       }
-    }
-    try {
-      const [, res] = await Promise.all([
-        new Promise(r => setTimeout(r, 210)),
-        fetch('/api/bridge/staged/' + id + '/reject', { method: 'POST' }),
-      ]);
-      if (res.ok) {
-        cachedStagedOrder = cachedStagedOrder.filter(sid => sid !== id);
-        fetchCombinedQueue();
-      }
-    } catch (_) {}
+      try {
+        const [, res] = await Promise.all([
+          new Promise(r => setTimeout(r, 210)),
+          fetch('/api/bridge/staged/' + id + '/reject', { method: 'POST' }),
+        ]);
+        if (res.ok) {
+          cachedStagedOrder = cachedStagedOrder.filter(sid => sid !== id);
+          fetchCombinedQueue();
+        }
+      } catch (_) {}
+    });
+
+    // Outside-click cancels
+    document.addEventListener('click', outsideClickHandler, true);
   }
 
   // ── Slice Detail overlay ──────────────────────────────────────────────────
