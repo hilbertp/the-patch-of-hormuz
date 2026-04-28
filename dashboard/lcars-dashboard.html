@@ -1800,6 +1800,30 @@
     text-align: center;
   }
 
+  .queue-empty-card {
+    font-size: 12px;
+    font-style: italic;
+    color: var(--ink-4, #94a3b8);
+    background: var(--bg-subtle, #f9fafb);
+    border: 1px dashed var(--border-strong, #d1d5db);
+    border-radius: var(--radius-sm, 6px);
+    padding: 8px 12px;
+    text-align: center;
+    margin: 8px 16px;
+  }
+
+  .q-reject-confirm-text { font-size: 12px; color: var(--err, #b91c1c); margin-right: 6px; }
+  .q-reject-confirm-btn {
+    font-size: 11px; padding: 2px 8px; border-radius: var(--radius-sm, 6px);
+    background: var(--err-bg, #fef2f2); color: var(--err, #b91c1c);
+    border: 1px solid var(--err-border, #fecaca); cursor: pointer;
+  }
+  .q-reject-cancel-btn {
+    font-size: 11px; padding: 2px 8px; border-radius: var(--radius-sm, 6px);
+    background: transparent; color: var(--ink-3, #64748b);
+    border: 1px solid var(--border-strong, #d1d5db); cursor: pointer; margin-left: 4px;
+  }
+
   .queue-position-num {
     font-size: 11px;
     font-weight: 600;
@@ -4454,17 +4478,12 @@
     const stagedRows = rows.filter(r => r.rowState === 'STAGED' || r.rowState === 'NEEDS_APENDMENT');
     // In-flight slices (IN_PROGRESS, DONE, ERROR) excluded from both sections (AC9)
 
-    if (approvedRows.length === 0 && stagedRows.length === 0) {
-      container.innerHTML = '<div class="queue-empty">Queue is clear.</div>';
-      return;
-    }
-
     let html = '';
 
     // ── Approved section (top) ──
     html += '<div class="queue-section-label">Approved</div>';
     if (approvedRows.length === 0) {
-      html += '<div class="queue-section-empty">No approved slices in queue</div>';
+      html += '<div class="queue-empty-card">No approved slices waiting. Approve from staged below to fill the queue.</div>';
     } else {
       html += approvedRows.map((row, idx) => renderQueueRow(row, { position: idx + 1 })).join('');
     }
@@ -4475,7 +4494,7 @@
     // ── Staged section (bottom) ──
     html += '<div class="queue-section-label">Staged</div>';
     if (stagedRows.length === 0) {
-      html += '<div class="queue-section-empty">No staged proposals</div>';
+      html += '<div class="queue-empty-card">Nothing staged. O\'Brien proposes new work here.</div>';
     } else {
       html += stagedRows.map(row => renderQueueRow(row, {})).join('');
     }
