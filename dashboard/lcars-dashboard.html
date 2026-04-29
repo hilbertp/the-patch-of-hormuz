@@ -1765,6 +1765,43 @@
   .queue-accepted-pill.clickable { cursor: pointer; }
   .queue-accepted-pill.clickable:hover { background: #fef3c7; color: #92400e; border-color: var(--warn-border); text-decoration: line-through; }
 
+  .queue-btn-unapprove {
+    font-size: 15px;
+    line-height: 1;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+  .queue-btn-unapprove:focus-visible {
+    outline: 2px solid var(--info);
+    outline-offset: 2px;
+  }
+
+  .unapprove-conflict-msg {
+    font-size: 11px;
+    color: var(--warn, #92400e);
+    white-space: nowrap;
+    animation: conflictFadeIn 200ms ease forwards;
+  }
+  @keyframes conflictFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .row-exiting {
+      opacity: 0;
+      transform: none;
+      transition: opacity 100ms ease;
+    }
+    .row-entering {
+      animation: rowEnterReduced 100ms ease forwards;
+    }
+    @keyframes rowEnterReduced {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+  }
+
   .queue-btn-edit {
     -webkit-appearance: none;
     appearance: none;
@@ -4653,10 +4690,16 @@
       ? `<span class="queue-position-num">${opts.position}.</span>`
       : '';
 
+    // Is this the currently-dispatched slice? (hide un-approve if so)
+    const inPipelineId = _lastBridgeData?.heartbeat?.current_slice;
+    const isInPipeline = inPipelineId && String(inPipelineId) === String(row.id);
+
     // Action buttons
     let actionsHtml;
     if (isQueued) {
-      actionsHtml = `<button class="queue-accepted-pill clickable" onclick="returnToStage('${eid}', this)" title="Click to return to stage">&#10003; Accepted</button>
+      const unapproveBtn = isInPipeline ? ''
+        : `<button class="btn btn-ghost queue-btn-unapprove" onclick="queueUnapprove('${eid}')" title="Move back to staged" aria-label="Un-approve and return to staged">&#8630;</button>`;
+      actionsHtml = `${unapproveBtn}
         <button class="btn queue-btn-edit" onclick="queueEdit('${eid}')">Edit</button>`;
     } else if (isStaged) {
       actionsHtml = `
@@ -4867,6 +4910,47 @@
         fetchBridge();
       }
     } catch (_) {}
+  }
+
+  async function queueUnapprove(id) {
+    const rowEl = document.querySelector(`.queue-row[data-id="${id}"]`);
+    if (rowEl) {
+      const wrap = rowEl.closest('.queue-row-wrap');
+      if (wrap) wrap.style.overflow = 'hidden';
+      rowEl.classList.add('row-exiting');
+    }
+    await new Promise(r => setTimeout(r, 260));
+    try {
+      const res = await fetch(`/api/slice/${id}/unapprove`, { method: 'POST' });
+      if (res.ok) {
+        cachedQueueOrder = cachedQueueOrder.filter(oid => oid !== id);
+        if (!cachedStagedOrder.includes(id)) cachedStagedOrder = [...cachedStagedOrder, id];
+        _pendingEnterIds.add(id);
+        fetchCombinedQueue();
+        fetchBridge();
+      } else if (res.status === 409) {
+        // Already picked up by orchestrator — show inline message
+        if (rowEl) {
+          rowEl.classList.remove('row-exiting');
+          const wrap2 = rowEl.closest('.queue-row-wrap');
+          if (wrap2) wrap2.style.overflow = '';
+          const actionsEl = rowEl.querySelector('.queue-row-actions');
+          if (actionsEl) {
+            const msg = document.createElement('span');
+            msg.className = 'unapprove-conflict-msg';
+            msg.textContent = 'Already picked up \u2014 use Stop build instead';
+            actionsEl.prepend(msg);
+            setTimeout(() => msg.remove(), 4000);
+          }
+        }
+      }
+    } catch (_) {
+      if (rowEl) {
+        rowEl.classList.remove('row-exiting');
+        const wrap3 = rowEl.closest('.queue-row-wrap');
+        if (wrap3) wrap3.style.overflow = '';
+      }
+    }
   }
 
   function queueReject(id) {
