@@ -1445,6 +1445,73 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Gate abort (slice 271) ─────────────────────────────────────────────────
+  if (pathname === '/api/gate/abort' && req.method === 'POST') {
+    // Validate branch-state preconditions
+    let branchState;
+    try {
+      branchState = JSON.parse(fs.readFileSync(BRANCH_STATE, 'utf8'));
+    } catch (_) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'branch-state-unavailable' }));
+      return;
+    }
+
+    const gateStatus = branchState.gate ? branchState.gate.status : 'IDLE';
+    if (gateStatus !== 'GATE_FAILED' && gateStatus !== 'GATE_ABORTED') {
+      res.writeHead(409, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'gate-not-failed', status: gateStatus }));
+      return;
+    }
+
+    try {
+      const { abortGate } = require(path.join(REPO_ROOT, 'bridge', 'orchestrator'));
+      const result = abortGate();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      if (err.code === 'INVALID_STATE') {
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'gate-not-failed', status: err.status }));
+      } else {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    }
+    return;
+  }
+
+  // ── Gate state-doctor health (slice 271) ──────────────────────────────────
+  if (pathname === '/api/gate/doctor' && req.method === 'GET') {
+    try {
+      const { execFileSync } = require('child_process');
+      const output = execFileSync('node', [path.join(REPO_ROOT, 'bridge', 'state-doctor.js'), '--gate-health'], {
+        encoding: 'utf-8',
+        timeout: 10000,
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ output }));
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ output: err.stdout || err.message, error: true }));
+    }
+    return;
+  }
+
+  // ── Register tail (slice 271) — last N register events for Investigate panel
+  if (pathname === '/api/gate/register-tail' && req.method === 'GET') {
+    const events = _readRegisterTail(REGISTER, 50, e => {
+      const ts = e.ts;
+      // Return events since last gate-start
+      return e.event && (e.event.startsWith('gate-') || e.event === 'lock-cycle' ||
+        e.event === 'regression-pass' || e.event === 'regression-fail' ||
+        e.event === 'tests-updated' || e.event === 'merge-complete');
+    });
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(events));
+    return;
+  }
+
   // ── Branch state (slice 262) ───────────────────────────────────────────────
   if (pathname === '/api/branch-state' && req.method === 'GET') {
     try {

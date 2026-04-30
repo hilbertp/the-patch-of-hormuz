@@ -5826,7 +5826,71 @@ function _gateAbort(devTipSha, reason, ctx) {
 }
 
 // ---------------------------------------------------------------------------
+// Gate abort — user-initiated abort from GATE_FAILED state (slice 271)
+// ---------------------------------------------------------------------------
+
+/**
+ * abortGate()
+ *
+ * User-initiated abort after a gate failure. Only valid when gate.status is
+ * GATE_FAILED or GATE_ABORTED. Transitions state to ACCUMULATING (not IDLE —
+ * dev still has commits ahead of main). Preserves last_failure for audit trail.
+ * Emits gate-abort telemetry with reason "user-abort".
+ *
+ * If gate-running.json is somehow present (state corruption), releases the
+ * mutex defensively.
+ *
+ * Returns the updated gate state object.
+ * Throws if gate.status is not GATE_FAILED or GATE_ABORTED.
+ */
+function abortGate() {
+  const ctx = { registerEvent, log };
+
+  // 1. Read current branch-state
+  let branchState;
+  try {
+    branchState = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
+  } catch (err) {
+    throw new Error('Cannot read branch-state.json: ' + err.message);
+  }
+
+  const gateStatus = branchState.gate ? branchState.gate.status : 'IDLE';
+
+  // 2. Validate state — only GATE_FAILED or GATE_ABORTED allowed
+  if (gateStatus !== 'GATE_FAILED' && gateStatus !== 'GATE_ABORTED') {
+    const err = new Error('Gate abort only valid from GATE_FAILED or GATE_ABORTED state');
+    err.code = 'INVALID_STATE';
+    err.status = gateStatus;
+    throw err;
+  }
+
+  // 3. Update branch-state: ACCUMULATING, preserve last_failure
+  const ts = new Date().toISOString();
+  branchState.gate.status = 'ACCUMULATING';
+  branchState.gate.current_run = null;
+  // last_failure intentionally preserved for audit trail
+  writeJsonAtomic(BRANCH_STATE_PATH, branchState);
+
+  // 4. Emit gate-abort telemetry
+  emitGateTelemetry('gate-abort', { reason: 'user-abort', ts });
+
+  // 5. Defensive mutex cleanup — should already be released by regression-fail
+  const mutexPath = path.resolve(__dirname, 'state', 'gate-running.json');
+  try {
+    fs.accessSync(mutexPath);
+    // Mutex is present (state corruption) — release defensively
+    releaseGateMutex('gate-abort', ctx);
+  } catch (_) {
+    // Mutex absent — expected, nothing to do
+  }
+
+  log('info', 'gate', { msg: 'Gate aborted by user', from: gateStatus, ts });
+
+  return branchState.gate;
+}
+
+// ---------------------------------------------------------------------------
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { startGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; } };
+module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; } };

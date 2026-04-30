@@ -391,6 +391,43 @@ node bridge/state-doctor.js
 
 ---
 
+### User pressed Abort after gate failure — what happens?
+
+**Context:** The regression gate failed. The dashboard shows `GATE_FAILED` with
+the list of failing ACs. The operator has investigated and decided to proceed
+with a hotfix rather than investigating further.
+
+**Flow:**
+
+1. **Click Abort** in the Step 2 error card. A small confirmation pill appears.
+2. **Confirm** the abort. The dashboard POSTs to `/api/gate/abort`.
+3. Gate state transitions from `GATE_FAILED` → `ACCUMULATING`. The header pill
+   returns from `BATCH GATE` to `ONLINE`. The step cards reset.
+   `gate.last_failure` is **preserved** for audit trail — it is not cleared.
+4. **O'Brien commissions a hotfix slice** addressing the failed AC(s). This is
+   a normal slice — no special "hotfix" type exists (per ADR §7). The slice
+   brief targets the specific failing tests.
+5. **Hotfix slice lands on dev** via the normal squash-to-dev mechanic (slice
+   266). Dev's `commits_ahead_of_main` increments. State remains
+   `ACCUMULATING`.
+6. **User reads the RR** (release readiness), verifies the hotfix addresses the
+   failures listed in `gate.last_failure.failed_acs[]`, and decides to re-press
+   the merge button.
+7. **Merge button click** starts a new gate run. Bashir re-runs the full
+   regression suite including the previously-failing tests.
+
+**Key invariants:**
+
+- `gate.last_failure` survives the abort. It is only overwritten by a
+  subsequent gate failure.
+- The abort does NOT release the gate mutex (it was already released by the
+  regression-fail path). If the mutex is somehow present (state corruption),
+  the abort releases it defensively.
+- Abort while `GATE_RUNNING` is not supported via this button — it returns 409.
+  For mid-flight aborts, see F7 (kill Bashir process directly).
+
+---
+
 ## 4. Escalation Criteria
 
 Wake Philipp when:

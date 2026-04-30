@@ -2114,6 +2114,67 @@
   .gate-step-card.error .step-label::before { content: '\2717 '; }
   .gate-steps-error { padding: 4px 12px; font-size: 12px; color: var(--err); }
 
+  /* Gate-fail actions (slice 271) */
+  .gate-fail-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .gate-fail-actions .btn {
+    padding: 4px 12px; border-radius: var(--radius-sm); font-size: 11px;
+    font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--ink-1); transition: background var(--motion-fast);
+  }
+  .gate-fail-actions .btn:hover { background: var(--surface-3, #f3f4f6); }
+  .gate-fail-actions .btn-stop {
+    padding: 4px 12px; border-radius: var(--radius-sm); font-size: 11px;
+    font-weight: 600; cursor: pointer; border: 1px solid var(--err-border);
+    background: var(--err-bg); color: var(--err); transition: background var(--motion-fast);
+  }
+  .gate-fail-actions .btn-stop:hover { background: color-mix(in srgb, var(--err) 15%, white); }
+  .abort-confirm { display: inline-flex; gap: 4px; align-items: center; }
+  .abort-confirm-pill {
+    padding: 2px 8px; border-radius: var(--radius-pill); font-size: 10px;
+    font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--ink-2);
+  }
+  .abort-confirm-pill.yes { border-color: var(--err-border); color: var(--err); }
+  .abort-confirm-pill.no { border-color: var(--border); }
+
+  /* Failed ACs list (slice 271) */
+  .failed-acs-list { margin: 6px 0 0; padding: 0; list-style: none; }
+  .failed-ac-row {
+    padding: 3px 0; font-size: 11px; color: var(--ink-2); cursor: pointer;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  }
+  .failed-ac-row:hover { color: var(--ink-1); }
+  .failed-ac-row .ac-label { font-weight: 600; color: var(--err); }
+  .failed-ac-detail {
+    display: none; padding: 4px 8px; margin: 2px 0;
+    background: var(--surface-2); border-radius: var(--radius-sm);
+    font-size: 10px; white-space: pre-wrap; font-family: var(--font-mono, monospace);
+    color: var(--ink-3); max-height: 120px; overflow-y: auto;
+  }
+  .failed-ac-row.expanded .failed-ac-detail { display: block; }
+
+  /* Investigate side panel (slice 271) */
+  .investigate-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 950;
+    display: flex; justify-content: flex-end;
+  }
+  .investigate-panel {
+    width: min(520px, 90vw); height: 100%; background: var(--bg-panel);
+    box-shadow: -4px 0 24px rgba(0,0,0,0.15); overflow-y: auto; padding: 20px;
+  }
+  .investigate-panel h3 { margin: 0 0 12px; font-size: 15px; }
+  .investigate-panel .section-label { font-weight: 600; font-size: 12px; margin: 16px 0 6px; color: var(--ink-2); }
+  .investigate-panel pre {
+    background: var(--surface-2); padding: 10px; border-radius: var(--radius-sm);
+    font-size: 11px; white-space: pre-wrap; overflow-x: auto; max-height: 300px;
+    overflow-y: auto; border: 1px solid var(--border);
+  }
+  .investigate-panel .close-btn {
+    float: right; background: none; border: none; font-size: 18px;
+    cursor: pointer; color: var(--ink-3); padding: 0 4px;
+  }
+  .investigate-panel .close-btn:hover { color: var(--ink-1); }
+
   /* Collapsed mini strip */
   .topo-mini {
     display: none;
@@ -6009,8 +6070,35 @@
       if (s2) s2.className = 'gate-step-card error';
       const s2b = document.getElementById('gate-step-2-body');
       if (s2b) {
-        const reason = gateData && gateData.last_failure ? 'Gate failed' : 'Regression failed';
-        s2b.textContent = reason;
+        const failedAcs = gateData && gateData.last_failure ? (gateData.last_failure.failed_acs || []) : [];
+        const count = failedAcs.length;
+
+        // Headline
+        let html = '<div style="font-weight:600;color:var(--err);margin-bottom:4px">' +
+          'Regression gate failed \u2014 ' + count + ' AC' + (count !== 1 ? 's' : '') + ' not met</div>';
+
+        // Failed ACs list
+        if (count > 0) {
+          html += '<ul class="failed-acs-list">';
+          failedAcs.forEach(function(ac) {
+            const excerpt = ac.failure_excerpt || '';
+            const truncated = excerpt.length > 80 ? excerpt.substring(0, 80) + '\u2026' : excerpt;
+            html += '<li class="failed-ac-row" onclick="this.classList.toggle(\'expanded\')">' +
+              '<span class="ac-label">slice ' + (ac.slice_id || '?') + ': AC ' + (ac.ac_index >= 0 ? ac.ac_index : '?') + '</span>' +
+              ' \u00B7 ' + (ac.test_path || '') + ' \u00B7 ' + truncated +
+              '<div class="failed-ac-detail">' + excerpt + '</div>' +
+              '</li>';
+          });
+          html += '</ul>';
+        }
+
+        // Action buttons
+        html += '<div class="gate-fail-actions">' +
+          '<button class="btn" onclick="openInvestigatePanel()">Investigate</button>' +
+          '<button class="btn-stop" id="abort-gate-btn" onclick="showAbortConfirm(this.parentElement)">Abort gate</button>' +
+          '</div>';
+
+        s2b.innerHTML = html;
       }
     } else if (gateStatus === 'GATE_ABORTED') {
       resetStepCards();
@@ -6072,15 +6160,17 @@
       const gateStatus = data.gate ? data.gate.status : null;
       updateGateStepCards(gateStatus, data.gate);
 
-      // Health pill BATCH GATE override (slice 265)
+      // Health pill BATCH GATE override (slice 265, updated slice 271)
       const pill = document.getElementById('ops-health-pill');
       const label = document.getElementById('ops-health-label');
       if (pill && label) {
-        if (gateStatus === 'GATE_RUNNING') {
+        if (gateStatus === 'GATE_RUNNING' || gateStatus === 'GATE_FAILED') {
+          // Stay in BATCH GATE while running OR failed — only abort/new-gate clears
           pill.className = 'health-pill degraded';
           label.textContent = 'BATCH GATE';
-        } else if (_prevGateStatus === 'GATE_RUNNING' && gateStatus !== 'GATE_RUNNING') {
-          // Gate ended — let the regular health poll restore the pill
+        } else if ((_prevGateStatus === 'GATE_RUNNING' || _prevGateStatus === 'GATE_FAILED') &&
+                   gateStatus !== 'GATE_RUNNING' && gateStatus !== 'GATE_FAILED') {
+          // Gate ended (abort or merge-complete) — let the regular health poll restore the pill
         }
       }
     } catch (_) {
@@ -6127,10 +6217,11 @@
       setStepCard('gate-step-3', 'active', 'Merging\u2026');
     },
     'regression-fail': function(ev) {
-      // Step 1 → done, Step 2 → error with failure reason
+      // Step 1 → done, Step 2 → error
       setStepCard('gate-step-1', 'done', '');
-      setStepCard('gate-step-2', 'error', ev.reason || 'Regression failed');
-      // Restore health pill (let next health poll set correct state)
+      setStepCard('gate-step-2', 'error', null);
+      // Trigger a branch-state refresh to render the full failed_acs body
+      fetchBranchState();
     },
     'merge-complete': function(ev) {
       // Future (slice 269): all steps done
@@ -6161,6 +6252,72 @@
         _lastSeenGateEventTs = ev.ts;
       }
     } catch (_) { /* best-effort event polling */ }
+  }
+
+  // ── Investigate side panel (slice 271) ───────────────────────────────────
+  function openInvestigatePanel() {
+    // Remove existing if present
+    const existing = document.getElementById('investigate-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'investigate-overlay';
+    overlay.className = 'investigate-overlay';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+    const panel = document.createElement('div');
+    panel.className = 'investigate-panel';
+    panel.innerHTML = '<button class="close-btn" onclick="document.getElementById(\'investigate-overlay\').remove()">&times;</button>' +
+      '<h3>Investigate Gate Failure</h3>' +
+      '<div class="section-label">State Doctor — Gate Health</div>' +
+      '<pre id="investigate-doctor">Loading…</pre>' +
+      '<div class="section-label">Register Tail (since gate-start)</div>' +
+      '<pre id="investigate-register">Loading…</pre>' +
+      '<div class="section-label">Regression Output</div>' +
+      '<p style="font-size:11px;color:var(--ink-3)">See <code>bridge/state/regression-stdout.log</code></p>';
+
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    // Fetch state-doctor output
+    fetch('/api/gate/doctor').then(r => r.json()).then(data => {
+      const el = document.getElementById('investigate-doctor');
+      if (el) el.textContent = data.output || 'No output';
+    }).catch(() => {
+      const el = document.getElementById('investigate-doctor');
+      if (el) el.textContent = 'Failed to load';
+    });
+
+    // Fetch register tail
+    fetch('/api/gate/register-tail').then(r => r.json()).then(events => {
+      const el = document.getElementById('investigate-register');
+      if (el) el.textContent = events.map(e => JSON.stringify(e)).join('\n') || 'No events';
+    }).catch(() => {
+      const el = document.getElementById('investigate-register');
+      if (el) el.textContent = 'Failed to load';
+    });
+  }
+
+  // ── Gate abort flow (slice 271) ────────────────────────────────────────────
+  function showAbortConfirm(containerEl) {
+    containerEl.innerHTML = '<span class="abort-confirm"><span style="font-size:11px;font-weight:600">Abort?</span> ' +
+      '<button class="abort-confirm-pill yes" onclick="executeGateAbort()">Yes</button> ' +
+      '<button class="abort-confirm-pill no" onclick="fetchBranchState()">No</button></span>';
+  }
+
+  async function executeGateAbort() {
+    try {
+      const res = await fetch('/api/gate/abort', { method: 'POST' });
+      if (res.ok) {
+        // Force refresh to pick up ACCUMULATING state
+        fetchBranchState();
+      } else {
+        const err = await res.json();
+        showGateError('Abort failed: ' + (err.error || 'unknown'));
+      }
+    } catch (err) {
+      showGateError('Abort failed: network error');
+    }
   }
 
   // Initial fetch + 5s polling
