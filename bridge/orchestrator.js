@@ -5372,18 +5372,77 @@ function validateIntakeMeta(meta) {
 }
 
 // ---------------------------------------------------------------------------
-// Gate start — placeholder gate pipeline (slice 265)
+// Gate start — Bashir regression gate (slice 267)
 // ---------------------------------------------------------------------------
 
 const BRANCH_STATE_PATH = path.resolve(__dirname, 'state', 'branch-state.json');
+const BASHIR_HEARTBEAT_PATH = path.resolve(__dirname, 'state', 'bashir-heartbeat.json');
+const BASHIR_STDOUT_LOG = path.resolve(__dirname, 'state', 'bashir-stdout.log');
+const BASHIR_PROMPT_TEMPLATE = path.resolve(__dirname, 'templates', 'bashir-prompt.md');
+const BASHIR_HEARTBEAT_POLL_MS = 30000;
+const BASHIR_HEARTBEAT_STALE_MS = 90000;
+const BASHIR_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * buildBashirPrompt(branchState)
+ *
+ * Reads unmerged slice DONE files from the queue, extracts their acceptance
+ * criteria blocks, and hydrates the Bashir prompt template.
+ */
+function buildBashirPrompt(branchState) {
+  const commits = (branchState.dev && branchState.dev.commits) || [];
+
+  // Extract slice IDs from commit subjects: "(slice NNN)"
+  const sliceIds = [];
+  for (const c of commits) {
+    const m = c.subject && c.subject.match(/\(slice\s+(\d+)\)/);
+    if (m) sliceIds.push(m[1]);
+  }
+
+  // Read each slice's DONE file and extract ACs
+  const acSections = [];
+  for (const sid of sliceIds) {
+    // Try multiple suffixes — the canonical settled copy may be DONE, ACCEPTED, PARKED, or ARCHIVED
+    const suffixes = ['-DONE.md', '-ACCEPTED.md', '-PARKED.md', '-ARCHIVED.md'];
+    let content = null;
+    for (const suffix of suffixes) {
+      const p = path.join(QUEUE_DIR, `${sid}${suffix}`);
+      try {
+        content = fs.readFileSync(p, 'utf-8');
+        break;
+      } catch (_) { /* try next */ }
+    }
+    if (!content) {
+      acSections.push(`### Slice ${sid}\n\n_Slice file not found — no ACs available._\n`);
+      continue;
+    }
+
+    // Extract acceptance criteria block
+    const acMatch = content.match(/## Acceptance [Cc]riteria\s*\n([\s\S]*?)(?=\n## |\n---|\n# |$)/);
+    const acBlock = acMatch ? acMatch[1].trim() : '_No acceptance criteria section found._';
+    acSections.push(`### Slice ${sid}\n\n${acBlock}\n`);
+  }
+
+  const sliceAcsText = acSections.length > 0
+    ? acSections.join('\n')
+    : '_No unmerged slices found._';
+
+  // Read and hydrate the template
+  const template = fs.readFileSync(BASHIR_PROMPT_TEMPLATE, 'utf-8');
+  return template
+    .replace('{{HEARTBEAT_PATH}}', 'bridge/state/bashir-heartbeat.json')
+    .replace('{{SLICE_ACS}}', sliceAcsText);
+}
 
 /**
  * startGate()
  *
  * Entry point for the Bashir regression gate. Acquires the gate mutex,
  * transitions branch-state.gate to GATE_RUNNING, emits gate-start telemetry,
- * then schedules a placeholder 1-second timeout that emits regression-fail
- * (no real Bashir/tests yet), releases the mutex, and transitions to GATE_FAILED.
+ * then spawns Bashir headless via `claude -p`. Monitors Bashir's heartbeat
+ * for liveness. On `tests-updated` event, emits placeholder `regression-fail`
+ * (suite execution is slice 268), releases mutex, transitions to GATE_FAILED.
+ * On crash/timeout, emits `gate-abort` and releases mutex.
  *
  * Returns { devTipSha } on success.
  * Throws if mutex acquisition fails or branch-state is unreadable.
@@ -5404,8 +5463,10 @@ function startGate() {
     throw new Error('dev.tip_sha is null — nothing to gate');
   }
 
-  // 2. Acquire mutex (placeholder mode: bashirPid=null, heartbeatPath=null)
-  const result = acquireGateMutex(devTipSha, null, null, ctx);
+  const heartbeatRelPath = 'bridge/state/bashir-heartbeat.json';
+
+  // 2. Acquire mutex
+  const result = acquireGateMutex(devTipSha, null, heartbeatRelPath, ctx);
   if (!result.ok) {
     const err = new Error('Gate mutex already held');
     err.code = 'MUTEX_HELD';
@@ -5422,46 +5483,169 @@ function startGate() {
   // 4. Emit gate-start telemetry
   emitGateTelemetry('gate-start', { devTipSha, ts });
 
-  // 5. Placeholder gate: 1-second timeout → regression-fail
-  setTimeout(() => {
-    try {
-      const failTs = new Date().toISOString();
+  // 5. Build Bashir prompt and spawn
+  const prompt = buildBashirPrompt(branchState);
+  const bashirArgs = ['-p', '--permission-mode', 'bypassPermissions'];
 
-      // Emit regression-fail
-      emitGateTelemetry('regression-fail', {
-        failed_acs: [],
-        reason: 'placeholder-gate-not-yet-implemented',
-      });
+  log('info', 'gate', { msg: 'Spawning Bashir', args: bashirArgs, cwd: PROJECT_DIR });
 
-      // Update branch-state: GATE_FAILED
-      let state;
+  const bashirChild = execFile(
+    'claude',
+    bashirArgs,
+    {
+      cwd: PROJECT_DIR,
+      encoding: 'utf-8',
+      maxBuffer: 10 * 1024 * 1024,
+    },
+    (err, stdout, stderr) => {
+      // Bashir process exited — clean up heartbeat polling
+      clearInterval(heartbeatPoll);
+      clearTimeout(absoluteTimeout);
+
+      // Write stdout to log
       try {
-        state = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
-      } catch (_) {
-        state = branchState;
+        fs.writeFileSync(BASHIR_STDOUT_LOG, stdout || '', 'utf-8');
+      } catch (writeErr) {
+        log('warn', 'gate', { msg: 'Failed to write bashir-stdout.log', error: writeErr.message });
       }
-      state.gate = state.gate || {};
-      state.gate.status = 'GATE_FAILED';
-      state.gate.current_run = null;
-      state.gate.last_failure = {
-        ts: failTs,
-        dev_tip_sha: devTipSha,
-        failed_acs: [],
-      };
-      writeJsonAtomic(BRANCH_STATE_PATH, state);
 
-      // Release mutex
-      releaseGateMutex('regression_fail', ctx);
-    } catch (err) {
-      log('error', 'gate', { msg: 'Placeholder gate failure handler error', error: err.message });
+      if (err) {
+        // Bashir crashed or was killed
+        log('warn', 'gate', { msg: 'Bashir process exited with error', error: err.message, code: err.code });
+        _gateAbort(devTipSha, 'bashir_crash', ctx);
+        return;
+      }
+
+      // Check if tests-updated event was emitted by scanning register
+      const testsUpdated = _checkForEvent('tests-updated', ts);
+      if (testsUpdated) {
+        _gateTestsUpdated(devTipSha, ctx);
+      } else {
+        // Bashir exited cleanly but didn't emit tests-updated
+        log('warn', 'gate', { msg: 'Bashir exited without tests-updated event' });
+        _gateAbort(devTipSha, 'no_tests_updated', ctx);
+      }
     }
-  }, 1000);
+  );
+
+  // Pipe prompt to Bashir's stdin
+  bashirChild.stdin.write(prompt);
+  bashirChild.stdin.end();
+
+  // Update mutex with PID (diagnostic only)
+  try {
+    const mutex = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'state', 'gate-running.json'), 'utf-8'));
+    mutex.bashir_pid = bashirChild.pid;
+    writeJsonAtomic(path.resolve(__dirname, 'state', 'gate-running.json'), mutex);
+  } catch (_) { /* best effort */ }
+
+  // 6. Heartbeat polling — check every 30s, abort if stale > 90s
+  const heartbeatPoll = setInterval(() => {
+    try {
+      const hb = JSON.parse(fs.readFileSync(BASHIR_HEARTBEAT_PATH, 'utf-8'));
+      const age = Date.now() - new Date(hb.ts).getTime();
+      if (age > BASHIR_HEARTBEAT_STALE_MS) {
+        log('warn', 'gate', { msg: 'Bashir heartbeat stale', age_ms: age });
+        clearInterval(heartbeatPoll);
+        clearTimeout(absoluteTimeout);
+        try { bashirChild.kill('SIGTERM'); } catch (_) {}
+        _gateAbort(devTipSha, 'heartbeat_stale', ctx);
+      }
+    } catch (_) {
+      // Heartbeat file missing — don't abort immediately on first check;
+      // Bashir may not have written it yet. Absolute timeout will catch it.
+    }
+  }, BASHIR_HEARTBEAT_POLL_MS);
+
+  // 7. Absolute timeout — 10 minutes
+  const absoluteTimeout = setTimeout(() => {
+    log('warn', 'gate', { msg: 'Bashir absolute timeout reached', timeout_ms: BASHIR_TIMEOUT_MS });
+    clearInterval(heartbeatPoll);
+    try { bashirChild.kill('SIGTERM'); } catch (_) {}
+    _gateAbort(devTipSha, 'timeout', ctx);
+  }, BASHIR_TIMEOUT_MS);
 
   return { devTipSha };
+}
+
+/**
+ * _checkForEvent(eventName, afterTs)
+ *
+ * Scans register.jsonl for an event with the given name that occurred after afterTs.
+ */
+function _checkForEvent(eventName, afterTs) {
+  try {
+    const registerPath = path.resolve(__dirname, 'register.jsonl');
+    const lines = fs.readFileSync(registerPath, 'utf-8').trim().split('\n').filter(Boolean);
+    for (const line of lines) {
+      const entry = JSON.parse(line);
+      if (entry.event === eventName && entry.ts >= afterTs) {
+        return entry;
+      }
+    }
+  } catch (_) { /* register unreadable */ }
+  return null;
+}
+
+/**
+ * _gateTestsUpdated(devTipSha, ctx)
+ *
+ * Called when Bashir emits tests-updated. For this slice, immediately emits
+ * a placeholder regression-fail (suite execution lands in slice 268),
+ * updates branch-state, and releases the mutex.
+ */
+function _gateTestsUpdated(devTipSha, ctx) {
+  const failTs = new Date().toISOString();
+
+  emitGateTelemetry('regression-fail', {
+    failed_acs: [],
+    reason: 'suite-not-yet-executed',
+  });
+
+  let state;
+  try {
+    state = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
+  } catch (_) {
+    state = { gate: {} };
+  }
+  state.gate = state.gate || {};
+  state.gate.status = 'GATE_FAILED';
+  state.gate.current_run = null;
+  state.gate.last_failure = {
+    ts: failTs,
+    dev_tip_sha: devTipSha,
+    failed_acs: [],
+  };
+  writeJsonAtomic(BRANCH_STATE_PATH, state);
+
+  releaseGateMutex('regression_fail', ctx);
+}
+
+/**
+ * _gateAbort(devTipSha, reason, ctx)
+ *
+ * Called when Bashir crashes, times out, or heartbeat goes stale.
+ * Emits gate-abort, updates branch-state, releases mutex.
+ */
+function _gateAbort(devTipSha, reason, ctx) {
+  emitGateTelemetry('gate-abort', { dev_tip_sha: devTipSha, reason });
+
+  let state;
+  try {
+    state = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
+  } catch (_) {
+    state = { gate: {} };
+  }
+  state.gate = state.gate || {};
+  state.gate.status = 'GATE_ABORTED';
+  state.gate.current_run = null;
+  writeJsonAtomic(BRANCH_STATE_PATH, state);
+
+  releaseGateMutex('gate_abort', ctx);
 }
 
 // ---------------------------------------------------------------------------
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { startGate, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; } };
+module.exports = { startGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; } };
