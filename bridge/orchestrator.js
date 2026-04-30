@@ -5890,7 +5890,101 @@ function abortGate() {
 }
 
 // ---------------------------------------------------------------------------
+// Squash slice → dev (slice 266)
+// ---------------------------------------------------------------------------
+
+/**
+ * squashSliceToDev(sliceId, sliceTitle, sliceBranch)
+ *
+ * Squash-merges a slice branch onto dev with ADR §2 trailers.
+ * Returns { success: bool, dev_sha?: string, error?: string }.
+ * Never throws — conflict or failure returns a value.
+ */
+function squashSliceToDev(sliceId, sliceTitle, sliceBranch) {
+  try {
+    sliceBranch = sanitizeBranchName(sliceBranch);
+  } catch (err) {
+    return { success: false, error: `invalid_branch_name: ${err.message}` };
+  }
+
+  // Step 1: Resolve drift — merge dev into slice branch
+  try {
+    execSync(`git checkout ${sliceBranch}`, { cwd: PROJECT_DIR, stdio: 'pipe' });
+    execSync('git merge --no-ff dev', { cwd: PROJECT_DIR, stdio: 'pipe' });
+  } catch (mergeErr) {
+    // Abort any in-progress merge, return conflict
+    try { execSync('git merge --abort', { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+    try { execSync('git checkout dev', { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+    return { success: false, error: 'conflict' };
+  }
+
+  // Step 2: Squash to dev
+  try {
+    execSync('git checkout dev', { cwd: PROJECT_DIR, stdio: 'pipe' });
+    execSync(`git merge --squash ${sliceBranch}`, { cwd: PROJECT_DIR, stdio: 'pipe' });
+  } catch (squashErr) {
+    try { execSync('git merge --abort', { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+    return { success: false, error: `squash_failed: ${squashErr.message}` };
+  }
+
+  const commitMsg = `slice ${sliceId}: ${sliceTitle}\n\nSlice-Id: ${sliceId}\nSlice-Branch: ${sliceBranch}\n`;
+  const commitMsgFile = path.join(PROJECT_DIR, '.squash-commit-msg');
+  try {
+    fs.writeFileSync(commitMsgFile, commitMsg);
+    execSync(`git commit -F ${commitMsgFile}`, { cwd: PROJECT_DIR, stdio: 'pipe' });
+  } catch (commitErr) {
+    return { success: false, error: `commit_failed: ${commitErr.message}` };
+  } finally {
+    try { fs.unlinkSync(commitMsgFile); } catch (_) {}
+  }
+
+  let devSha;
+  try {
+    devSha = execSync('git rev-parse HEAD', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+  } catch (parseErr) {
+    return { success: false, error: `rev_parse_failed: ${parseErr.message}` };
+  }
+
+  try {
+    execSync('git push origin dev', { cwd: PROJECT_DIR, stdio: 'pipe' });
+  } catch (pushErr) {
+    log('warn', 'squash-to-dev', { sliceId, msg: 'git push origin dev failed (squash succeeded locally)', error: pushErr.message });
+  }
+
+  // Step 3: Update branch-state.json
+  try {
+    const branchState = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
+    if (!branchState.dev) branchState.dev = { tip_sha: null, tip_ts: null, commits_ahead_of_main: 0, commits: [], deferred_slices: [] };
+    if (!Array.isArray(branchState.dev.commits)) branchState.dev.commits = [];
+    const ts = new Date().toISOString();
+    branchState.dev.commits.push({
+      sha: devSha,
+      slice_id: String(sliceId),
+      title: sliceTitle,
+      ts,
+      is_pending_squash: false,
+    });
+    branchState.dev.commits_ahead_of_main = (branchState.dev.commits_ahead_of_main || 0) + 1;
+    branchState.dev.tip_sha = devSha;
+    branchState.dev.tip_ts = ts;
+    writeJsonAtomic(BRANCH_STATE_PATH, branchState);
+  } catch (stateErr) {
+    log('warn', 'squash-to-dev', { sliceId, msg: 'branch-state update failed', error: stateErr.message });
+  }
+
+  // Step 4: Emit register event
+  registerEvent(sliceId, 'SLICE_SQUASHED_TO_DEV', {
+    slice_id: String(sliceId),
+    dev_tip_sha: devSha,
+    squash_sha: devSha,
+  });
+
+  // Step 5: Return success
+  return { success: true, dev_sha: devSha };
+}
+
+// ---------------------------------------------------------------------------
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; } };
+module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, squashSliceToDev, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; } };
