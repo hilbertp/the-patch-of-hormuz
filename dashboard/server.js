@@ -1059,6 +1059,59 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Archive (remove from queue): move queued slice to trash ─────────────
+  const archiveMatch = pathname.match(/^\/api\/queue\/(\d+)\/remove$/);
+  if (archiveMatch && req.method === 'POST') {
+    const id = archiveMatch[1];
+
+    // Race protection: if currently dispatched, reject
+    let hbCurrent = null;
+    try {
+      const hb = JSON.parse(fs.readFileSync(HEARTBEAT, 'utf8'));
+      hbCurrent = hb.current_slice ? String(hb.current_slice) : null;
+    } catch (_) {}
+    if (hbCurrent === id) {
+      res.writeHead(409, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'already-picked-up' }));
+      return;
+    }
+
+    // Validate QUEUED file exists
+    const queuedPath = path.join(QUEUE_DIR, `${id}-QUEUED.md`);
+    if (!fs.existsSync(queuedPath)) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Queued slice ${id} not found` }));
+      return;
+    }
+
+    try {
+      // Remove from queue-order.json
+      const qOrder = readQueueOrder();
+      const newQueueOrder = qOrder.filter(oid => oid !== id);
+      writeQueueOrder(newQueueOrder);
+
+      // Move QUEUED file to trash with timestamp
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      const trashName = `${id}-QUEUED.md.removed-${ts}`;
+      try { fs.renameSync(queuedPath, path.join(TRASH_DIR, trashName)); }
+      catch (_) {
+        const content = fs.readFileSync(queuedPath, 'utf8');
+        fs.writeFileSync(path.join(TRASH_DIR, trashName), content, 'utf8');
+        fs.unlinkSync(queuedPath);
+      }
+
+      // Register event
+      writeRegisterEvent({ event: 'slice-archived-from-queue', slice_id: id, ts: new Date().toISOString(), reason: 'user-removed' });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, action: 'archived' }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
   // ── Error detail endpoints (slice 094/104) ──────────────────────────────
   const ERRORS_DIR = path.join(REPO_ROOT, 'bridge', 'errors');
 
