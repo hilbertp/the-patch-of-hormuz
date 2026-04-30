@@ -5489,6 +5489,11 @@ function startGate() {
 
   log('info', 'gate', { msg: 'Spawning Bashir', args: bashirArgs, cwd: PROJECT_DIR });
 
+  // Guard against double _gateAbort: heartbeat/timeout handlers kill Bashir
+  // and call _gateAbort, then the execFile callback fires with err and would
+  // call _gateAbort a second time. This flag prevents the duplicate.
+  let abortHandled = false;
+
   const bashirChild = execFile(
     'claude',
     bashirArgs,
@@ -5512,6 +5517,7 @@ function startGate() {
       if (err) {
         // Bashir crashed or was killed
         log('warn', 'gate', { msg: 'Bashir process exited with error', error: err.message, code: err.code });
+        if (abortHandled) return;
         _gateAbort(devTipSha, 'bashir_crash', ctx);
         return;
       }
@@ -5548,6 +5554,7 @@ function startGate() {
         log('warn', 'gate', { msg: 'Bashir heartbeat stale', age_ms: age });
         clearInterval(heartbeatPoll);
         clearTimeout(absoluteTimeout);
+        abortHandled = true;
         try { bashirChild.kill('SIGTERM'); } catch (_) {}
         _gateAbort(devTipSha, 'heartbeat_stale', ctx);
       }
@@ -5561,6 +5568,7 @@ function startGate() {
   const absoluteTimeout = setTimeout(() => {
     log('warn', 'gate', { msg: 'Bashir absolute timeout reached', timeout_ms: BASHIR_TIMEOUT_MS });
     clearInterval(heartbeatPoll);
+    abortHandled = true;
     try { bashirChild.kill('SIGTERM'); } catch (_) {}
     _gateAbort(devTipSha, 'timeout', ctx);
   }, BASHIR_TIMEOUT_MS);
