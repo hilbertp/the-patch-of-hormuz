@@ -18,6 +18,7 @@ const assert = require('assert');
 const { execSync } = require('child_process');
 
 const BRIDGE_DIR = path.join(__dirname, '..', 'bridge');
+const { squashSliceToDev, _testSetProjectDir, _testSetRegisterFile } = require('../bridge/orchestrator');
 
 let passed = 0;
 let failed = 0;
@@ -37,6 +38,7 @@ function test(name, fn) {
 
 /**
  * Creates a temporary bare+clone git repo with a dev branch and a slice branch.
+ * Redirects orchestrator's PROJECT_DIR and REGISTER_FILE to the temp repo.
  * Returns { repoDir, cleanup }.
  */
 function setupTestRepo(opts = {}) {
@@ -102,6 +104,10 @@ function setupTestRepo(opts = {}) {
   const registerPath = path.join(workDir, 'bridge', 'register.jsonl');
   fs.writeFileSync(registerPath, '');
 
+  // Redirect orchestrator to use temp repo
+  _testSetProjectDir(workDir);
+  _testSetRegisterFile(registerPath);
+
   function cleanup() {
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (_) {}
   }
@@ -115,40 +121,18 @@ console.log('\n-- squashSliceToDev unit tests --');
 // A — Happy path
 // ---------------------------------------------------------------------------
 test('A — happy path: squash commit on dev with correct subject, trailers, and state update', () => {
-  const { repoDir, branchStatePath, registerPath, cleanup, sliceBranch } = setupTestRepo();
+  const { repoDir, branchStatePath, registerPath, cleanup } = setupTestRepo();
 
   try {
-    // We need to require orchestrator in a way that uses our test repo.
-    // Since orchestrator uses PROJECT_DIR from config, we'll call the function
-    // by manipulating the module's internal state via _testSetRegisterFile and
-    // calling the exported function with our repo as cwd.
-    //
-    // Actually, squashSliceToDev uses PROJECT_DIR (from config) and BRANCH_STATE_PATH
-    // which are module-level constants. For a proper unit test, we need to
-    // invoke git commands ourselves and verify the logic matches.
-    //
-    // Alternative: test the function's behavior by directly calling git in our test repo,
-    // mirroring what squashSliceToDev does, and verifying the outcomes.
+    const result = squashSliceToDev('042', 'Test Feature', 'slice/042');
 
-    // Simulate the squash manually since we can't redirect PROJECT_DIR
-    execSync(`git checkout ${sliceBranch}`, { cwd: repoDir, stdio: 'pipe' });
-    execSync('git merge --no-ff dev', { cwd: repoDir, stdio: 'pipe' });
-    execSync('git checkout dev', { cwd: repoDir, stdio: 'pipe' });
-    execSync(`git merge --squash ${sliceBranch}`, { cwd: repoDir, stdio: 'pipe' });
+    assert.strictEqual(result.success, true, `Expected success, got: ${JSON.stringify(result)}`);
+    assert.ok(result.dev_sha, 'Expected dev_sha in result');
 
-    const commitMsgFile = path.join(repoDir, '.commitmsg');
-    fs.writeFileSync(commitMsgFile, 'slice 042: Test Feature\n\nSlice-Id: 042\nSlice-Branch: slice/042\n');
-    execSync(`git commit -F ${commitMsgFile}`, { cwd: repoDir, stdio: 'pipe' });
-    fs.unlinkSync(commitMsgFile);
-
-    const devSha = execSync('git rev-parse HEAD', { cwd: repoDir, encoding: 'utf-8' }).trim();
-
-    // Verify commit subject
+    // Verify commit subject and trailers on dev
     const body = execSync('git log -1 --format=%B dev', { cwd: repoDir, encoding: 'utf-8' }).trim();
     const subject = body.split('\n')[0];
     assert.strictEqual(subject, 'slice 042: Test Feature');
-
-    // Verify trailers in commit body
     assert.ok(body.includes('Slice-Id: 042'), `Expected Slice-Id trailer in: ${body}`);
     assert.ok(body.includes('Slice-Branch: slice/042'), `Expected Slice-Branch trailer in: ${body}`);
 
@@ -156,40 +140,22 @@ test('A — happy path: squash commit on dev with correct subject, trailers, and
     const files = execSync('git ls-tree --name-only HEAD', { cwd: repoDir, encoding: 'utf-8' });
     assert.ok(files.includes('feature.txt'), 'feature.txt should be on dev after squash');
 
-    // Simulate branch-state update (mirroring what squashSliceToDev does)
-    const { writeJsonAtomic } = require('../bridge/state/atomic-write');
-    const branchState = JSON.parse(fs.readFileSync(branchStatePath, 'utf-8'));
-    const ts = new Date().toISOString();
-    branchState.dev.commits.push({
-      sha: devSha, slice_id: '042', title: 'Test Feature', ts, is_pending_squash: false,
-    });
-    branchState.dev.commits_ahead_of_main += 1;
-    branchState.dev.tip_sha = devSha;
-    branchState.dev.tip_ts = ts;
-    writeJsonAtomic(branchStatePath, branchState);
-
-    // Verify branch-state
+    // Verify branch-state was updated
     const updated = JSON.parse(fs.readFileSync(branchStatePath, 'utf-8'));
     assert.strictEqual(updated.dev.commits.length, 1);
     assert.strictEqual(updated.dev.commits[0].slice_id, '042');
-    assert.strictEqual(updated.dev.commits[0].sha, devSha);
+    assert.strictEqual(updated.dev.commits[0].sha, result.dev_sha);
     assert.strictEqual(updated.dev.commits_ahead_of_main, 1);
-    assert.strictEqual(updated.dev.tip_sha, devSha);
+    assert.strictEqual(updated.dev.tip_sha, result.dev_sha);
 
-    // Simulate register event
-    const entry = JSON.stringify({
-      ts: new Date().toISOString(), slice_id: '042', event: 'SLICE_SQUASHED_TO_DEV',
-      dev_tip_sha: devSha, squash_sha: devSha,
-    }) + '\n';
-    fs.appendFileSync(registerPath, entry);
-
-    // Verify register
+    // Verify register event was emitted
     const regContent = fs.readFileSync(registerPath, 'utf-8').trim();
-    const regEntry = JSON.parse(regContent);
+    assert.ok(regContent.length > 0, 'Register file should not be empty');
+    const regEntry = JSON.parse(regContent.split('\n').pop());
     assert.strictEqual(regEntry.event, 'SLICE_SQUASHED_TO_DEV');
     assert.strictEqual(regEntry.slice_id, '042');
-    assert.strictEqual(regEntry.dev_tip_sha, devSha);
-    assert.strictEqual(regEntry.squash_sha, devSha);
+    assert.strictEqual(regEntry.dev_tip_sha, result.dev_sha);
+    assert.strictEqual(regEntry.squash_sha, result.dev_sha);
   } finally {
     cleanup();
   }
@@ -199,38 +165,25 @@ test('A — happy path: squash commit on dev with correct subject, trailers, and
 // B — Conflict path
 // ---------------------------------------------------------------------------
 test('B — conflict path: returns { success: false, error: "conflict" }, no partial state', () => {
-  const { repoDir, branchStatePath, registerPath, cleanup, sliceBranch } = setupTestRepo({ conflict: true });
+  const { repoDir, branchStatePath, registerPath, cleanup } = setupTestRepo({ conflict: true });
 
   try {
-    // Attempt merge dev into slice — should conflict
-    execSync(`git checkout ${sliceBranch}`, { cwd: repoDir, stdio: 'pipe' });
-    let conflicted = false;
-    try {
-      execSync('git merge --no-ff dev', { cwd: repoDir, stdio: 'pipe' });
-    } catch (_) {
-      conflicted = true;
-      try { execSync('git merge --abort', { cwd: repoDir, stdio: 'pipe' }); } catch (_2) {}
-      try { execSync('git checkout dev', { cwd: repoDir, stdio: 'pipe' }); } catch (_2) {}
-    }
+    const result = squashSliceToDev('042', 'Test Feature', 'slice/042');
 
-    assert.ok(conflicted, 'Expected merge conflict');
-
-    // Verify result matches what squashSliceToDev would return
-    const result = { success: false, error: 'conflict' };
     assert.strictEqual(result.success, false);
     assert.strictEqual(result.error, 'conflict');
 
     // Verify no partial state — dev should still be at its original tip
     const devLog = execSync('git log --oneline dev', { cwd: repoDir, encoding: 'utf-8' }).trim();
     assert.ok(devLog.includes('dev conflict'), 'dev should have its original commits');
-    assert.ok(!devLog.includes('slice'), 'dev should NOT have any slice commit');
+    assert.ok(!devLog.includes('slice 042'), 'dev should NOT have any squash commit');
 
     // branch-state should be untouched
     const state = JSON.parse(fs.readFileSync(branchStatePath, 'utf-8'));
     assert.strictEqual(state.dev.commits.length, 0, 'No commits should be added to branch-state');
     assert.strictEqual(state.dev.commits_ahead_of_main, 0);
 
-    // register should be empty (no event emitted)
+    // register should be empty (no event emitted for conflict)
     const reg = fs.readFileSync(registerPath, 'utf-8').trim();
     assert.strictEqual(reg, '', 'No register event should be emitted on conflict');
   } finally {
@@ -245,16 +198,8 @@ test('C — trailer format: Slice-Id and Slice-Branch are machine-parseable per 
   const { repoDir, cleanup } = setupTestRepo();
 
   try {
-    // Perform the squash
-    execSync('git checkout slice/042', { cwd: repoDir, stdio: 'pipe' });
-    execSync('git merge --no-ff dev', { cwd: repoDir, stdio: 'pipe' });
-    execSync('git checkout dev', { cwd: repoDir, stdio: 'pipe' });
-    execSync('git merge --squash slice/042', { cwd: repoDir, stdio: 'pipe' });
-
-    const commitMsgFile = path.join(repoDir, '.commitmsg');
-    fs.writeFileSync(commitMsgFile, 'slice 042: Test Feature\n\nSlice-Id: 042\nSlice-Branch: slice/042\n');
-    execSync(`git commit -F ${commitMsgFile}`, { cwd: repoDir, stdio: 'pipe' });
-    fs.unlinkSync(commitMsgFile);
+    const result = squashSliceToDev('042', 'Test Feature', 'slice/042');
+    assert.strictEqual(result.success, true, `Expected success, got: ${JSON.stringify(result)}`);
 
     // Verify exact trailer format
     const body = execSync('git log -1 --format=%B dev', { cwd: repoDir, encoding: 'utf-8' }).trim();
