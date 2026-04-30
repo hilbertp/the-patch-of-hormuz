@@ -3582,7 +3582,7 @@ function invokeNog(id) {
           const lintFindingsTotal = lintFailCount + lintFindingsEntries;
 
           // Count ACs from acceptance criteria section.
-          const acMatch = updatedSliceContent.match(/## Acceptance [Cc]riteria[\s\S]*?(?=\n## |\n---|\Z)/);
+          const acMatch = updatedSliceContent.match(/## Acceptance [Cc]riteria[\s\S]*?(?=\n## |\n---|\s*$)/);
           const acSection = acMatch ? acMatch[0] : '';
           const acCount = (acSection.match(/^\s*\d+\.\s/gm) || []).length;
 
