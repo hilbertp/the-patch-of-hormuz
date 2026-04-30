@@ -5754,8 +5754,9 @@ function _gateTestsUpdated(devTipSha, ctx) {
         state.gate.last_pass = { ts: new Date().toISOString(), dev_tip_sha: devTipSha };
         writeJsonAtomic(BRANCH_STATE_PATH, state);
 
-        // Do NOT release mutex — slice 269 holds it through dev → main merge
-        log('info', 'gate', { msg: 'Regression suite passed', suite_size: suiteSize, duration_ms: durationMs });
+        // Slice 269: trigger dev → main merge while mutex is held
+        log('info', 'gate', { msg: 'Regression suite passed, triggering dev → main merge', suite_size: suiteSize, duration_ms: durationMs });
+        mergeDevToMain();
         return;
       }
 
@@ -5984,7 +5985,155 @@ function squashSliceToDev(sliceId, sliceTitle, sliceBranch) {
 }
 
 // ---------------------------------------------------------------------------
+// Dev → main merge (slice 269)
+// ---------------------------------------------------------------------------
+
+/**
+ * mergeDevToMain()
+ *
+ * On regression-pass, merges dev → main via --no-ff under the main-lock
+ * protocol, fast-forwards dev to main, updates branch-state, emits
+ * merge-complete, releases the gate mutex, and drains deferred slices.
+ *
+ * Returns { success, merge_sha, error }.
+ * On failure emits gate-abort, releases mutex, leaves main unchanged.
+ */
+function mergeDevToMain() {
+  const ctx = { registerEvent, log };
+
+  // 1. Read branch-state for batch info
+  let branchState;
+  try {
+    branchState = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
+  } catch (err) {
+    emitGateTelemetry('gate-abort', { reason: 'branch-state-unreadable', error: err.message });
+    releaseGateMutex('gate_abort', ctx);
+    return { success: false, merge_sha: null, error: 'branch_state_unreadable' };
+  }
+
+  const commits = (branchState.dev && branchState.dev.commits) || [];
+  const sliceIds = commits.map(c => String(c.slice_id));
+  if (sliceIds.length === 0) {
+    emitGateTelemetry('gate-abort', { reason: 'no-slices-on-dev' });
+    releaseGateMutex('gate_abort', ctx);
+    return { success: false, merge_sha: null, error: 'no_slices_on_dev' };
+  }
+
+  const sliceRange = sliceIds.length === 1
+    ? sliceIds[0]
+    : `${sliceIds[0]}..${sliceIds[sliceIds.length - 1]}`;
+  const commitSubject = `merge: dev gate batch — slices ${sliceRange}`;
+  const commitBody = `Batch merge of ${sliceIds.length} slice(s) from dev to main via Bashir gate.\n\nSlices: ${sliceIds.join(',')}`;
+  const fullMsg = `${commitSubject}\n\n${commitBody}`;
+
+  // 2. Acquire main-lock (unlock-main.sh)
+  const unlockScript = path.join(PROJECT_DIR, 'scripts', 'unlock-main.sh');
+  const lockScript = path.join(PROJECT_DIR, 'scripts', 'lock-main.sh');
+
+  const unlockStart = Date.now();
+  try { execSync(`bash "${unlockScript}"`, { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+  emitGateTelemetry('lock-cycle', { cycle_phase: 'unlock', triggering_op: 'dev-to-main-merge', held_duration_ms: Date.now() - unlockStart });
+
+  process.env.DS9_WATCHER_MERGE = '1';
+
+  try {
+    // 3. git checkout main
+    execSync('git checkout main', { cwd: PROJECT_DIR, stdio: 'pipe' });
+
+    // 4. git merge --no-ff dev
+    const msgFile = path.join(PROJECT_DIR, '.dev-merge-msg');
+    fs.writeFileSync(msgFile, fullMsg);
+    try {
+      execSync(`git merge --no-ff dev -F "${msgFile}"`, { cwd: PROJECT_DIR, stdio: 'pipe' });
+    } finally {
+      try { fs.unlinkSync(msgFile); } catch (_) {}
+    }
+
+    const mergeSha = execSync('git rev-parse main', { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim();
+
+    // 5. Push main
+    try {
+      execSync('git push origin main', { cwd: PROJECT_DIR, stdio: 'pipe' });
+    } catch (pushErr) {
+      // Push reject — abort, reset main
+      try { execSync(`git reset --hard ${mergeSha}~1`, { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+      emitGateTelemetry('gate-abort', { reason: 'push-rejected', error: pushErr.message });
+      releaseGateMutex('gate_abort', ctx);
+      return { success: false, merge_sha: null, error: 'push_rejected' };
+    }
+
+    // 6. Fast-forward dev to main (ADR §1)
+    execSync('git checkout dev', { cwd: PROJECT_DIR, stdio: 'pipe' });
+    execSync('git merge --ff-only main', { cwd: PROJECT_DIR, stdio: 'pipe' });
+    try {
+      execSync('git push origin dev', { cwd: PROJECT_DIR, stdio: 'pipe' });
+    } catch (devPushErr) {
+      log('warn', 'dev-to-main', { msg: 'git push origin dev failed (ff succeeded locally)', error: devPushErr.message });
+    }
+
+    // Switch back to main for working tree consistency
+    execSync('git checkout main', { cwd: PROJECT_DIR, stdio: 'pipe' });
+
+    // 7. Update branch-state
+    const ts = new Date().toISOString();
+    branchState.main = branchState.main || {};
+    branchState.main.tip_sha = mergeSha;
+    branchState.main.tip_subject = commitSubject;
+    branchState.main.tip_ts = ts;
+
+    branchState.dev = branchState.dev || {};
+    branchState.dev.tip_sha = mergeSha;
+    branchState.dev.tip_ts = ts;
+    branchState.dev.commits = [];
+    branchState.dev.commits_ahead_of_main = 0;
+
+    branchState.last_merge = {
+      merge_sha: mergeSha,
+      ts,
+      slices: sliceIds,
+    };
+
+    branchState.gate = branchState.gate || {};
+    branchState.gate.status = 'IDLE';
+    branchState.gate.current_run = null;
+    branchState.gate.last_failure = null;
+
+    writeJsonAtomic(BRANCH_STATE_PATH, branchState);
+
+    // 8. Emit merge-complete
+    emitGateTelemetry('merge-complete', {
+      merge_sha: mergeSha,
+      slices: sliceIds,
+      dev_fast_forwarded_to: mergeSha,
+    });
+
+    // 9. Release mutex (triggers drainDeferredSlices)
+    releaseGateMutex('regression_pass', ctx);
+
+    log('info', 'dev-to-main', {
+      msg: 'Dev merged to main successfully',
+      merge_sha: mergeSha,
+      slices: sliceIds,
+    });
+
+    return { success: true, merge_sha: mergeSha, error: null };
+  } catch (err) {
+    // Any unexpected failure — abort, emit gate-abort, release mutex
+    try { execSync('git merge --abort', { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+    try { execSync('git checkout main', { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+    emitGateTelemetry('gate-abort', { reason: 'merge-failed', error: err.message });
+    releaseGateMutex('gate_abort', ctx);
+    return { success: false, merge_sha: null, error: err.message };
+  } finally {
+    delete process.env.DS9_WATCHER_MERGE;
+    const relockStart = Date.now();
+    try { execSync(`bash "${lockScript}"`, { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+    emitGateTelemetry('lock-cycle', { cycle_phase: 'relock', triggering_op: 'dev-to-main-merge', held_duration_ms: Date.now() - relockStart });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, squashSliceToDev, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; }, _testSetProjectDir: (dir) => { PROJECT_DIR = dir; BRANCH_STATE_PATH = path.join(dir, 'bridge', 'state', 'branch-state.json'); } };
+module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, mergeDevToMain, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, squashSliceToDev, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; }, _testSetProjectDir: (dir) => { PROJECT_DIR = dir; BRANCH_STATE_PATH = path.join(dir, 'bridge', 'state', 'branch-state.json'); } };
