@@ -46,6 +46,8 @@ const VALID_EVENTS = new Set([
   'regression-fail',
   'merge-complete',
   'gate-abort',
+  // Nog telemetry — side-effect of Nog's verdict (slice 270)
+  'NOG_TELEMETRY',
 ]);
 
 // ---------------------------------------------------------------------------

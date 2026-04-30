@@ -2093,6 +2093,41 @@
   .gate-status-pill.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-border); }
   .gate-status-pill.err  { background: var(--err-bg); color: var(--err); border: 1px solid var(--err-border); }
 
+  /* RR pill (slice 270) */
+  .rr-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: default;
+    position: relative;
+    margin-right: 8px;
+  }
+  .rr-pill.green  { background: var(--ok-bg); color: #15803d; border: 1px solid var(--ok-border); }
+  .rr-pill.amber  { background: var(--warn-bg); color: #92400e; border: 1px solid var(--warn-border); }
+  .rr-pill.red    { background: var(--err-bg); color: #991b1b; border: 1px solid var(--err-border); }
+  .rr-pill-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 400;
+    white-space: nowrap;
+    z-index: 20;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    color: var(--ink-1);
+  }
+  .rr-pill:hover .rr-pill-tooltip { display: block; }
+
   /* Gate step cards (slice 265) */
   .gate-steps { display: flex; gap: 8px; padding: 8px 12px 4px; }
   .gate-step-card {
@@ -2973,6 +3008,7 @@
       <div class="topo-panel-body" id="topo-panel-body">
         <div class="topo-svg-wrap" id="topo-svg-wrap"></div>
         <div class="topo-foot" id="topo-foot">
+          <span id="topo-foot-rr"></span>
           <span class="topo-foot-stats" id="topo-foot-stats"></span>
           <span id="topo-foot-action"></span>
         </div>
@@ -5967,10 +6003,38 @@
     wrap.innerHTML = svg;
   }
 
+  function renderRRPill(bs) {
+    const rrEl = document.getElementById('topo-foot-rr');
+    if (!rrEl) return;
+
+    const rr = bs.regression_risk;
+    const ahead = bs.dev ? (bs.dev.commits_ahead_of_main || 0) : 0;
+
+    if (!rr || ahead === 0) {
+      // Empty dev or no RR data — show clean pill
+      rrEl.innerHTML = '<span class="rr-pill green">RR 0% &middot; clean</span>';
+      return;
+    }
+
+    const band = rr.band || 'green';
+    const pct = rr.rr != null ? rr.rr : 0;
+    const inputs = rr.inputs || {};
+    const sp = Math.round((inputs.slice_pressure || 0) * 100);
+    const sv = Math.round((inputs.surface_volatility || 0) * 100);
+    const ac = Math.round((inputs.ac_coverage_gap || 0) * 100);
+
+    const label = pct === 0 ? 'RR 0% &middot; clean' : `RR ${pct}%`;
+
+    rrEl.innerHTML = `<span class="rr-pill ${band}">${label}<span class="rr-pill-tooltip">Slice pressure: ${sp}% | Surface volatility: ${sv}% | AC coverage gap: ${ac}%</span></span>`;
+  }
+
   function renderTopoFooter(bs) {
     const statsEl = document.getElementById('topo-foot-stats');
     const actionEl = document.getElementById('topo-foot-action');
     if (!statsEl || !actionEl) return;
+
+    // Render RR pill (slice 270)
+    renderRRPill(bs);
 
     const ahead = bs.dev ? (bs.dev.commits_ahead_of_main || 0) : 0;
     statsEl.innerHTML = `<strong>${ahead}</strong> commit${ahead !== 1 ? 's' : ''} ahead of main`;

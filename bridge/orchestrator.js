@@ -12,6 +12,7 @@ const { reconcileBranchState } = require('./state/branch-state-recovery');
 const { recoverGateMutex, acquireGateMutex, releaseGateMutex } = require('./state/gate-mutex');
 const { writeJsonAtomic } = require('./state/atomic-write');
 const { emit: emitGateTelemetry } = require('./state/gate-telemetry');
+const { computeRR } = require('./rr-compute');
 
 // ---------------------------------------------------------------------------
 // Config
@@ -668,6 +669,32 @@ function registerCommissioned(id, extra) {
       log('error', 'register_error', { id, msg: 'COMMISSIONED write failed after retry', error: retryErr.message });
       process.stdout.write(`\n⚠️  CRITICAL: COMMISSIONED register write FAILED for slice ${id} after retry. History title will be missing. Error: ${retryErr.message}\n`);
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// RR recomputation helper (slice 270)
+// ---------------------------------------------------------------------------
+
+/**
+ * recomputeAndPersistRR()
+ *
+ * Runs computeRR(), writes the result to branch-state.json under
+ * regression_risk. Best-effort — logs and continues on failure.
+ */
+function recomputeAndPersistRR() {
+  try {
+    const result = computeRR();
+    const branchState = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
+    branchState.regression_risk = {
+      rr: result.rr,
+      band: result.band,
+      inputs: result.inputs,
+      computed_ts: new Date().toISOString(),
+    };
+    writeJsonAtomic(BRANCH_STATE_PATH, branchState);
+  } catch (err) {
+    log('warn', 'rr-compute', { msg: 'RR recomputation failed (non-blocking)', error: err.message });
   }
 }
 
@@ -3535,6 +3562,49 @@ function invokeNog(id) {
         // Clean up NOG.md verdict file.
         try { fs.renameSync(nogVerdictPath, path.join(TRASH_DIR, `${id}-NOG.md.pass`)); } catch (_) {}
 
+        // NOG_TELEMETRY — side-effect emit on ACCEPTED verdict (slice 270).
+        // Never blocks Nog's verdict transition.
+        try {
+          const HIGH_RISK_PATHS = ['bridge/orchestrator.js', 'bridge/state/', 'scripts/lock-main.sh', 'scripts/unlock-main.sh', 'dashboard/server.js'];
+          let filesTouched = [];
+          try {
+            filesTouched = execSync(`git diff --name-only main..slice/${id}`, { cwd: PROJECT_DIR, encoding: 'utf-8' }).trim().split('\n').filter(Boolean);
+          } catch (_) {}
+          const highRiskSurface = filesTouched.some(f => HIGH_RISK_PATHS.some(p => f === p || f.startsWith(p)));
+
+          // Count rounds from updated slice content.
+          const roundsMatch = updatedSliceContent.match(/^## Nog Review — Round \d+/gm);
+          const roundsCount = roundsMatch ? roundsMatch.length : round;
+
+          // Count lint findings: "Linting: FAIL" headers + individual lint-finding entries.
+          const lintFailCount = (updatedSliceContent.match(/Linting:\s*FAIL/gi) || []).length;
+          const lintFindingsEntries = (updatedSliceContent.match(/^\d+\.\s+.*?—.*?—/gm) || []).length;
+          const lintFindingsTotal = lintFailCount + lintFindingsEntries;
+
+          // Count ACs from acceptance criteria section.
+          const acMatch = updatedSliceContent.match(/## Acceptance [Cc]riteria[\s\S]*?(?=\n## |\n---|\Z)/);
+          const acSection = acMatch ? acMatch[0] : '';
+          const acCount = (acSection.match(/^\s*\d+\.\s/gm) || []).length;
+
+          // Detect escalation in any round.
+          const escalated = /nog_verdict:\s*['"]?ESCALATE/i.test(updatedSliceContent);
+
+          emitGateTelemetry('NOG_TELEMETRY', {
+            slice_id: String(id),
+            rounds: roundsCount,
+            files_touched: filesTouched,
+            high_risk_surface: highRiskSurface,
+            lint_findings_total: lintFindingsTotal,
+            ac_count: acCount,
+            escalated,
+          });
+        } catch (telErr) {
+          log('warn', 'nog', { id, msg: 'NOG_TELEMETRY emit failed (non-blocking)', error: telErr.message });
+        }
+
+        // Recompute RR after NOG_TELEMETRY (slice 270)
+        recomputeAndPersistRR();
+
         print(`${B.vert}    ${C.green}${SYM.check}${C.reset} Nog PASS${SYM.sep}Round ${round}${summary ? SYM.dash + summary : ''}`);
         print(`${B.bl}${B.sng.repeat(W - 1)}`);
         print('');
@@ -5980,6 +6050,9 @@ function squashSliceToDev(sliceId, sliceTitle, sliceBranch) {
     squash_sha: devSha,
   });
 
+  // Recompute RR after squash (slice 270)
+  recomputeAndPersistRR();
+
   // Step 5: Return success
   return { success: true, dev_sha: devSha };
 }
@@ -6106,6 +6179,9 @@ function mergeDevToMain() {
       slices: sliceIds,
       dev_fast_forwarded_to: mergeSha,
     });
+
+    // Reset RR after merge-complete — dev is empty (slice 270)
+    recomputeAndPersistRR();
 
     // 9. Release mutex (triggers drainDeferredSlices)
     releaseGateMutex('regression_pass', ctx);
