@@ -5392,6 +5392,7 @@
         <button class="slice-action-btn slice-action-save" onclick="sliceDetailSave()">Save edits</button>
         <button class="slice-action-btn slice-action-send-kira" onclick="sliceDetailSendToKira()">Send to Kira</button>
         <div class="slice-detail-actions-spacer"></div>
+        <button class="slice-action-btn" onclick="sliceDetailUnapprove()">Un-approve</button>
         <button class="slice-action-btn slice-action-destructive" onclick="sliceDetailRemove()">Remove from queue</button>
       `;
     }
@@ -5470,6 +5471,20 @@
         closeSliceDetail();
         fetchCombinedQueue();
         fetchBridge();
+      }
+    } catch (_) {}
+  }
+
+  async function sliceDetailUnapprove() {
+    if (!sliceDetailState) return;
+    try {
+      const res = await fetch(`/api/slice/${sliceDetailState.id}/unapprove`, { method: 'POST' });
+      if (res.ok) {
+        closeSliceDetail();
+        fetchCombinedQueue();
+        fetchBridge();
+      } else if (res.status === 409) {
+        alert('Already picked up — use Stop build instead.');
       }
     } catch (_) {}
   }
