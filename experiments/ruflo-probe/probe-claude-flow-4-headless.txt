@@ -1,0 +1,15 @@
+[INFO] Spawning coder agent: coder-momxpgbo
+
++--------------+------------------------------------------+
+| Property     | Value                                    |
++--------------+------------------------------------------+
+| ID           | agent-1777641256933-9fyroh               |
+| Type         | coder                                    |
+| Name         | coder-momxpgbo                           |
+| Status       | registered                               |
+| Created      | 2026-05-01T13:14:16.933Z                 |
+| Capabilities | code-generation, refactoring, debuggi... |
++--------------+------------------------------------------+
+
+[OK] Agent coder-momxpgbo spawned successfully
+exit: 0

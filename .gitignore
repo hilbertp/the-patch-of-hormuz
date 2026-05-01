@@ -40,6 +40,9 @@ bridge/kira-events.jsonl
 # Worktree rescue artifacts (created at runtime on no_report failures)
 bridge/worktree-rescue/
 
+# Experiment sandboxes
+experiments/*/node_modules/
+
 # RESTAGED bootstrap marker — written once per install, workspace-local
 bridge/.restaged-bootstrap-done
 

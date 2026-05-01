@@ -1,0 +1,1 @@
+[2026-05-01T13:14:54.531Z] INFO [claude-flow-mcp] (mcp-1777641294531-4e95c88c) Starting in stdio mode

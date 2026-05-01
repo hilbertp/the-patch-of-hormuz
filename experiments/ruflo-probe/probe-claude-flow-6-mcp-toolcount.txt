@@ -1,0 +1,60 @@
+
+Available MCP Tools
+
+Agent
+  Tool              Description                           Status   
+  agent_spawn       Spawn a new agent with intellige...   Enabled  
+  agent_terminate   Terminate an agent                    Enabled  
+  agent_status      Get agent status                      Enabled  
+  agent_list        List all agents                       Enabled  
+  agent_pool        Manage agent pool                     Enabled  
+  agent_health      Check agent health                    Enabled  
+  agent_update      Update agent status or config         Enabled  
+
+Swarm
+  Tool             Description                           Status   
+  swarm_init       Initialize a swarm with persiste...   Enabled  
+  swarm_status     Get swarm status from persistent...   Enabled  
+  swarm_shutdown   Shutdown a swarm and update pers...   Enabled  
+  swarm_health     Check swarm health status with r...   Enabled  
+
+Memory
+  Tool                    Description                           Status   
+  memory_store            Store a value in memory with vec...   Enabled  
+  memory_retrieve         Retrieve a value from memory by key   Enabled  
+  memory_search           Semantic vector search using HNS...   Enabled  
+  memory_delete           Delete a memory entry by key          Enabled  
+  memory_list             List memory entries with optiona...   Enabled  
+  memory_stats            Get memory storage statistics in...   Enabled  
+  memory_migrate          Manually trigger migration from ...   Enabled  
+  memory_import_claude    Import Claude Code auto-memory f...   Enabled  
+  memory_bridge_status    Show Claude Code memory bridge s...   Enabled  
+  memory_search_unified   Search across both Claude Code m...   Enabled  
+
+Config
+  Tool            Description                       Status   
+  config_get      Get configuration value           Enabled  
+  config_set      Set configuration value           Enabled  
+  config_list     List configuration values         Enabled  
+  config_reset    Reset configuration to defaults   Enabled  
+  config_export   Export configuration to JSON      Enabled  
+  config_import   Import configuration from JSON    Enabled  
+
+Uncategorized
+  Tool                        Description                           Status   
+  hooks_pre-edit              Get context and agent suggestion...   Enabled  
+  hooks_post-edit             Record editing outcome for learning   Enabled  
+  hooks_pre-command           Assess risk before executing a c...   Enabled  
+  hooks_post-command          Record command execution outcome      Enabled  
+  hooks_route                 Route task to optimal agent usin...   Enabled  
+  hooks_metrics               View learning metrics dashboard       Enabled  
+  hooks_list                  List all registered hooks             Enabled  
+  hooks_pre-task              Record task start and get agent ...   Enabled  
+  hooks_post-task             Record task completion for learning   Enabled  
+  hooks_explain               Explain routing decision with fu...   Enabled  
+  hooks_pretrain              Analyze repository to bootstrap ...   Enabled  
+  hooks_build-agents          Generate optimized agent configu...   Enabled  
+  hooks_transfer              Transfer learned patterns from a...   Enabled  
+  hooks_session-start         Initialize a new session and aut...   Enabled  
+  hooks_session-end           End current session, stop daemon...   Enabled  
+  hooks_session-restore       Restore a previous session            Enabled  

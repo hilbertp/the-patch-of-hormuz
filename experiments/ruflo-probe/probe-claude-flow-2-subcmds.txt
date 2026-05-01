@@ -1,0 +1,152 @@
+=== ruflo agent --help ===
+
+ruflo agent
+Agent management commands
+
+SUBCOMMANDS:
+  spawn           Spawn a new agent
+  list            List all active agents (ls)
+  status          Show detailed status of an agent
+  stop            Stop a running agent (kill)
+  metrics         Show agent performance metrics
+  pool            Manage agent pool for scaling
+  health          Show agent health and metrics
+  logs            Show agent activity logs
+  wasm-status     Check rvagent-wasm availability, version, and capabilities
+  wasm-create     Create a WASM-sandboxed agent
+  wasm-prompt     Send a prompt to a WASM agent
+  wasm-gallery    List available WASM agent gallery templates
+
+EXAMPLES:
+  $ claude-flow agent spawn -t coder
+    Spawn a coder agent
+  $ claude-flow agent list
+    List all agents
+  $ claude-flow agent status agent-001
+    Show agent status
+
+
+=== ruflo task --help ===
+
+ruflo task
+Task management commands
+
+SUBCOMMANDS:
+  create          Create a new task (new, add)
+  list            List tasks (ls)
+  status          Get task status and details (info, get)
+  cancel          Cancel a running task (abort, stop)
+  assign          Assign a task to agent(s)
+  retry           Retry a failed task (rerun)
+
+EXAMPLES:
+  $ claude-flow task create -t implementation -d "Add user auth"
+    Create a task
+  $ claude-flow task list
+    List pending/running tasks
+  $ claude-flow task list --all
+    List all tasks
+  $ claude-flow task status task-123
+    Get task details
+  $ claude-flow task cancel task-123
+    Cancel a task
+  $ claude-flow task assign task-123 --agent coder-1
+    Assign task to agent
+  $ claude-flow task retry task-123
+    Retry a failed task
+
+
+=== ruflo mcp --help ===
+
+ruflo mcp
+MCP server management
+
+SUBCOMMANDS:
+  start           Start MCP server
+  stop            Stop MCP server
+  status          Show MCP server status
+  health          Check MCP server health
+  restart         Restart MCP server
+  tools           List available MCP tools
+  toggle          Enable or disable MCP tools
+  exec            Execute an MCP tool
+  logs            Show MCP server logs
+
+EXAMPLES:
+  $ claude-flow mcp start
+    Start MCP server
+  $ claude-flow mcp start -t http -p 8080
+    Start HTTP server on port 8080
+  $ claude-flow mcp status
+    Show server status
+  $ claude-flow mcp tools
+    List tools
+  $ claude-flow mcp stop
+    Stop the server
+
+
+=== ruflo start --help ===
+
+ruflo start
+Start the RuFlo orchestration system
+
+SUBCOMMANDS:
+  stop            Stop the RuFlo system
+  restart         Restart the RuFlo system
+  quick           Quick start with default settings (q)
+
+OPTIONS:
+  -d, --daemon              Run as daemon in background [default: false]
+  -p, --port                MCP server port [default: 3000]
+  -t, --topology            Swarm topology (hierarchical-mesh, mesh, hierarchical, ring, star)
+      --skip-mcp            Skip starting MCP server [default: false]
+
+EXAMPLES:
+  $ claude-flow start
+    Start with configuration defaults
+  $ claude-flow start --daemon
+    Start as background daemon
+  $ claude-flow start --port 3001
+    Start MCP on custom port
+  $ claude-flow start --topology mesh
+    Start with mesh topology
+  $ claude-flow start --skip-mcp
+    Start without MCP server
+  $ claude-flow start quick
+    Quick start with defaults
+  $ claude-flow start stop
+    Stop the running system
+
+
+=== ruflo session --help ===
+
+ruflo session
+Session management commands
+
+SUBCOMMANDS:
+  list            List all sessions (ls)
+  save            Save current session state (create, checkpoint)
+  restore         Restore a saved session (load)
+  delete          Delete a saved session (rm, remove)
+  export          Export session to file
+  import          Import session from file
+  current         Show current active session
+
+EXAMPLES:
+  $ claude-flow session list
+    List all sessions
+  $ claude-flow session save -n "checkpoint-1"
+    Save current session
+  $ claude-flow session restore session-123
+    Restore a session
+  $ claude-flow session delete session-123
+    Delete a session
+  $ claude-flow session export -o backup.json
+    Export session to file
+  $ claude-flow session import backup.json
+    Import session from file
+  $ claude-flow session current
+    Show current session
+
+
+exit: 0

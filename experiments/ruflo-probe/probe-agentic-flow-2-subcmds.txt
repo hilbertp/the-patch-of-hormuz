@@ -1,0 +1,166 @@
+=== agentic-flow agent --help ===
+
+❌ Unknown command: --help
+
+Use "npx agentic-flow agent help" for usage information
+
+
+=== agentic-flow proxy --help ===
+
+Agentic Flow - Standalone Anthropic Proxy Server
+
+USAGE:
+  npx agentic-flow proxy [OPTIONS]
+
+OPTIONS:
+  --provider, -p <provider>   Provider (gemini, openrouter) [default: gemini]
+  --port, -P <port>           Port number [default: 3000]
+  --model, -m <model>         Model to use (provider-specific)
+  --help, -h                  Show this help
+
+ENVIRONMENT VARIABLES:
+  GOOGLE_GEMINI_API_KEY       Required for Gemini
+  OPENROUTER_API_KEY          Required for OpenRouter
+  COMPLETION_MODEL            Default model (optional)
+
+EXAMPLES:
+  # Start Gemini proxy
+  npx agentic-flow proxy --provider gemini --port 3000
+
+  # Start OpenRouter proxy with GPT-4o-mini
+  npx agentic-flow proxy --provider openrouter --model "openai/gpt-4o-mini"
+
+  # Use with Claude Code
+  export ANTHROPIC_BASE_URL=http://localhost:3000
+  export ANTHROPIC_API_KEY=sk-ant-proxy-dummy-key
+  claude
+
+
+=== agentic-flow claude-code --help ===
+Usage: agentic-flow claude-code [options] [task]
+
+Spawn Claude Code with automatic proxy configuration for alternative AI
+providers
+
+Options:
+  --provider <provider>  AI provider (anthropic, openrouter, gemini, onnx)
+                         (default: "anthropic")
+  --port <port>          Proxy server port (default: "3000")
+  --model <model>        Specific model to use (e.g.,
+                         mistralai/mistral-small-3.1-24b-instruct)
+  --agent-booster        Enable Agent Booster MCP tools for 57x faster code
+                         edits (default: true) (default: true)
+  --keep-proxy           Keep proxy running after Claude Code exits
+  --no-auto-start        Skip proxy startup (use existing proxy)
+  -h, --help             display help for command
+
+Examples:
+  # Interactive mode - Opens Claude Code UI with proxy
+  $ agentic-flow claude-code --provider openrouter
+  $ agentic-flow claude-code --provider gemini
+
+  # Non-interactive mode - Execute task and exit
+  $ agentic-flow claude-code --provider openrouter "Write a Python hello world function"
+  $ agentic-flow claude-code --provider openrouter --model "mistralai/mistral-small-3.1-24b-instruct" "Create REST API"
+
+  # Using different providers
+  $ agentic-flow claude-code --provider openrouter  # Uses Mistral Small (default, $0.02/M tokens)
+  $ agentic-flow claude-code --provider gemini      # Uses Gemini 2.0 Flash
+  $ agentic-flow claude-code --provider onnx        # Uses local ONNX models (free)
+
+  # With Agent Booster for 57x faster code edits
+  $ agentic-flow claude-code --provider openrouter --agent-booster
+
+Recommended Models:
+  OpenRouter:
+    mistralai/mistral-small-3.1-24b-instruct  (default, $0.02/M, 128k context, optimized for tools)
+    anthropic/claude-3.5-sonnet         ($3/M, highest quality, large context)
+    google/gemini-2.0-flash-exp:free    (FREE tier, rate limited)
+
+  Note: Models with <128k context will fail with tool definitions (Claude sends 35k+ tokens)
+
+Environment Variables:
+  OPENROUTER_API_KEY    Required for --provider openrouter
+  GOOGLE_GEMINI_API_KEY Required for --provider gemini
+  ANTHROPIC_API_KEY     Required for --provider anthropic (default)
+  ONNX_MODEL_PATH       Optional for --provider onnx
+
+Documentation:
+  https://github.com/ruvnet/agentic-flow#claude-code-mode
+  https://ruv.io
+
+
+=== agentic-flow federation --help ===
+
+❌ Unknown command: --help
+
+Use "npx agentic-flow federation help" for usage information
+
+
+=== agentic-flow config --help ===
+Unknown config command: --help
+
+🤖 Agentic Flow Configuration Manager
+
+USAGE:
+  npx agentic-flow config [COMMAND] [OPTIONS]
+
+COMMANDS:
+  (none), wizard, interactive  Launch interactive configuration wizard
+  set <KEY> <VALUE>           Set a configuration value
+  get <KEY>                   Get a configuration value
+  delete <KEY>                Delete a configuration value
+  list                        List all configuration values
+  reset                       Reset to default configuration
+  help                        Show this help message
+
+EXAMPLES:
+  # Interactive wizard
+  npx agentic-flow config
+
+  # Direct commands
+  npx agentic-flow config set ANTHROPIC_API_KEY sk-ant-xxxxx
+  npx agentic-flow config set PROVIDER openrouter
+  npx agentic-flow config get PROVIDER
+  npx agentic-flow config list
+  npx agentic-flow config delete OPENROUTER_API_KEY
+
+AVAILABLE CONFIGURATION KEYS:
+  ANTHROPIC_API_KEY     - Anthropic API key (sk-ant-...)
+  OPENROUTER_API_KEY    - OpenRouter API key (sk-or-v1-...)
+  GOOGLE_GEMINI_API_KEY - Google Gemini API key
+  COMPLETION_MODEL      - Default model name
+  PROVIDER              - Default provider (anthropic, openrouter, gemini, onnx)
+  AGENTS_DIR            - Custom agents directory
+  PROXY_PORT            - Proxy server port (default: 3000)
+  USE_OPENROUTER        - Force OpenRouter (true/false)
+  USE_ONNX              - Use ONNX local inference (true/false)
+
+For more information: https://github.com/ruvnet/agentic-flow
+  
+
+=== agentic-flow mcp --help ===
+🚀 Starting Agentic-Flow MCP Server (stdio)...
+📦 Local agentic-flow tools available
+✅ Registered 15 tools (7 agentic-flow + 3 agent-booster + 5 agentdb):
+   • agentic_flow_agent (execute agent with 13 parameters)
+   • agentic_flow_list_agents (list 66+ agents)
+   • agentic_flow_create_agent (create custom agent)
+   • agentic_flow_list_all_agents (list with sources)
+   • agentic_flow_agent_info (get agent details)
+   • agentic_flow_check_conflicts (conflict detection)
+   • agentic_flow_optimize_model (auto-select best model)
+   • agent_booster_edit_file (352x faster code editing) ⚡
+   • agent_booster_batch_edit (multi-file refactoring) ⚡
+   • agent_booster_parse_markdown (LLM output parsing) ⚡
+   • agentdb_stats (database statistics) 🧠 NEW
+   • agentdb_pattern_store (store reasoning patterns) 🧠 NEW
+   • agentdb_pattern_search (search similar patterns) 🧠 NEW
+   • agentdb_pattern_stats (pattern analytics) 🧠 NEW
+   • agentdb_clear_cache (clear query cache) 🧠 NEW
+🔌 Starting stdio transport...
+⏳ Waiting for MCP client connection...
+✅ Agentic-Flow MCP server running on stdio
+💡 Ready for MCP client connections (e.g., Claude Desktop)
+
+exit: 0

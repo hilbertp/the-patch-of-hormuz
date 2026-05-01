@@ -1,0 +1,4 @@
+ls: .claude/: No such file or directory
+---
+Checking if agent spawn created files in .claude:
+exit: 1

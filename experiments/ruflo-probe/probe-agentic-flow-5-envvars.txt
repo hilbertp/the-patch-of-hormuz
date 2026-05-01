@@ -1,0 +1,47 @@
+  config [subcommand]     Manage environment configuration (interactive wizard)
+  --model, -m <model>         Model to use (triggers OpenRouter if contains "/")
+  --provider, -p <name>       Provider to use (anthropic, openrouter, gemini, onnx)
+  --anthropic-key <key>       Override ANTHROPIC_API_KEY environment variable
+  --openrouter-key <key>      Override OPENROUTER_API_KEY environment variable
+  --gemini-key <key>          Override GOOGLE_GEMINI_API_KEY environment variable
+  MODEL OPTIMIZATION (NEW!):
+  --optimize, -O              Auto-select best model for agent/task based on priorities
+                              • balanced  - Mix quality/cost (DeepSeek R1, Gemini 2.5 Flash) [default]
+                              • speed     - Fastest responses (Gemini 2.5 Flash)
+                              • privacy   - Local only (ONNX Phi-4, no cloud)
+  Optimization analyzes agent type + task complexity to recommend best model.
+  See docs/agentic-flow/benchmarks/MODEL_CAPABILITIES.md for full comparison.
+  • Automatic failover between providers (Gemini → Claude → ONNX)
+  • Cost optimization (70% savings using Gemini for simple tasks)
+  npx agentic-flow proxy --provider openrouter --port 3000
+  npx agentic-flow proxy --provider gemini --port 3001
+  npx agentic-flow claude-code --provider openrouter "Write a Python function"
+  npx agentic-flow claude-code --provider gemini "Create a REST API"
+  npx agentic-flow claude-code --provider anthropic "Help me debug this code"
+  npx agentic-flow --agent coder --task "Create REST API" --provider openrouter
+  npx agentic-flow --agent coder --task "Create REST API" --model "meta-llama/llama-3.1-8b-instruct"
+  npx agentic-flow --agent coder --task "Create code" --provider onnx
+  # Model Optimization (Auto-select best model)
+ENVIRONMENT VARIABLES:
+  ANTHROPIC_API_KEY       Anthropic API key (for Claude models)
+  OPENROUTER_API_KEY      OpenRouter API key (for alternative models)
+  GOOGLE_GEMINI_API_KEY   Google Gemini API key (for Gemini models)
+  USE_OPENROUTER          Set to 'true' to force OpenRouter usage
+  USE_GEMINI              Set to 'true' to force Gemini usage
+  COMPLETION_MODEL        Default model for OpenRouter
+OPENROUTER MODELS (Best Free Tested):
+  All models above support OpenRouter leaderboard tracking via HTTP-Referer headers.
+  See https://openrouter.ai/models for full model catalog.
+  • agentic-flow: 7 tools (agent execution, creation, management, model optimization)
+  💰 Cost Savings: 85-98% cheaper models for same quality tasks
+  📊 10+ Models: Claude, GPT-4o, Gemini, DeepSeek, Llama, ONNX local
+      Use Claude Code CLI with OpenRouter/Gemini models via proxy:
+      npx agentic-flow claude-code --provider openrouter "Build API"
+        npx agentic-flow proxy --provider openrouter
+        export ANTHROPIC_BASE_URL="http://localhost:3000"
+        export ANTHROPIC_API_KEY="sk-ant-proxy-dummy-key"
+        export OPENROUTER_API_KEY="sk-or-v1-xxxxx"
+        claude  # Now uses OpenRouter via proxy
+  • Access to 100+ models (DeepSeek, Llama, Gemini, etc.)
+  • Leaderboard tracking on OpenRouter
+exit: 0

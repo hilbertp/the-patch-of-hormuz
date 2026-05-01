@@ -1,0 +1,17 @@
+
+Providers
+────────────────────────────────────────────────────────────
++-----------------+-----------+---------------------------+-------------------+
+| Provider        | Type      | Models                    | Status            |
++-----------------+-----------+---------------------------+-------------------+
+| Anthropic       | LLM       | claude-3.5-sonnet, opus   | Not configured    |
+| OpenAI          | LLM       | gpt-4o, gpt-4-turbo       | Not configured    |
+| OpenAI          | Embedding | text-embedding-3-small... | Not configured    |
+| Google          | LLM       | gemini-pro, gemini-ultra  | Not configured    |
+| Transformers.js | Embedding | Xenova/all-MiniLM-L6-v2   | Available (local) |
+| Agentic Flow    | Embedding | ONNX optimized            | Available (local) |
+| Mock            | All       | mock-*                    | Dev only          |
++-----------------+-----------+---------------------------+-------------------+
+
+Tip: Use "providers configure -p <name> -k <key>" to set API keys.
+exit: 0

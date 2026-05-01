@@ -1,0 +1,264 @@
+
+🤖 Agentic Flow v2.0.7 - AI Agent Orchestration with Multi-Provider Support
+
+NEW IN v1.9.4: Enterprise provider fallback & dynamic switching for long-running agents
+✅ Automatic failover  ✅ Circuit breaker  ✅ Cost optimization  ✅ Health monitoring
+
+USAGE:
+  npx agentic-flow [COMMAND] [OPTIONS]
+
+COMMANDS:
+  config [subcommand]     Manage environment configuration (interactive wizard)
+  mcp <command> [server]  Manage MCP servers (start, stop, status, list)
+  agent <command>         Agent management (list, create, info, conflicts)
+  federation <command>    Federation hub management (start, spawn, stats, test)
+  proxy [options]         Run standalone proxy server for Claude Code/Cursor
+  quic [options]          Run QUIC transport proxy for ultra-low latency (50-70% faster)
+  claude-code [options]   Spawn Claude Code with auto-configured proxy
+  --list, -l              List all available agents
+  --agent, -a <name>      Run specific agent mode
+
+CONFIG COMMANDS:
+  npx agentic-flow config              # Interactive wizard
+  npx agentic-flow config set KEY VAL  # Set configuration value
+  npx agentic-flow config get KEY      # Get configuration value
+  npx agentic-flow config list         # List all configuration
+  npx agentic-flow config delete KEY   # Delete configuration value
+  npx agentic-flow config reset        # Reset to defaults
+
+MCP COMMANDS:
+  npx agentic-flow mcp start [server]    Start MCP server(s)
+  npx agentic-flow mcp stop [server]     Stop MCP server(s)
+  npx agentic-flow mcp status [server]   Check MCP server status
+  npx agentic-flow mcp list              List all available MCP tools
+
+  Available servers: claude-flow, flow-nexus, agentic-payments, all (default)
+
+AGENT COMMANDS:
+  npx agentic-flow agent list [format]   List all agents (summary/detailed/json)
+  npx agentic-flow agent create          Create new custom agent (interactive)
+  npx agentic-flow agent info <name>     Show detailed agent information
+  npx agentic-flow agent conflicts       Check for package/local conflicts
+
+FEDERATION COMMANDS:
+  npx agentic-flow federation start      Start federation hub server
+  npx agentic-flow federation spawn      Spawn ephemeral agent
+  npx agentic-flow federation stats      Show hub statistics
+  npx agentic-flow federation status     Show federation system status
+  npx agentic-flow federation test       Run multi-agent collaboration test
+  npx agentic-flow federation help       Show federation help
+
+  Federation enables ephemeral agents (5s-15min lifetime) with persistent memory.
+  Hub stores memories permanently; agents access past learnings from dead agents.
+
+OPTIONS:
+  --task, -t <task>           Task description for agent mode
+  --model, -m <model>         Model to use (triggers OpenRouter if contains "/")
+  --provider, -p <name>       Provider to use (anthropic, openrouter, gemini, onnx)
+  --stream, -s                Enable real-time streaming output
+  --help, -h                  Show this help message
+
+  API CONFIGURATION:
+  --anthropic-key <key>       Override ANTHROPIC_API_KEY environment variable
+  --openrouter-key <key>      Override OPENROUTER_API_KEY environment variable
+  --gemini-key <key>          Override GOOGLE_GEMINI_API_KEY environment variable
+
+  AGENT BEHAVIOR:
+  --temperature <0.0-1.0>     Sampling temperature (creativity control)
+  --max-tokens <number>       Maximum tokens in response
+
+  DIRECTORY:
+  --agents-dir <path>         Custom agents directory (default: .claude/agents)
+
+  OUTPUT:
+  --output <text|json|md>     Output format (text/json/markdown)
+  --verbose                   Enable verbose logging for debugging
+
+  EXECUTION:
+  --timeout <ms>              Execution timeout in milliseconds
+  --retry                     Auto-retry on transient errors
+
+  MODEL OPTIMIZATION (NEW!):
+  --optimize, -O              Auto-select best model for agent/task based on priorities
+  --priority <type>           Optimization priority:
+                              • quality   - Best results (Claude Sonnet 4.5, GPT-4o)
+                              • balanced  - Mix quality/cost (DeepSeek R1, Gemini 2.5 Flash) [default]
+                              • cost      - Cheapest (DeepSeek Chat V3, Llama 3.1 8B)
+                              • speed     - Fastest responses (Gemini 2.5 Flash)
+                              • privacy   - Local only (ONNX Phi-4, no cloud)
+  --max-cost <dollars>        Maximum cost per task (e.g., 0.001 = $0.001/task budget cap)
+
+  Optimization analyzes agent type + task complexity to recommend best model.
+  Example savings: DeepSeek R1 costs 85% less than Claude Sonnet 4.5 with similar quality.
+  See docs/agentic-flow/benchmarks/MODEL_CAPABILITIES.md for full comparison.
+
+PROVIDER FALLBACK (NEW v1.9.4):
+  Enterprise-grade provider fallback for long-running agents with automatic failover,
+  circuit breaker, health monitoring, cost tracking, and crash recovery.
+
+  Features:
+  • Automatic failover between providers (Gemini → Claude → ONNX)
+  • Circuit breaker prevents cascading failures (auto-recovery after timeout)
+  • Real-time health monitoring (success rate, latency, error tracking)
+  • Cost optimization (70% savings using Gemini for simple tasks)
+  • Checkpointing for crash recovery (save/restore agent state)
+  • Budget controls (hard limits on spending and runtime)
+
+  See: docs/PROVIDER-FALLBACK-GUIDE.md for complete documentation
+  Example: src/examples/use-provider-fallback.ts
+
+EXAMPLES:
+  # MCP Server Management
+  npx agentic-flow mcp start              # Start all MCP servers
+  npx agentic-flow mcp start claude-flow  # Start specific server
+  npx agentic-flow mcp list               # List all 203+ MCP tools
+  npx agentic-flow mcp status             # Check server status
+
+  # Federation Hub Management
+  npx agentic-flow federation start       # Start hub server (WebSocket)
+  npx agentic-flow federation start --port 9443 --db-path ./data/hub.db
+  npx agentic-flow federation spawn       # Spawn ephemeral agent
+  npx agentic-flow federation spawn --tenant acme-corp --lifetime 600
+  npx agentic-flow federation stats       # Show hub statistics
+  npx agentic-flow federation test        # Run multi-agent test
+
+  # Proxy Server for Claude Code/Cursor
+  npx agentic-flow proxy --provider openrouter --port 3000
+  npx agentic-flow proxy --provider gemini --port 3001
+
+  # QUIC Transport (Ultra-low latency, 50-70% faster than TCP)
+  npx agentic-flow quic --port 4433                    # Start QUIC server
+  npx agentic-flow quic --cert ./certs/cert.pem --key ./certs/key.pem
+  npm run proxy:quic                                    # Development mode
+  npm run test:quic:wasm                                # Test WASM bindings
+
+  # Claude Code Integration (Auto-start proxy + spawn Claude Code)
+  npx agentic-flow claude-code --provider openrouter "Write a Python function"
+  npx agentic-flow claude-code --provider gemini "Create a REST API"
+  npx agentic-flow claude-code --provider anthropic "Help me debug this code"
+
+  # Agent Execution
+  npx agentic-flow --list                 # List all 150+ agents
+  npx agentic-flow --agent coder --task "Create Python hello world"
+  npx agentic-flow --agent coder --task "Create REST API" --provider openrouter
+  npx agentic-flow --agent coder --task "Create REST API" --model "meta-llama/llama-3.1-8b-instruct"
+  npx agentic-flow --agent coder --task "Create code" --provider onnx
+
+  # Model Optimization (Auto-select best model)
+  npx agentic-flow --agent coder --task "Build API" --optimize
+  npx agentic-flow --agent coder --task "Build API" --optimize --priority cost
+  npx agentic-flow --agent reviewer --task "Security audit" --optimize --priority quality
+  npx agentic-flow --agent coder --task "Simple function" --optimize --max-cost 0.001
+
+ENVIRONMENT VARIABLES:
+  ANTHROPIC_API_KEY       Anthropic API key (for Claude models)
+  OPENROUTER_API_KEY      OpenRouter API key (for alternative models)
+  GOOGLE_GEMINI_API_KEY   Google Gemini API key (for Gemini models)
+  USE_OPENROUTER          Set to 'true' to force OpenRouter usage
+  USE_GEMINI              Set to 'true' to force Gemini usage
+  COMPLETION_MODEL        Default model for OpenRouter
+  AGENTS_DIR              Path to agents directory
+  PROXY_PORT              Proxy server port (default: 3000)
+  QUIC_PORT               QUIC transport port (default: 4433)
+  QUIC_CERT_PATH          Path to TLS certificate for QUIC
+  QUIC_KEY_PATH           Path to TLS private key for QUIC
+
+OPENROUTER MODELS (Best Free Tested):
+  ✅ deepseek/deepseek-r1-0528:free           (reasoning, 95s/task, RFC validation)
+  ✅ deepseek/deepseek-chat-v3.1:free         (coding, 21-103s/task, enterprise-grade)
+  ✅ meta-llama/llama-3.3-8b-instruct:free    (versatile, 4.4s/task, fast coding)
+  ✅ openai/gpt-4-turbo                       (premium, 10.7s/task, no :free needed)
+
+  All models above support OpenRouter leaderboard tracking via HTTP-Referer headers.
+  See https://openrouter.ai/models for full model catalog.
+
+MCP TOOLS (213+ available):
+  • agentic-flow: 7 tools (agent execution, creation, management, model optimization)
+  • claude-flow: 101 tools (neural networks, GitHub, workflows, DAA)
+  • flow-nexus: 96 cloud tools (sandboxes, distributed swarms, templates)
+  • agentic-payments: 6 tools (payment authorization, multi-agent consensus)
+
+OPTIMIZATION BENEFITS:
+  💰 Cost Savings: 85-98% cheaper models for same quality tasks
+  🎯 Smart Selection: Agent-aware (coder needs quality ≥85, researcher flexible)
+  📊 10+ Models: Claude, GPT-4o, Gemini, DeepSeek, Llama, ONNX local
+  ⚡ Zero Overhead: <5ms decision time, no API calls during optimization
+
+TWO WAYS TO USE AGENTIC-FLOW:
+
+  1️⃣  DIRECT AGENT EXECUTION (agentic-flow agents)
+      Run agents directly in your terminal with full control:
+
+      npx agentic-flow --agent coder --task "Create Python script"
+      npx agentic-flow --agent researcher --task "Research AI trends"
+
+      This runs agentic-flow's 80+ specialized agents directly.
+
+  2️⃣  CLAUDE CODE INTEGRATION (proxy for Claude Code CLI)
+      Use Claude Code CLI with OpenRouter/Gemini models via proxy:
+
+      # Option A: Auto-spawn Claude Code with proxy (easiest)
+      npx agentic-flow claude-code --provider openrouter "Build API"
+
+      # Option B: Manual proxy setup (advanced)
+      Terminal 1 - Start Proxy:
+        npx agentic-flow proxy --provider openrouter
+
+      Terminal 2 - Configure Claude Code:
+        export ANTHROPIC_BASE_URL="http://localhost:3000"
+        export ANTHROPIC_API_KEY="sk-ant-proxy-dummy-key"
+        export OPENROUTER_API_KEY="sk-or-v1-xxxxx"
+        claude  # Now uses OpenRouter via proxy
+
+  Benefits of proxy mode:
+  • 85-99% cost savings vs Claude Sonnet 4.5
+  • Access to 100+ models (DeepSeek, Llama, Gemini, etc.)
+  • Leaderboard tracking on OpenRouter
+  • No code changes to Claude Code itself
+
+QUIC TRANSPORT (Ultra-Low Latency Agent Communication):
+  QUIC is a UDP-based protocol offering 50-70% faster connections than TCP.
+
+  Performance Benefits:
+  • 0-RTT connection establishment - Instant reconnection without handshake delay
+  • Stream multiplexing - Send 100+ concurrent messages without blocking
+  • Built-in TLS 1.3 security - Encrypted by default
+  • Connection migration - Survives network changes (WiFi → cellular)
+  • Reduced latency - Perfect for real-time agent coordination
+
+  Programmatic Usage (API):
+    import { QuicTransport } from 'agentic-flow/transport/quic';
+
+    const transport = new QuicTransport({
+      host: 'localhost',
+      port: 4433,
+      maxConcurrentStreams: 100
+    });
+
+    await transport.connect();
+    await transport.send({ type: 'task', data: { ... } });
+
+  CLI Usage:
+    # Start QUIC server
+    npx agentic-flow quic --port 4433
+
+    # With custom certificates
+    npx agentic-flow quic --cert ./certs/cert.pem --key ./certs/key.pem
+
+    # Test WASM bindings
+    npm run test:quic:wasm
+
+    # Development mode
+    npm run proxy:quic:dev
+
+  Use Cases:
+  • Multi-agent swarm coordination (mesh/hierarchical topologies)
+  • High-frequency task distribution across worker agents
+  • Real-time state synchronization between agents
+  • Low-latency RPC for distributed agent systems
+
+DOCUMENTATION:
+  https://github.com/ruvnet/agentic-flow
+  https://ruv.io
+    
+exit: 0

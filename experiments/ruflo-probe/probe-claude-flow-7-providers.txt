@@ -1,0 +1,20 @@
+
+ruflo providers
+Manage AI providers, models, and configurations
+
+SUBCOMMANDS:
+  list            List available AI providers and models
+  configure       Configure provider settings and API keys
+  test            Test provider connectivity and API access
+  models          List and manage available models
+  usage           View provider usage and costs
+
+EXAMPLES:
+  $ claude-flow providers list
+    List all providers
+  $ claude-flow providers configure -p openai
+    Configure OpenAI
+  $ claude-flow providers test --all
+    Test all providers
+
+exit: 0

@@ -1,0 +1,11 @@
+
+❌ Error: ANTHROPIC_API_KEY is required
+
+Please set your API key:
+  export ANTHROPIC_API_KEY=sk-ant-xxxxx
+
+Or use alternative providers:
+  --provider openrouter  (requires OPENROUTER_API_KEY)
+  --provider gemini      (requires GOOGLE_GEMINI_API_KEY)
+  --provider onnx        (free local inference)
+

@@ -1,0 +1,10 @@
+  deployment   Deployment management, environments, rollbacks
+---
+node_modules/claude-flow/README.md:[![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-green?style=for-the-badge&logo=anthropic)](https://github.com/ruvnet/claude-flow)
+node_modules/claude-flow/README.md:| 🔌 **Multi-Provider** | Claude, GPT, Gemini, Cohere, Ollama with smart routing |
+node_modules/claude-flow/README.md:See [issue #1669](https://github.com/ruvnet/ruflo/issues/1669) for the complete architecture, trust model, and implementation roadmap.
+node_modules/claude-flow/README.md:| LLM Providers | Anthropic only | 5 providers with failover |
+node_modules/claude-flow/README.md:    (Claude, GPT, Gemini, Cohere, Ollama)
+node_modules/claude-flow/README.md:| [Intelligence & Learning](docs/USERGUIDE.md#-intelligence--learning) | Hooks, workers, SONA, model routing |
+node_modules/claude-flow/README.md:| [Configuration](docs/USERGUIDE.md#%EF%B8%8F-configuration--reference) | Environment variables, config schema |
+exit: 0
