@@ -187,7 +187,7 @@ Configuration (`bridge/bridge.config.json`): poll interval, inactivity timeout, 
 | **Evaluator** | AC verification | Stateless `claude -p` (Kira persona) | Active |
 | **Kira** | Manual evaluation fallback | `KIRA.md` | Active |
 | **Nog** | Code Reviewer | *Not yet created* | Planned |
-| **Bashir** | QA / Testing | *Not yet created* | Planned |
+| **Bashir** | QA / Testing | `.claude/roles/bashir/ROLE.md` | Active |
 
 **Autonomous evaluator:** After valid DONE, the watcher evaluates automatically. Reads original brief (ACs) + DONE report → constructs prompt (Kira persona) → invokes `claude -p` (cold, stateless) → parses JSON verdict.
 
@@ -199,7 +199,7 @@ Configuration (`bridge/bridge.config.json`): poll interval, inactivity timeout, 
 
 **Kira manual fallback** when watcher is offline.
 
-**Planned:** Nog (code reviewer — linting, best practices, architecture compliance) replaces anonymous evaluator. Bashir (QA — test strategy, holistic correctness) pairs with Nog.
+Nog (code reviewer — linting, best practices, architecture compliance) replaces anonymous evaluator. Bashir (QA — test strategy, holistic correctness) pairs with Nog.
 
 ### Phase 6 — Operations & Economics: learning and growing
 
@@ -250,7 +250,7 @@ These enforce the behavioral standards that keep a team of stateless AI agents c
 | Frontend / landing page | **Leeta** |
 | UI/UX design, user research | **Ziyal** |
 | Code review | **Nog** (planned) |
-| QA / testing | **Bashir** (planned) |
+| QA / testing | **Bashir** |
 
 Dax outputs always go to **both** Kira and O'Brien. Kira mixed-scope briefs split to O'Brien (backend) + Leeta (frontend).
 
@@ -371,7 +371,7 @@ repo/
 │   │   ├── obrien/             ← Backend Implementor
 │   │   ├── leeta/              ← Frontend Developer
 │   │   ├── nog/                ← Code Reviewer (planned)
-│   │   └── bashir/             ← QA (planned)
+│   │   └── bashir/             ← QA
 │   └── skills/                 ← Team skills (also in Cowork plugin)
 │       ├── check-handoffs/     ← Session start
 │       ├── handoff-to-teammate/ ← Route work between roles

@@ -205,7 +205,7 @@ All original PRD capabilities (Layers 0–4) are complete. Slices 11+ address ne
 | **13** | **REVIEWED event + review state wiring** | kira-brief-watch writes REVIEWED event to register after evaluation. Dashboard AWAITING_REVIEW / IN_REVIEW stages wired to register events rather than heartbeat heuristics. | 🟡 Soon |
 | **14** | **Smart timeout** | Replace flat 15-min kill with activity-based monitoring: kill only if no stdout activity for N minutes (configurable). Prevents killing slow-but-running briefs. | 🟡 Soon |
 | **15** | **Queue cleanup** | Script or watcher hook to move DONE/BRIEF/ERROR files older than N days to `bridge/archive/`. Active queue stays clean. | 🟢 Later |
-| **16** | **Bashir QA role** | Bashir ROLE.md. Automated test hooks after Nog's CODE_REVIEW PASS. | 🟢 Later |
+| **16** | **Bashir QA role** | Bashir ROLE.md. Automated test hooks after Nog's CODE_REVIEW PASS. | ✅ Done |
 
 Next brief ID: **020**
 

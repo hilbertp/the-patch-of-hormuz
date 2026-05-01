@@ -38,7 +38,7 @@ Kira (delivery coordinator) writes a brief file to `bridge/queue/`. A watcher pr
 | Sisko | Product manager — defines priorities and success criteria | Active |
 | Ziyal | Designer — UI/UX, dashboards, visual specs | Active |
 | Nog | Code reviewer | Coming soon |
-| Bashir | QA / testing | Coming soon |
+| Bashir | QA / testing | Active |
 
 ## Project structure
 
