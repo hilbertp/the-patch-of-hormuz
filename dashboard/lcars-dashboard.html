@@ -2970,6 +2970,122 @@
   .lane-status-idle {
     background: var(--bg-subtle); color: var(--ink-4); border-color: var(--border);
   }
+  .lane-status-err {
+    background: var(--err-bg); color: var(--err); border-color: var(--err-border);
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  /* ── Bashir lane (mirrors Nog structure) ── */
+  .postbuild-lane.bashir-lane-active {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    opacity: 1;
+  }
+  .bashir-idle-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px 0;
+    gap: 6px;
+  }
+  .bashir-idle-glyph {
+    font-size: 32px;
+    line-height: 1;
+    margin-bottom: 4px;
+    opacity: 0.45;
+  }
+  .bashir-idle-primary {
+    font-size: 15px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 2px;
+  }
+  .bashir-idle-secondary {
+    font-size: 13px;
+    color: #9ca3af;
+  }
+  .bashir-hint-pill {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7280;
+    background: var(--bg-hover);
+    border-radius: 999px;
+  }
+  .bashir-running-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .bashir-running-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .bashir-running-subtitle { font-size: 12px; color: #6b7280; }
+  .bashir-active-pill {
+    font-size: 11px; font-weight: 600;
+    background: #dcfce7; color: #15803d;
+    border: 1px solid var(--ok-border);
+    border-radius: 10px; padding: 1px 8px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .bashir-active-pill::before { content: '●'; font-size: 8px; }
+  .bashir-slice-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .bashir-slice-id { font-size: 12px; font-weight: 700; color: #374151; margin-right: 6px; }
+  .bashir-slice-title-text { font-size: 12px; color: #6b7280; }
+  .bashir-slice-elapsed { font-size: 12px; color: #6b7280; }
+  .bashir-check-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+  }
+  .bashir-check-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    font-size: 13px;
+    color: #374151;
+  }
+  .bashir-check-icon {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .bashir-check-icon.pending { color: var(--border-strong); }
+  .bashir-check-icon.pass    { color: #22c55e; }
+  .bashir-check-icon.fail    { color: #ef4444; }
+  .bashir-heartbeat-warn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--warn, #92400e);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 10px;
+    padding: 1px 8px;
+    margin-left: 6px;
+  }
 
   @keyframes livePulse {
     0%   { opacity: 1; transform: scale(1); }
@@ -3184,12 +3300,77 @@
           </div>
         </div>
         <div class="postbuild-arrow">&darr;</div>
-        <div class="postbuild-lane">
+        <div class="postbuild-lane" id="bashir-lane">
           <div class="postbuild-lane-header">
-            <span class="postbuild-lane-name">Bashir &mdash; QA</span>
-            <span class="postbuild-badge">coming soon</span>
+            <span class="postbuild-lane-name">Bashir &middot; QA</span>
+            <span class="postbuild-badge" id="bashir-badge" style="display:none"></span>
+            <span id="bashir-heartbeat-warn" style="display:none"></span>
+            <span class="lane-status lane-status-idle" id="bashir-lane-status">standing by</span>
           </div>
-          <div class="postbuild-lane-desc">E2E regression &middot; user journey &middot; sprint-gated</div>
+
+          <!-- Idle state -->
+          <div class="bashir-idle-state" id="bashir-idle-state">
+            <div class="bashir-idle-glyph">&#128300;</div>
+            <div class="bashir-idle-primary">Standing by &mdash; gate idle</div>
+            <div class="bashir-idle-secondary">Regression suite runs after each dev merge batch</div>
+            <div class="bashir-hint-pill">e2e &middot; smoke &middot; integration &middot; contract</div>
+          </div>
+
+          <!-- Running state: authoring / running suite -->
+          <div class="bashir-running-state" id="bashir-running-state" style="display:none">
+
+            <!-- Header row -->
+            <div class="bashir-running-header">
+              <div>
+                <span style="font-size:12px;font-weight:700;color:#111827;margin-right:6px">Bashir</span>
+                <span class="bashir-running-subtitle" id="bashir-phase-label">regression suite</span>
+              </div>
+              <span class="bashir-active-pill" id="bashir-active-pill">running</span>
+            </div>
+
+            <!-- Slice batch + elapsed -->
+            <div class="bashir-slice-row">
+              <div>
+                <span class="bashir-slice-id" id="bashir-batch-label"></span>
+                <span class="bashir-slice-title-text" id="bashir-batch-detail"></span>
+              </div>
+              <span class="bashir-slice-elapsed" id="bashir-elapsed-val">&mdash;</span>
+            </div>
+
+            <!-- 2-column check grid -->
+            <div class="bashir-check-grid" id="bashir-check-grid">
+              <div class="bashir-check-row" id="bashir-check-authoring">
+                <span class="bashir-check-icon pending">&#9675;</span> Authoring tests
+              </div>
+              <div class="bashir-check-row" id="bashir-check-running">
+                <span class="bashir-check-icon pending">&#9675;</span> Running suite
+              </div>
+              <div class="bashir-check-row" id="bashir-check-result" style="display:none">
+                <span class="bashir-check-icon pending">&#9675;</span> <span id="bashir-result-text">Result</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Failed state -->
+          <div class="bashir-failed-state" id="bashir-failed-state" style="display:none">
+            <div class="bashir-running-header">
+              <div>
+                <span style="font-size:12px;font-weight:700;color:#111827;margin-right:6px">Bashir</span>
+                <span class="bashir-running-subtitle">regression suite</span>
+              </div>
+            </div>
+            <div class="bashir-slice-row">
+              <div>
+                <span class="bashir-slice-id" id="bashir-fail-batch-label"></span>
+                <span class="bashir-slice-title-text" id="bashir-fail-detail"></span>
+              </div>
+            </div>
+            <div class="bashir-check-grid">
+              <div class="bashir-check-row">
+                <span class="bashir-check-icon fail">&#10007;</span> <span id="bashir-fail-summary">Gate failed</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -3731,6 +3912,211 @@
   }
   function stopNogReview() {
     // Placeholder — future: stop Nog review process
+  }
+
+  // ── Bashir QA lane state ────────────────────────────────────────────────────
+  let bashirElapsedInterval = null;
+  let _bashirLaneState = 'idle';    // idle | authoring | running | passed | failed
+  let _bashirPassFadeTimer = null;
+
+  function updateBashirLane(gate, heartbeatAgeMs) {
+    const lane          = document.getElementById('bashir-lane');
+    const laneStatus    = document.getElementById('bashir-lane-status');
+    const idleState     = document.getElementById('bashir-idle-state');
+    const runningState  = document.getElementById('bashir-running-state');
+    const failedState   = document.getElementById('bashir-failed-state');
+    const hbWarn        = document.getElementById('bashir-heartbeat-warn');
+    if (!lane || !laneStatus || !idleState || !runningState || !failedState) return;
+
+    const gateStatus = gate ? gate.status : 'IDLE';
+    const currentRun = gate ? gate.current_run : null;
+    const lastPass   = gate ? gate.last_pass : null;
+    const lastFail   = gate ? gate.last_failure : null;
+
+    // Detect phase from gate state
+    const hasTestsUpdated = currentRun && currentRun.phase === 'tests-updated';
+
+    // Heartbeat staleness warning (only during GATE_RUNNING)
+    if (hbWarn) {
+      if (gateStatus === 'GATE_RUNNING' && heartbeatAgeMs != null && heartbeatAgeMs > 90000) {
+        hbWarn.className = 'bashir-heartbeat-warn';
+        hbWarn.textContent = 'Bashir \u00b7 heartbeat stale';
+        hbWarn.style.display = '';
+      } else {
+        hbWarn.style.display = 'none';
+      }
+    }
+
+    // ── Gate failed ──
+    if (gateStatus === 'GATE_FAILED') {
+      _bashirLaneState = 'failed';
+      clearInterval(bashirElapsedInterval);
+      bashirElapsedInterval = null;
+      lane.classList.add('bashir-lane-active');
+      laneStatus.className = 'lane-status lane-status-err';
+      laneStatus.textContent = 'failed';
+      idleState.style.display = 'none';
+      runningState.style.display = 'none';
+      failedState.style.display = '';
+
+      const failBatch = document.getElementById('bashir-fail-batch-label');
+      const failDetail = document.getElementById('bashir-fail-detail');
+      const failSummary = document.getElementById('bashir-fail-summary');
+      if (failBatch && lastFail) {
+        const sliceCount = lastFail.slices ? lastFail.slices.length : 0;
+        failBatch.textContent = sliceCount ? sliceCount + ' slices' : '';
+      }
+      if (failDetail && lastFail && lastFail.failed_acs) {
+        failDetail.textContent = lastFail.failed_acs.length + ' ACs not met';
+      }
+      if (failSummary && lastFail && lastFail.failed_acs) {
+        failSummary.textContent = lastFail.failed_acs.length + ' ACs not met';
+      } else if (failSummary) {
+        failSummary.textContent = 'Gate failed';
+      }
+      return;
+    }
+
+    // ── Gate running ──
+    if (gateStatus === 'GATE_RUNNING') {
+      lane.classList.add('bashir-lane-active');
+      idleState.style.display = 'none';
+      failedState.style.display = 'none';
+      runningState.style.display = '';
+
+      if (hasTestsUpdated) {
+        _bashirLaneState = 'running';
+        laneStatus.className = 'lane-status lane-status-active';
+        laneStatus.textContent = 'running suite';
+        // Authoring check → pass
+        setBashirCheck('bashir-check-authoring', 'pass');
+        setBashirCheck('bashir-check-running', 'pending');
+      } else {
+        _bashirLaneState = 'authoring';
+        laneStatus.className = 'lane-status lane-status-active';
+        laneStatus.textContent = 'authoring';
+        setBashirCheck('bashir-check-authoring', 'pending');
+        setBashirCheck('bashir-check-running', 'pending');
+      }
+
+      // Hide result row during active run
+      const resultRow = document.getElementById('bashir-check-result');
+      if (resultRow) resultRow.style.display = 'none';
+
+      const phaseLabel = document.getElementById('bashir-phase-label');
+      if (phaseLabel) phaseLabel.textContent = hasTestsUpdated ? 'running regression suite' : 'authoring tests from slice ACs';
+
+      const activePill = document.getElementById('bashir-active-pill');
+      if (activePill) activePill.textContent = hasTestsUpdated ? 'running' : 'authoring';
+
+      // Batch info
+      const batchLabel = document.getElementById('bashir-batch-label');
+      const batchDetail = document.getElementById('bashir-batch-detail');
+      if (batchLabel && currentRun) {
+        const sliceCount = currentRun.slices ? currentRun.slices.length : 0;
+        const acCount = currentRun.ac_count ?? 0;
+        batchLabel.textContent = sliceCount ? sliceCount + ' slices' : '';
+        if (batchDetail) batchDetail.textContent = acCount ? '\u00b7 ' + acCount + ' ACs' : '';
+      }
+
+      // Elapsed timer
+      const startTs = currentRun && currentRun.started_ts ? new Date(currentRun.started_ts) : null;
+      function formatBashirElapsed() {
+        if (!startTs) return '\u2014';
+        const s = Math.floor((Date.now() - startTs.getTime()) / 1000);
+        if (s < 0) return '0s';
+        const m = Math.floor(s / 60);
+        const sec = s % 60;
+        return m > 0 ? m + 'm ' + String(sec).padStart(2, '0') + 's' : sec + 's';
+      }
+      const elapsedEl = document.getElementById('bashir-elapsed-val');
+      if (elapsedEl) elapsedEl.textContent = formatBashirElapsed();
+      clearInterval(bashirElapsedInterval);
+      bashirElapsedInterval = setInterval(() => {
+        const el = document.getElementById('bashir-elapsed-val');
+        if (el) el.textContent = formatBashirElapsed();
+      }, 1000);
+      return;
+    }
+
+    // ── Idle / Accumulating — check for recent pass ──
+    clearInterval(bashirElapsedInterval);
+    bashirElapsedInterval = null;
+
+    // Recent pass detection (< 60s)
+    const recentPass = lastPass && lastPass.ts && (Date.now() - new Date(lastPass.ts).getTime()) < 60000;
+
+    if (recentPass && _bashirLaneState !== 'idle') {
+      // Gate just passed — show passed state briefly
+      _bashirLaneState = 'passed';
+      lane.classList.add('bashir-lane-active');
+      laneStatus.className = 'lane-status lane-status-active';
+      laneStatus.textContent = 'passed';
+      idleState.style.display = 'none';
+      failedState.style.display = 'none';
+      runningState.style.display = '';
+
+      setBashirCheck('bashir-check-authoring', 'pass');
+      setBashirCheck('bashir-check-running', 'pass');
+      const resultRow = document.getElementById('bashir-check-result');
+      const resultText = document.getElementById('bashir-result-text');
+      if (resultRow) resultRow.style.display = '';
+      if (resultText) resultText.textContent = 'Result: pass';
+      setBashirCheck('bashir-check-result', 'pass');
+
+      const activePill = document.getElementById('bashir-active-pill');
+      if (activePill) activePill.textContent = 'passed';
+      const phaseLabel = document.getElementById('bashir-phase-label');
+      if (phaseLabel) phaseLabel.textContent = 'regression suite';
+
+      // Fade to idle after 5s
+      clearTimeout(_bashirPassFadeTimer);
+      _bashirPassFadeTimer = setTimeout(() => { _bashirLaneState = 'idle'; updateBashirLane(gate, heartbeatAgeMs); }, 5000);
+      return;
+    }
+
+    // ── Normal idle ──
+    _bashirLaneState = 'idle';
+    clearTimeout(_bashirPassFadeTimer);
+    lane.classList.remove('bashir-lane-active');
+    laneStatus.className = 'lane-status lane-status-idle';
+    laneStatus.textContent = 'standing by';
+    failedState.style.display = 'none';
+    runningState.style.display = 'none';
+    idleState.style.display = 'flex';
+
+    // Show last-run info if available
+    const lastRunTs = (lastPass && lastPass.ts) || (lastFail && lastFail.ts) || null;
+    const primaryEl = idleState.querySelector('.bashir-idle-primary');
+    const secondaryEl = idleState.querySelector('.bashir-idle-secondary');
+    if (primaryEl) primaryEl.textContent = 'Standing by \u2014 gate idle';
+    if (secondaryEl) {
+      if (lastRunTs) {
+        const ago = formatTimeAgo(new Date(lastRunTs));
+        secondaryEl.textContent = 'regression suite \u2014 last run: ' + ago;
+      } else {
+        secondaryEl.textContent = 'Regression suite runs after each dev merge batch';
+      }
+    }
+  }
+
+  function setBashirCheck(id, status) {
+    const row = document.getElementById(id);
+    if (!row) return;
+    const icon = row.querySelector('.bashir-check-icon');
+    if (!icon) return;
+    icon.className = 'bashir-check-icon ' + status;
+    icon.innerHTML = status === 'pass' ? '&#10003;' : status === 'fail' ? '&#10007;' : '&#9675;';
+  }
+
+  function formatTimeAgo(date) {
+    const s = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (s < 60) return s + 's ago';
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    return Math.floor(h / 24) + 'd ago';
   }
 
   function updatePipelineUI(data) {
@@ -6239,6 +6625,19 @@
       const gateStatus = data.gate ? data.gate.status : null;
       updateGateStepCards(gateStatus, data.gate);
 
+      // Bashir lane — driven by gate state + heartbeat age
+      let hbAge = null;
+      if (gateStatus === 'GATE_RUNNING') {
+        try {
+          const hbRes = await fetch('/api/gate-health');
+          if (hbRes.ok) {
+            const hbData = await hbRes.json();
+            hbAge = hbData.heartbeat ? hbData.heartbeat.age_ms : null;
+          }
+        } catch (_) {}
+      }
+      updateBashirLane(data.gate, hbAge);
+
       // Health pill BATCH GATE override (slice 265, updated slice 271)
       const pill = document.getElementById('ops-health-pill');
       const label = document.getElementById('ops-health-label');
@@ -6283,23 +6682,33 @@
       const label = document.getElementById('ops-health-label');
       if (pill) pill.className = 'health-pill degraded';
       if (label) label.textContent = 'BATCH GATE';
+      // Bashir lane → authoring
+      _bashirLaneState = 'authoring';
+      fetchBranchState();
     },
     'tests-updated': function(ev) {
       // Future (slice 268): update step 1 body with test info
       const s1b = document.getElementById('gate-step-1-body');
       if (s1b && ev.count != null) s1b.textContent = 'Running regression gate\u2026 (' + ev.count + ' tests)';
+      // Bashir lane → running suite
+      _bashirLaneState = 'running';
+      fetchBranchState();
     },
     'regression-pass': function(ev) {
       // Future (slice 269): Step 2 → done, Step 3 → active
       setStepCard('gate-step-1', 'done', '');
       setStepCard('gate-step-2', 'done', 'Tests passed');
       setStepCard('gate-step-3', 'active', 'Merging\u2026');
+      // Bashir lane → passed (fetchBranchState will pick up IDLE + recent last_pass)
+      _bashirLaneState = 'passed';
+      fetchBranchState();
     },
     'regression-fail': function(ev) {
       // Step 1 → done, Step 2 → error
       setStepCard('gate-step-1', 'done', '');
       setStepCard('gate-step-2', 'error', null);
       // Trigger a branch-state refresh to render the full failed_acs body
+      // Bashir lane → failed (fetchBranchState will pick up GATE_FAILED)
       fetchBranchState();
     },
     'merge-complete': function(ev) {
@@ -6312,6 +6721,9 @@
     'gate-abort': function(ev) {
       // Reset all step cards and restore health pill
       resetStepCards();
+      // Bashir lane → idle
+      _bashirLaneState = 'idle';
+      fetchBranchState();
       // Pill restoration handled by next health poll cycle
     },
   };
