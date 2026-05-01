@@ -9,7 +9,7 @@ const { buildNogPrompt } = require('./nog-prompt');
 const { translateEvent, translateVerdict, resetDedupeState } = require('./lifecycle-translate');
 const gitFinalizer = require('./git-finalizer');
 const { reconcileBranchState } = require('./state/branch-state-recovery');
-const { recoverGateMutex, acquireGateMutex, releaseGateMutex } = require('./state/gate-mutex');
+const { recoverGateMutex, acquireGateMutex, releaseGateMutex, shouldDeferSquash } = require('./state/gate-mutex');
 const { writeJsonAtomic } = require('./state/atomic-write');
 const { emit: emitGateTelemetry } = require('./state/gate-telemetry');
 const { computeRR } = require('./rr-compute');
@@ -2930,16 +2930,17 @@ function mergeBranch(id, branchName, title) {
 /**
  * acceptAndMerge(id, currentFilePath, branchName, title)
  *
- * Ensures {id}-ACCEPTED.md exists in the queue directory, then calls mergeBranch.
- * This is the SOLE entry point for all merge paths — no caller should invoke
- * mergeBranch directly.
+ * Ensures {id}-ACCEPTED.md exists in the queue directory, then either squashes
+ * the slice onto dev (via squashSliceToDev) or defers if the gate is running.
+ * This is the SOLE entry point for all post-ACCEPTED paths — no caller should
+ * invoke squashSliceToDev or mergeBranch directly.
  *
  * Rename logic:
  *   - If ACCEPTED already exists → no-op (idempotent).
  *   - If currentFilePath is provided and differs from acceptedPath → rename it.
- *   - If rename fails → emit RENAME_FAILED, halt (do NOT proceed to merge).
+ *   - If rename fails → emit RENAME_FAILED, halt (do NOT proceed to squash).
  *
- * Returns { success, sha, error } (same shape as mergeBranch).
+ * Returns { success, sha, error, deferred }.
  */
 function acceptAndMerge(id, currentFilePath, branchName, title, opts) {
   const queueDir = (opts && opts.queueDir) || QUEUE_DIR;
@@ -2976,7 +2977,32 @@ function acceptAndMerge(id, currentFilePath, branchName, title, opts) {
     }
   }
 
-  return mergeBranch(id, branchName, title);
+  // Gate check: defer or squash
+  if (shouldDeferSquash()) {
+    // Gate is running — defer squash to post-gate drain
+    let branchState;
+    try {
+      branchState = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
+    } catch (err) {
+      log('error', 'merge', { id, msg: 'Cannot read branch-state.json for defer', error: err.message });
+      return { success: false, sha: null, error: 'branch_state_unreadable' };
+    }
+    if (!branchState.dev) branchState.dev = { tip_sha: null, tip_ts: null, commits_ahead_of_main: 0, commits: [], deferred_slices: [] };
+    if (!Array.isArray(branchState.dev.deferred_slices)) branchState.dev.deferred_slices = [];
+    branchState.dev.deferred_slices.push({ slice_id: String(id), accepted_ts: new Date().toISOString() });
+    writeJsonAtomic(BRANCH_STATE_PATH, branchState);
+    registerEvent(id, 'SLICE_DEFERRED', { slice_id: String(id), reason: 'gate-running' });
+    log('info', 'merge', { id, msg: 'Slice deferred — gate is running' });
+    return { success: true, sha: null, deferred: true };
+  }
+
+  // No gate — squash to dev
+  const result = squashSliceToDev(String(id), title, branchName);
+  if (result.success) {
+    return { success: true, sha: result.dev_sha, error: null };
+  } else {
+    return { success: false, sha: null, error: result.error };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -3106,23 +3132,27 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
   // Route through acceptAndMerge — handles EVALUATING→ACCEPTED rename + merge.
   const result = acceptAndMerge(id, evaluatingPath, branchName, title);
 
-  if (result.success) {
-    const shortSha = result.sha.slice(0, 7);
+  if (result.deferred) {
+    // Slice deferred during gate — stays in ACCEPTED state, will be drained post-gate
+    log('info', 'merge', { id, msg: `Slice ${branchName} deferred — gate is running` });
+    print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}Deferred (gate running) — ${branchName} queued for post-gate drain`);
+  } else if (result.success) {
+    const shortSha = (result.sha || '').slice(0, 7);
     registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, slice_id: id });
-    log('info', 'merge', { id, msg: `Merged ${branchName} to main`, branch: branchName, sha: result.sha });
-    print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}Merged ${branchName}${SYM.arrow}main (${shortSha})`);
-    // Clean up the worktree after successful merge
+    log('info', 'merge', { id, msg: `Squashed ${branchName} to dev`, branch: branchName, sha: result.sha });
+    print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}Squashed ${branchName}${SYM.arrow}dev (${shortSha})`);
+    // Clean up the worktree after successful squash
     try { cleanupWorktree(id, branchName); } catch (_) {}
-    // ACCEPTED → ARCHIVED transition (best-effort — merge is the contract)
+    // ACCEPTED → ARCHIVED transition (best-effort — squash is the contract)
     try {
       archiveAcceptedSlice(id, branchName);
     } catch (archErr) {
-      log('warn', 'archive', { id, msg: 'Post-merge archival failed (non-fatal)', error: archErr.message });
+      log('warn', 'archive', { id, msg: 'Post-squash archival failed (non-fatal)', error: archErr.message });
     }
   } else {
     registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, slice_id: id });
-    log('error', 'merge', { id, msg: `Merge failed for ${branchName}`, branch: branchName, reason: result.error });
-    print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}${C.red}${SYM.cross}${C.reset} Merge failed: ${result.error}`);
+    log('error', 'merge', { id, msg: `Squash failed for ${branchName}`, branch: branchName, reason: result.error });
+    print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}${C.red}${SYM.cross}${C.reset} Squash failed: ${result.error}`);
     printMergeFailedAlert(id, title, branchName, result.error);
   }
 
@@ -4901,15 +4931,18 @@ function crashRecovery() {
       continue;
     }
 
-    // Re-attempt merge via acceptAndMerge (ACCEPTED file already exists — idempotent rename).
+    // Re-attempt squash via acceptAndMerge (ACCEPTED file already exists — idempotent rename).
     const result = acceptAndMerge(id, acceptedPath, branchName, title);
-    if (result.success) {
+    if (result.deferred) {
+      log('info', 'startup_recovery', { id, msg: `Recovery deferred for ${branchName} — gate is running`, branch: branchName });
+      actions.push({ id, type: 'recovery_deferred', branch: branchName });
+    } else if (result.success) {
       registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, slice_id: id, recovery: true });
-      log('info', 'startup_recovery', { id, msg: `Recovery merge succeeded for ${branchName}`, branch: branchName, sha: result.sha });
+      log('info', 'startup_recovery', { id, msg: `Recovery squash succeeded for ${branchName}`, branch: branchName, sha: result.sha });
       actions.push({ id, type: 'recovery_merged', branch: branchName, sha: result.sha });
     } else {
       registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, slice_id: id, recovery: true });
-      log('warn', 'startup_recovery', { id, msg: `Recovery merge failed for ${branchName}`, branch: branchName, reason: result.error });
+      log('warn', 'startup_recovery', { id, msg: `Recovery squash failed for ${branchName}`, branch: branchName, reason: result.error });
       actions.push({ id, type: 'recovery_merge_failed', branch: branchName, reason: result.error });
       printUnmergedAlert(id, title, branchName);
     }
@@ -5799,6 +5832,7 @@ function _gateTestsUpdated(devTipSha, ctx) {
 
         _updateBranchStateOnFail(devTipSha, []);
         releaseGateMutex('regression_fail', ctx);
+        drainDeferredAfterGate();
         return;
       }
 
@@ -5844,6 +5878,7 @@ function _gateTestsUpdated(devTipSha, ctx) {
 
       _updateBranchStateOnFail(devTipSha, failedAcs);
       releaseGateMutex('regression_fail', ctx);
+      drainDeferredAfterGate();
 
       log('info', 'gate', { msg: 'Regression suite failed', failed_count: failedAcs.length });
     }
@@ -5894,6 +5929,7 @@ function _gateAbort(devTipSha, reason, ctx) {
   writeJsonAtomic(BRANCH_STATE_PATH, state);
 
   releaseGateMutex('gate_abort', ctx);
+  drainDeferredAfterGate();
 }
 
 // ---------------------------------------------------------------------------
@@ -5951,6 +5987,7 @@ function abortGate() {
     fs.accessSync(mutexPath);
     // Mutex is present (state corruption) — release defensively
     releaseGateMutex('gate-abort', ctx);
+    drainDeferredAfterGate();
   } catch (_) {
     // Mutex absent — expected, nothing to do
   }
@@ -6058,6 +6095,113 @@ function squashSliceToDev(sliceId, sliceTitle, sliceBranch) {
 }
 
 // ---------------------------------------------------------------------------
+// Read slice metadata from queue files (for drain)
+// ---------------------------------------------------------------------------
+
+/**
+ * readSliceMeta(sliceId)
+ *
+ * Reads slice metadata (title, branch) from queue files. Checks ACCEPTED,
+ * PARKED, DONE, and IN_PROGRESS files in priority order.
+ * Returns { title, branch } or null if nothing readable.
+ */
+function readSliceMeta(sliceId) {
+  const suffixes = ['-ACCEPTED.md', '-PARKED.md', '-DONE.md', '-IN_PROGRESS.md'];
+  let title = null;
+  let branch = null;
+
+  for (const suffix of suffixes) {
+    const filePath = path.join(QUEUE_DIR, `${sliceId}${suffix}`);
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const meta = parseFrontmatter(content);
+      if (meta) {
+        if (!title && meta.title) title = meta.title;
+        if (!branch && meta.branch) branch = meta.branch;
+        if (title && branch) break;
+      }
+    } catch (_) { /* file not found — try next */ }
+  }
+
+  // Fallback branch from convention
+  if (!branch) branch = `slice/${sliceId}`;
+
+  return { title: title || `slice ${sliceId}`, branch };
+}
+
+// ---------------------------------------------------------------------------
+// Drain deferred slices after gate release (slice 273)
+// ---------------------------------------------------------------------------
+
+/**
+ * drainDeferredAfterGate()
+ *
+ * Called after every releaseGateMutex. Reads deferred_slices from branch-state,
+ * sorts by accepted_ts, and squashes each to dev via squashSliceToDev.
+ * Halts on first conflict — remaining slices stay deferred for next cycle.
+ * After drain, if gate.status is IDLE and dev has commits ahead, transitions
+ * gate.status to ACCUMULATING.
+ */
+function drainDeferredAfterGate() {
+  let branchState;
+  try {
+    branchState = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
+  } catch (err) {
+    log('warn', 'drain', { msg: 'drainDeferredAfterGate: cannot read branch-state.json', error: err.message });
+    return;
+  }
+
+  const deferred = (branchState.dev && branchState.dev.deferred_slices) || [];
+  if (deferred.length === 0) return;
+
+  // Sort FIFO by accepted_ts, tiebreak by numeric slice ID
+  const sorted = deferred.slice().sort((a, b) => {
+    const tsA = a.accepted_ts || '';
+    const tsB = b.accepted_ts || '';
+    if (tsA < tsB) return -1;
+    if (tsA > tsB) return 1;
+    return (parseInt(a.slice_id, 10) || 0) - (parseInt(b.slice_id, 10) || 0);
+  });
+
+  let drained = 0;
+  for (const entry of sorted) {
+    const meta = readSliceMeta(entry.slice_id);
+    const result = squashSliceToDev(entry.slice_id, meta.title, meta.branch);
+    if (!result.success) {
+      log('warn', 'drain', {
+        msg: `drainDeferredAfterGate: squash failed for slice ${entry.slice_id}`,
+        error: result.error,
+      });
+      break;
+    }
+    // Remove this entry from deferred_slices
+    // Re-read branch-state since squashSliceToDev updates it
+    try {
+      branchState = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
+    } catch (_) {}
+    branchState.dev.deferred_slices = (branchState.dev.deferred_slices || []).filter(
+      e => e.slice_id !== entry.slice_id
+    );
+    writeJsonAtomic(BRANCH_STATE_PATH, branchState);
+    drained++;
+  }
+
+  // State transition: IDLE + commits on dev → ACCUMULATING
+  if (drained > 0) {
+    try {
+      branchState = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
+    } catch (_) {}
+    if (branchState.gate && branchState.gate.status === 'IDLE' &&
+        branchState.dev && branchState.dev.commits_ahead_of_main > 0) {
+      branchState.gate.status = 'ACCUMULATING';
+      writeJsonAtomic(BRANCH_STATE_PATH, branchState);
+    }
+  }
+
+  log('info', 'drain', { msg: `drainDeferredAfterGate: drained ${drained} of ${sorted.length} deferred slices` });
+}
+
+// ---------------------------------------------------------------------------
 // Dev → main merge (slice 269)
 // ---------------------------------------------------------------------------
 
@@ -6081,6 +6225,7 @@ function mergeDevToMain() {
   } catch (err) {
     emitGateTelemetry('gate-abort', { reason: 'branch-state-unreadable', error: err.message });
     releaseGateMutex('gate_abort', ctx);
+    drainDeferredAfterGate();
     return { success: false, merge_sha: null, error: 'branch_state_unreadable' };
   }
 
@@ -6089,6 +6234,7 @@ function mergeDevToMain() {
   if (sliceIds.length === 0) {
     emitGateTelemetry('gate-abort', { reason: 'no-slices-on-dev' });
     releaseGateMutex('gate_abort', ctx);
+    drainDeferredAfterGate();
     return { success: false, merge_sha: null, error: 'no_slices_on_dev' };
   }
 
@@ -6132,6 +6278,7 @@ function mergeDevToMain() {
       try { execSync(`git reset --hard ${mergeSha}~1`, { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
       emitGateTelemetry('gate-abort', { reason: 'push-rejected', error: pushErr.message });
       releaseGateMutex('gate_abort', ctx);
+      drainDeferredAfterGate();
       return { success: false, merge_sha: null, error: 'push_rejected' };
     }
 
@@ -6183,8 +6330,9 @@ function mergeDevToMain() {
     // Reset RR after merge-complete — dev is empty (slice 270)
     recomputeAndPersistRR();
 
-    // 9. Release mutex (triggers drainDeferredSlices)
+    // 9. Release mutex + drain deferred slices
     releaseGateMutex('regression_pass', ctx);
+    drainDeferredAfterGate();
 
     log('info', 'dev-to-main', {
       msg: 'Dev merged to main successfully',
@@ -6199,6 +6347,7 @@ function mergeDevToMain() {
     try { execSync('git checkout main', { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
     emitGateTelemetry('gate-abort', { reason: 'merge-failed', error: err.message });
     releaseGateMutex('gate_abort', ctx);
+    drainDeferredAfterGate();
     return { success: false, merge_sha: null, error: err.message };
   } finally {
     delete process.env.DS9_WATCHER_MERGE;
@@ -6212,4 +6361,4 @@ function mergeDevToMain() {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, mergeDevToMain, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, squashSliceToDev, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; }, _testSetProjectDir: (dir) => { PROJECT_DIR = dir; BRANCH_STATE_PATH = path.join(dir, 'bridge', 'state', 'branch-state.json'); } };
+module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, mergeDevToMain, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, squashSliceToDev, drainDeferredAfterGate, readSliceMeta, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; }, _testSetProjectDir: (dir) => { PROJECT_DIR = dir; BRANCH_STATE_PATH = path.join(dir, 'bridge', 'state', 'branch-state.json'); } };
