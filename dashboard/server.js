@@ -568,6 +568,23 @@ function buildBridgeData() {
     .slice(-20)
     .reverse();
 
+  // Build mergedIds from MERGED + SLICE_MERGED_TO_MAIN register events (terminal: landed on main)
+  const mergedIds = new Set();
+  // Build squashedToDevIds: slices squashed to dev but not yet through the gate
+  const squashedToDevIds = new Set();
+  // Build deferredIds: slices deferred because gate was running
+  const deferredIds = new Set();
+  for (const ev of events) {
+    if (ev.event === 'MERGED' || ev.event === 'SLICE_MERGED_TO_MAIN') mergedIds.add(String(ev.id));
+    if (ev.event === 'SLICE_SQUASHED_TO_DEV') squashedToDevIds.add(String(ev.id));
+    if (ev.event === 'SLICE_DEFERRED') deferredIds.add(String(ev.id));
+  }
+  // Slices that were squashed to dev and later merged are not "on dev" — they're merged
+  for (const id of mergedIds) squashedToDevIds.delete(id);
+  // Slices that were deferred but later squashed are not deferred any more
+  for (const id of squashedToDevIds) deferredIds.delete(id);
+  for (const id of mergedIds) deferredIds.delete(id);
+
   const recent = Object.values(completedMap)
     .sort((a, b) => {
       if (!a.completedAt) return 1;
@@ -586,23 +603,6 @@ function buildBridgeData() {
       else                                       reviewStatus = 'waiting_for_review';
       return { ...entry, outcome: finalOutcome, reviewStatus, sprint: getSprintForId(entry.id) };
     });
-
-  // Build mergedIds from MERGED + SLICE_MERGED_TO_MAIN register events (terminal: landed on main)
-  const mergedIds = new Set();
-  // Build squashedToDevIds: slices squashed to dev but not yet through the gate
-  const squashedToDevIds = new Set();
-  // Build deferredIds: slices deferred because gate was running
-  const deferredIds = new Set();
-  for (const ev of events) {
-    if (ev.event === 'MERGED' || ev.event === 'SLICE_MERGED_TO_MAIN') mergedIds.add(String(ev.id));
-    if (ev.event === 'SLICE_SQUASHED_TO_DEV') squashedToDevIds.add(String(ev.id));
-    if (ev.event === 'SLICE_DEFERRED') deferredIds.add(String(ev.id));
-  }
-  // Slices that were squashed to dev and later merged are not "on dev" — they're merged
-  for (const id of mergedIds) squashedToDevIds.delete(id);
-  // Slices that were deferred but later squashed are not deferred any more
-  for (const id of squashedToDevIds) deferredIds.delete(id);
-  for (const id of mergedIds) deferredIds.delete(id);
 
   // Queue files (cached dir scan — avoids re-stat + re-parse of 348 files)
   const queueCache = getCachedDir(
