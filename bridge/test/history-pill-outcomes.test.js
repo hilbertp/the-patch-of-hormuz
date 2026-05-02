@@ -1,10 +1,10 @@
 'use strict';
 
 /**
- * history-pill-outcomes.test.js — Slice 280 (W-History-1)
+ * history-pill-outcomes.test.js — Slice 280 (W-History-1), updated by slice 281 (W-History-2)
  *
- * Unit tests for the four-state history pill outcome derivation:
- *   MERGED, ON_DEV, DEFERRED, ERROR (+ accepted-override).
+ * Unit tests for the three-state history pill outcome derivation:
+ *   ON_DEV, DEFERRED, ERROR (+ accepted-override + historical MERGED fallback).
  *
  * Run: node --test bridge/test/history-pill-outcomes.test.js
  *
@@ -16,57 +16,44 @@ const assert = require('node:assert/strict');
 const { deriveHistoryOutcome } = require('../../dashboard/server');
 
 // Helper: build sets from arrays of string IDs
-function makeSets({ merged = [], squashed = [], deferred = [], accepted = [] } = {}) {
+function makeSets({ squashed = [], deferred = [], accepted = [] } = {}) {
   return {
-    mergedIds:        new Set(merged),
     squashedToDevIds: new Set(squashed),
     deferredIds:      new Set(deferred),
     acceptedSet:      new Set(accepted),
   };
 }
 
-describe('deriveHistoryOutcome — four-state pill', () => {
+describe('deriveHistoryOutcome — three-state pill', () => {
 
   it('scenario 1: squashed to dev → ON_DEV', () => {
     const sets = makeSets({ squashed: ['100'] });
     assert.strictEqual(deriveHistoryOutcome('100', 'DONE', sets), 'ON_DEV');
   });
 
-  it('scenario 2: merged via gate (SLICE_MERGED_TO_MAIN) → MERGED', () => {
-    // Slice was squashed then merged — squashedToDevIds should NOT contain it
-    // (caller removes merged IDs from squashed set), so mergedIds wins.
-    const sets = makeSets({ merged: ['101'] });
-    assert.strictEqual(deriveHistoryOutcome('101', 'DONE', sets), 'MERGED');
+  it('scenario 2: historical pre-gate slice with MERGED event (no SLICE_SQUASHED_TO_DEV) → ON_DEV', () => {
+    // Pre-gate slices have rawOutcome === 'MERGED' but no squashed event.
+    // The fallback maps MERGED → ON_DEV for pill display.
+    const sets = makeSets();
+    assert.strictEqual(deriveHistoryOutcome('050', 'MERGED', sets), 'ON_DEV');
   });
 
-  it('scenario 3: merged via legacy direct merge → MERGED', () => {
-    const sets = makeSets({ merged: ['050'] });
-    assert.strictEqual(deriveHistoryOutcome('050', 'DONE', sets), 'MERGED');
-  });
-
-  it('scenario 4: deferred (gate was running) → DEFERRED', () => {
+  it('scenario 3: deferred (gate was running) → DEFERRED', () => {
     const sets = makeSets({ deferred: ['102'] });
     assert.strictEqual(deriveHistoryOutcome('102', 'DONE', sets), 'DEFERRED');
   });
 
-  it('scenario 5: genuine error without acceptance → ERROR', () => {
+  it('scenario 4: genuine error without acceptance → ERROR', () => {
     const sets = makeSets();
     assert.strictEqual(deriveHistoryOutcome('103', 'ERROR', sets), 'ERROR');
   });
 
-  it('scenario 6: error with acceptance (Nog accepted but no squash yet) → ON_DEV', () => {
+  it('scenario 5: error with acceptance (Nog accepted but no squash yet) → ON_DEV', () => {
     const sets = makeSets({ accepted: ['277'] });
     assert.strictEqual(deriveHistoryOutcome('277', 'ERROR', sets), 'ON_DEV');
   });
 
-  it('scenario 7: merged takes priority over squashed-to-dev', () => {
-    // If both merged and squashed are present (shouldn't happen after cleanup,
-    // but test priority), merged wins.
-    const sets = makeSets({ merged: ['104'], squashed: ['104'] });
-    assert.strictEqual(deriveHistoryOutcome('104', 'DONE', sets), 'MERGED');
-  });
-
-  it('scenario 8: plain DONE (in-progress, no terminal event) → DONE', () => {
+  it('scenario 6: plain DONE (in-progress, no terminal event) → DONE', () => {
     const sets = makeSets();
     assert.strictEqual(deriveHistoryOutcome('105', 'DONE', sets), 'DONE');
   });

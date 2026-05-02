@@ -479,16 +479,18 @@ function getCachedCostsData() {
 
 // ── History outcome derivation (exported for testing) ────────────────────────
 /**
- * deriveHistoryOutcome(id, rawOutcome, { mergedIds, squashedToDevIds, deferredIds, acceptedSet })
+ * deriveHistoryOutcome(id, rawOutcome, { squashedToDevIds, deferredIds, acceptedSet })
  *
- * Pure function: given an entry's id + raw DONE/ERROR outcome and the four
+ * Pure function: given an entry's id + raw DONE/ERROR outcome and the three
  * event-derived ID sets, returns the display outcome string.
  */
-function deriveHistoryOutcome(id, rawOutcome, { mergedIds, squashedToDevIds, deferredIds, acceptedSet }) {
-  if (mergedIds.has(id))              return 'MERGED';
+function deriveHistoryOutcome(id, rawOutcome, { squashedToDevIds, deferredIds, acceptedSet }) {
   if (squashedToDevIds.has(id))       return 'ON_DEV';
   if (deferredIds.has(id))            return 'DEFERRED';
   if (rawOutcome === 'ERROR' && acceptedSet.has(id)) return 'ON_DEV';
+  // Historical pre-gate slices with a MERGED event but no SLICE_SQUASHED_TO_DEV
+  // fall through with rawOutcome === 'MERGED'. Map to ON_DEV for pill display.
+  if (rawOutcome === 'MERGED')        return 'ON_DEV';
   return rawOutcome;
 }
 
@@ -568,22 +570,19 @@ function buildBridgeData() {
     .slice(-20)
     .reverse();
 
-  // Build mergedIds from MERGED + SLICE_MERGED_TO_MAIN register events (terminal: landed on main)
-  const mergedIds = new Set();
-  // Build squashedToDevIds: slices squashed to dev but not yet through the gate
+  // Build squashedToDevIds: slices squashed to dev
   const squashedToDevIds = new Set();
   // Build deferredIds: slices deferred because gate was running
   const deferredIds = new Set();
+  // Build mergedIds for terminal-ID set only (not used in pill derivation)
+  const mergedIds = new Set();
   for (const ev of events) {
     if (ev.event === 'MERGED' || ev.event === 'SLICE_MERGED_TO_MAIN') mergedIds.add(String(ev.id));
     if (ev.event === 'SLICE_SQUASHED_TO_DEV') squashedToDevIds.add(String(ev.id));
     if (ev.event === 'SLICE_DEFERRED') deferredIds.add(String(ev.id));
   }
-  // Slices that were squashed to dev and later merged are not "on dev" — they're merged
-  for (const id of mergedIds) squashedToDevIds.delete(id);
   // Slices that were deferred but later squashed are not deferred any more
   for (const id of squashedToDevIds) deferredIds.delete(id);
-  for (const id of mergedIds) deferredIds.delete(id);
 
   const recent = Object.values(completedMap)
     .sort((a, b) => {
@@ -595,7 +594,7 @@ function buildBridgeData() {
     .map(entry => {
       const verdict = reviewedMap[entry.id];
       const finalOutcome = deriveHistoryOutcome(entry.id, entry.outcome,
-        { mergedIds, squashedToDevIds, deferredIds, acceptedSet });
+        { squashedToDevIds, deferredIds, acceptedSet });
       let reviewStatus;
       if (verdict === 'ACCEPTED')                reviewStatus = 'accepted';
       else if (verdict === 'APENDMENT_REQUIRED' || verdict === LEGACY_VERDICT_REQ) reviewStatus = 'apendment_required';
