@@ -477,6 +477,21 @@ function getCachedCostsData() {
   return value;
 }
 
+// ── History outcome derivation (exported for testing) ────────────────────────
+/**
+ * deriveHistoryOutcome(id, rawOutcome, { mergedIds, squashedToDevIds, deferredIds, acceptedSet })
+ *
+ * Pure function: given an entry's id + raw DONE/ERROR outcome and the four
+ * event-derived ID sets, returns the display outcome string.
+ */
+function deriveHistoryOutcome(id, rawOutcome, { mergedIds, squashedToDevIds, deferredIds, acceptedSet }) {
+  if (mergedIds.has(id))              return 'MERGED';
+  if (squashedToDevIds.has(id))       return 'ON_DEV';
+  if (deferredIds.has(id))            return 'DEFERRED';
+  if (rawOutcome === 'ERROR' && acceptedSet.has(id)) return 'ON_DEV';
+  return rawOutcome;
+}
+
 // ── Bridge data builder ──────────────────────────────────────────────────────
 function buildBridgeData() {
   // Heartbeat
@@ -562,9 +577,8 @@ function buildBridgeData() {
     .slice(0, 200)
     .map(entry => {
       const verdict = reviewedMap[entry.id];
-      // If watcher errored but Philipp accepted it, show final outcome as ACCEPTED
-      const finalOutcome = (entry.outcome === 'ERROR' && acceptedSet.has(entry.id))
-        ? 'ACCEPTED' : entry.outcome;
+      const finalOutcome = deriveHistoryOutcome(entry.id, entry.outcome,
+        { mergedIds, squashedToDevIds, deferredIds, acceptedSet });
       let reviewStatus;
       if (verdict === 'ACCEPTED')                reviewStatus = 'accepted';
       else if (verdict === 'APENDMENT_REQUIRED' || verdict === LEGACY_VERDICT_REQ) reviewStatus = 'apendment_required';
@@ -573,11 +587,22 @@ function buildBridgeData() {
       return { ...entry, outcome: finalOutcome, reviewStatus, sprint: getSprintForId(entry.id) };
     });
 
-  // Build mergedIds from MERGED register events (terminal: landed on main)
+  // Build mergedIds from MERGED + SLICE_MERGED_TO_MAIN register events (terminal: landed on main)
   const mergedIds = new Set();
+  // Build squashedToDevIds: slices squashed to dev but not yet through the gate
+  const squashedToDevIds = new Set();
+  // Build deferredIds: slices deferred because gate was running
+  const deferredIds = new Set();
   for (const ev of events) {
-    if (ev.event === 'MERGED') mergedIds.add(String(ev.id));
+    if (ev.event === 'MERGED' || ev.event === 'SLICE_MERGED_TO_MAIN') mergedIds.add(String(ev.id));
+    if (ev.event === 'SLICE_SQUASHED_TO_DEV') squashedToDevIds.add(String(ev.id));
+    if (ev.event === 'SLICE_DEFERRED') deferredIds.add(String(ev.id));
   }
+  // Slices that were squashed to dev and later merged are not "on dev" — they're merged
+  for (const id of mergedIds) squashedToDevIds.delete(id);
+  // Slices that were deferred but later squashed are not deferred any more
+  for (const id of squashedToDevIds) deferredIds.delete(id);
+  for (const id of mergedIds) deferredIds.delete(id);
 
   // Queue files (cached dir scan — avoids re-stat + re-parse of 348 files)
   const queueCache = getCachedDir(
@@ -1589,4 +1614,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildSliceInvestigation, parseFrontmatter, extractBody, parseRoundsArray, extractRoundSections, getCachedFile, getCachedDir, _cache, getCachedBridgeData, getCachedCostsData, buildBridgeData, buildCostsData, STALE_DONE_DAYS };
+module.exports = { buildSliceInvestigation, parseFrontmatter, extractBody, parseRoundsArray, extractRoundSections, getCachedFile, getCachedDir, _cache, getCachedBridgeData, getCachedCostsData, buildBridgeData, buildCostsData, STALE_DONE_DAYS, deriveHistoryOutcome };

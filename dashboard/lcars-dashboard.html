@@ -2493,6 +2493,8 @@
     flex-shrink: 0;
   }
   .outcome-merged       { background: #dcfce7; color: #166534; }
+  .outcome-on-dev       { background: #dbeafe; color: #1e40af; }
+  .outcome-deferred     { background: #fef3c7; color: #92400e; }
   .outcome-max-rounds   { background: #fef3c7; color: #92400e; }
   .outcome-escalated    { background: #dbeafe; color: #1e40af; }
   .outcome-error        { background: var(--err-bg); color: #991b1b; }
@@ -4722,6 +4724,12 @@
     switch (outcome) {
       case 'MERGED':
         return '<span class="outcome-pill outcome-merged">merged</span>';
+      case 'ON_DEV':
+        return '<span class="outcome-pill outcome-on-dev" title="Squashed onto dev. Awaits Bashir regression pass to advance dev \u2192 main.">on dev</span>';
+      case 'DEFERRED':
+        return '<span class="outcome-pill outcome-deferred" title="Squash deferred — Bashir gate was running. Will squash to dev when the gate clears.">deferred</span>';
+      case 'ACCEPTED':
+        return '<span class="outcome-pill outcome-merged">accepted</span>';
       case 'MAX_ROUNDS_EXHAUSTED':
         return '<span class="outcome-pill outcome-max-rounds">max rounds</span>';
       case 'ESCALATED_TO_OBRIEN':

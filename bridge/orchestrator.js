@@ -6320,7 +6320,15 @@ function mergeDevToMain() {
 
     writeJsonAtomic(BRANCH_STATE_PATH, branchState);
 
-    // 8. Emit merge-complete
+    // 8. Emit per-slice SLICE_MERGED_TO_MAIN register events
+    for (const sid of sliceIds) {
+      registerEvent(sid, 'SLICE_MERGED_TO_MAIN', {
+        slice_id: sid,
+        merge_sha: mergeSha,
+      });
+    }
+
+    // 9. Emit merge-complete telemetry
     emitGateTelemetry('merge-complete', {
       merge_sha: mergeSha,
       slices: sliceIds,
@@ -6330,7 +6338,7 @@ function mergeDevToMain() {
     // Reset RR after merge-complete — dev is empty (slice 270)
     recomputeAndPersistRR();
 
-    // 9. Release mutex + drain deferred slices
+    // 10. Release mutex + drain deferred slices
     releaseGateMutex('regression_pass', ctx);
     drainDeferredAfterGate();
 
