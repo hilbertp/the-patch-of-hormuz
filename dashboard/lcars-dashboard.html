@@ -3760,6 +3760,7 @@
 
   // ── Nog active state ──────────────────────────────────────────────────────
   let nogElapsedInterval = null;
+  let nogStartTime = null; // rebaseable start time for drift correction
   // Cache the latest register events for use across functions
   let cachedRegisterEvents = [];
 
@@ -3780,6 +3781,7 @@
       // ── Idle state ──
       clearInterval(nogElapsedInterval);
       nogElapsedInterval = null;
+      nogStartTime = null;
       panel.style.opacity = '1';
       panel.style.border = '1px solid #e5e7eb';
       lane.classList.remove('nog-lane-active');
@@ -3826,9 +3828,22 @@
     const invokedAt = nogActive.invokedAt ? new Date(nogActive.invokedAt) : null;
     const round = nogActive.round ?? 1;
 
+    // Drift-rebase: keep nogStartTime anchored to server-provided invokedAt
+    if (invokedAt) {
+      const serverElapsedMs = Date.now() - invokedAt.getTime();
+      const localElapsedMs = nogStartTime != null ? (Date.now() - nogStartTime) : null;
+      const drift = (localElapsedMs != null) ? Math.abs(localElapsedMs - serverElapsedMs) : Infinity;
+      const DRIFT_TOLERANCE_MS = 10000; // 10s
+      if (nogStartTime == null || drift > DRIFT_TOLERANCE_MS) {
+        nogStartTime = invokedAt.getTime();
+      }
+    } else {
+      nogStartTime = null;
+    }
+
     function formatNogElapsed() {
-      if (!invokedAt) return '\u2014';
-      const s = Math.floor((Date.now() - invokedAt.getTime()) / 1000);
+      if (nogStartTime == null) return '\u2014';
+      const s = Math.floor((Date.now() - nogStartTime) / 1000);
       if (s < 0) return '0s';
       const m = Math.floor(s / 60);
       const sec = s % 60;
@@ -3916,6 +3931,7 @@
 
   // ── Bashir QA lane state ────────────────────────────────────────────────────
   let bashirElapsedInterval = null;
+  let bashirStartTime = null; // rebaseable start time for drift correction
   let _bashirLaneState = 'idle';    // idle | authoring | running | passed | failed
   let _bashirPassFadeTimer = null;
 
@@ -4019,11 +4035,22 @@
         if (batchDetail) batchDetail.textContent = acCount ? '\u00b7 ' + acCount + ' ACs' : '';
       }
 
-      // Elapsed timer
+      // Elapsed timer with drift-rebase
       const startTs = currentRun && currentRun.started_ts ? new Date(currentRun.started_ts) : null;
+      if (startTs) {
+        const serverElapsedMs = Date.now() - startTs.getTime();
+        const localElapsedMs = bashirStartTime != null ? (Date.now() - bashirStartTime) : null;
+        const drift = (localElapsedMs != null) ? Math.abs(localElapsedMs - serverElapsedMs) : Infinity;
+        const DRIFT_TOLERANCE_MS = 10000; // 10s
+        if (bashirStartTime == null || drift > DRIFT_TOLERANCE_MS) {
+          bashirStartTime = startTs.getTime();
+        }
+      } else {
+        bashirStartTime = null;
+      }
       function formatBashirElapsed() {
-        if (!startTs) return '\u2014';
-        const s = Math.floor((Date.now() - startTs.getTime()) / 1000);
+        if (bashirStartTime == null) return '\u2014';
+        const s = Math.floor((Date.now() - bashirStartTime) / 1000);
         if (s < 0) return '0s';
         const m = Math.floor(s / 60);
         const sec = s % 60;
@@ -4042,6 +4069,7 @@
     // ── Idle / Accumulating — check for recent pass ──
     clearInterval(bashirElapsedInterval);
     bashirElapsedInterval = null;
+    bashirStartTime = null;
 
     // Recent pass detection (< 60s)
     const recentPass = lastPass && lastPass.ts && (Date.now() - new Date(lastPass.ts).getTime()) < 60000;
@@ -4250,11 +4278,24 @@
 
       if (heartbeat.slice_elapsed_seconds != null) {
         const hbPickupTs = heartbeat.pickup_ts || null;
-        if (sliceStartTime == null || mission.id !== lastSliceId || hbPickupTs !== lastPickupTs) {
-          sliceStartTime = Date.now() - (heartbeat.slice_elapsed_seconds * 1000);
+        const serverElapsedMs = heartbeat.slice_elapsed_seconds * 1000;
+        const localElapsedMs = sliceStartTime != null ? (Date.now() - sliceStartTime) : null;
+        const drift = (localElapsedMs != null) ? Math.abs(localElapsedMs - serverElapsedMs) : Infinity;
+        const DRIFT_TOLERANCE_MS = 10000; // 10s
+
+        const shouldRebase = (
+          sliceStartTime == null ||
+          mission.id !== lastSliceId ||
+          hbPickupTs !== lastPickupTs ||
+          drift > DRIFT_TOLERANCE_MS
+        );
+
+        if (shouldRebase) {
+          sliceStartTime = Date.now() - serverElapsedMs;
           lastSliceId    = mission.id;
           lastPickupTs   = hbPickupTs;
         }
+
         const elapsed = Math.floor((Date.now() - sliceStartTime) / 1000);
         elapsedEl.textContent = fmtElapsed(elapsed);
         timerBlock.style.display = '';
