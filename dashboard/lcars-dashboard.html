@@ -4565,7 +4565,7 @@
           const laterNog = sliceEvents.slice(i + 1).find(e =>
             e.event === 'NOG_RETURN' || e.event === 'NOG_PASS'
           );
-          if (!laterNog) return { outcome: 'MERGED', ts: ev.ts };
+          if (!laterNog) return { outcome: 'ON_DEV', ts: ev.ts };
         } else {
           return { outcome: ev.event, ts: ev.ts };
         }
@@ -4663,7 +4663,7 @@
             c._terminalOutcome = 'ERROR';
             c._terminalTs = c.completedAt;
           } else if (c.reviewStatus === 'accepted') {
-            c._terminalOutcome = 'MERGED';
+            c._terminalOutcome = 'ON_DEV';
             c._terminalTs = c.completedAt;
           } else {
             return null; // Not terminal, skip
@@ -4769,7 +4769,7 @@
       const chevron = isExpanded ? '\u25bc' : '\u25b6';
       const desc = c.goal || c.title || '';
       const firstSentence = desc.split(/\.\s/)[0] + (desc.includes('.') ? '.' : '');
-      const outcome = c._terminalOutcome || 'MERGED';
+      const outcome = c._terminalOutcome || 'ON_DEV';
       const isFail = isFailureOutcome(outcome);
 
       // Use synthesized totals if available (legacy compat), otherwise direct fields
@@ -4825,7 +4825,7 @@
     const footerEl = document.getElementById('history-footer');
     if (footerEl) {
       const acceptedCount = cachedHistoryAllRows.filter(r =>
-        r._terminalOutcome === 'MERGED' || r._terminalOutcome === 'ACCEPTED'
+        r._terminalOutcome === 'ON_DEV' || r._terminalOutcome === 'ACCEPTED'
       ).length;
       if (acceptedCount > 0) {
         footerEl.style.display = '';
@@ -4911,7 +4911,7 @@
     document.getElementById('history-detail-id').textContent = `#${id}`;
     document.getElementById('history-detail-title').textContent = item.title || 'Untitled';
 
-    const outcome = item._terminalOutcome || 'MERGED';
+    const outcome = item._terminalOutcome || 'ON_DEV';
 
     // Consolidated totals
     const durMs = item._synthDurationMs ?? item.durationMs;
@@ -4921,7 +4921,7 @@
     const rounds = item._terminalRound || 1;
 
     const ctxItems = [
-      { label: 'Outcome', value: outcome === 'MERGED' ? 'Merged' : outcome === 'ERROR' ? 'Error' : outcome === 'MAX_ROUNDS_EXHAUSTED' ? 'Max rounds' : 'Escalated' },
+      { label: 'Outcome', value: outcome === 'ON_DEV' ? 'On dev' : outcome === 'DEFERRED' ? 'Deferred' : outcome === 'ERROR' ? 'Error' : outcome === 'MAX_ROUNDS_EXHAUSTED' ? 'Max rounds' : 'Escalated' },
       { label: 'Duration', value: fmtDuration(durMs) },
       { label: 'Tokens', value: fmtTokens(tokIn, tokOut) },
       { label: 'Cost', value: fmtCostWithFallback(costUsd, tokIn, tokOut), rawHtml: true },
