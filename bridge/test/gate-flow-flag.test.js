@@ -94,8 +94,6 @@ describe('DS9_USE_GATE_FLOW flag', () => {
 
     // acceptAndMerge will try mergeBranch, which will fail (no real git repo)
     // but the key test is that it does NOT call squashSliceToDev
-    let squashCalled = false;
-    const origSquash = orch.squashSliceToDev;
     // Temporarily replace the exported squashSliceToDev to detect if it's called
     // Note: acceptAndMerge calls the internal ref, so we can't intercept via export.
     // Instead we verify the return shape: mergeBranch returns an error about
