@@ -21,6 +21,14 @@ fi
 # Ensure log directory exists
 mkdir -p "$REPO_ROOT/bridge/logs"
 
+# Log active merge strategy
+GATE_FLOW="${DS9_USE_GATE_FLOW:-0}"
+if [ "$GATE_FLOW" = "1" ]; then
+  echo "Active merge strategy: GATE FLOW (squash → dev, Bashir → main)"
+else
+  echo "Active merge strategy: LEGACY (direct to main)"
+fi
+
 # Unload first (ignore error if not loaded), then load
 launchctl unload "$PLIST" 2>/dev/null
 launchctl load "$PLIST"
