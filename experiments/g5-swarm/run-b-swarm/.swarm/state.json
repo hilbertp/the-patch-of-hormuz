@@ -1,0 +1,41 @@
+{
+  "swarmId": "swarm-mornicf0",
+  "objective": "Audit all experiment directories under /private/tmp/ds9-worktrees/291/experiments/ for consistency. Phase 1 (reader): catalog all files and their roles across ruflo-probe, rag-ab, ruflo-fix-1, ruflo-fix-2, g4-nog. Phase 2 (writer): produce a consolidated metrics table across V1-V4 and G4 experiments. Phase 3 (tester): validate every experiment referenced in docs/ruflo/*.md has a corresponding directory.",
+  "strategy": "development",
+  "status": "initialized",
+  "agents": 8,
+  "agentPlan": [
+    {
+      "role": "Coordinator",
+      "type": "coordinator",
+      "count": 1,
+      "purpose": "Orchestrate workflow"
+    },
+    {
+      "role": "Architect",
+      "type": "architect",
+      "count": 1,
+      "purpose": "System design"
+    },
+    {
+      "role": "Coder",
+      "type": "coder",
+      "count": 3,
+      "purpose": "Implementation"
+    },
+    {
+      "role": "Tester",
+      "type": "tester",
+      "count": 2,
+      "purpose": "Quality assurance"
+    },
+    {
+      "role": "Reviewer",
+      "type": "reviewer",
+      "count": 1,
+      "purpose": "Code review"
+    }
+  ],
+  "startedAt": "2026-05-04T20:27:39.996Z",
+  "parallel": true
+}

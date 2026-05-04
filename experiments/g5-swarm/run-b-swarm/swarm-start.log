@@ -1,0 +1,22 @@
+
+[INFO] Starting swarm with objective: Audit all experiment directories under /private/tmp/ds9-worktrees/291/experiments/ for consistency. Phase 1 (reader): catalog all files and their roles across ruflo-probe, rag-ab, ruflo-fix-1, ruflo-fix-2, g4-nog. Phase 2 (writer): produce a consolidated metrics table across V1-V4 and G4 experiments. Phase 3 (tester): validate every experiment referenced in docs/ruflo/*.md has a corresponding directory.
+
+Agent Deployment Plan
++-------------+-------------+-------+----------------------+
+| Role        | Type        | Count | Purpose              |
++-------------+-------------+-------+----------------------+
+| Coordinator | coordinator |     1 | Orchestrate workflow |
+| Architect   | architect   |     1 | System design        |
+| Coder       | coder       |     3 | Implementation       |
+| Tester      | tester      |     2 | Quality assurance    |
+| Reviewer    | reviewer    |     1 | Code review          |
++-------------+-------------+-------+----------------------+
+
+... Initializing swarm via MCP...                                       Swarm initialized via MCP
+
+[OK] Swarm swarm-mornicf0 initialized with 8 agent slots
+  This CLI coordinates agent state. Execution happens via:
+  - Claude Code Agent tool (interactive)
+  - claude -p (headless background)
+  - hive-mind spawn --claude (autonomous)
+  Monitor: claude-flow swarm status swarm-mornicf0

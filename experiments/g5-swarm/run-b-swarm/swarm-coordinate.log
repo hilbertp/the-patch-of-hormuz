@@ -1,0 +1,15 @@
+
+V3 15-Agent Hierarchical Mesh Coordination
+
++---+--------------------+---------------+---------+
+| # | Role               | Domain        | Status  |
++---+--------------------+---------------+---------+
+| 1 | Queen Coordinator  | Orchestration | primary |
+| 2 | Security Architect | Security      | active  |
+| 3 | Security Auditor   | Security      | active  |
++---+--------------------+---------------+---------+
+
+[OK] Swarm coordination initialized with 3 agent slots via MCP
+
+Note: Use Claude Code Task tool or hive-mind spawn --claude to
+drive actual agent execution. This command sets up the topology.
