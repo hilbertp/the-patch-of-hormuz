@@ -2977,31 +2977,40 @@ function acceptAndMerge(id, currentFilePath, branchName, title, opts) {
     }
   }
 
-  // Gate check: defer or squash
-  if (shouldDeferSquash()) {
-    // Gate is running — defer squash to post-gate drain
-    let branchState;
-    try {
-      branchState = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
-    } catch (err) {
-      log('error', 'merge', { id, msg: 'Cannot read branch-state.json for defer', error: err.message });
-      return { success: false, sha: null, error: 'branch_state_unreadable' };
-    }
-    if (!branchState.dev) branchState.dev = { tip_sha: null, tip_ts: null, commits_ahead_of_main: 0, commits: [], deferred_slices: [] };
-    if (!Array.isArray(branchState.dev.deferred_slices)) branchState.dev.deferred_slices = [];
-    branchState.dev.deferred_slices.push({ slice_id: String(id), accepted_ts: new Date().toISOString() });
-    writeJsonAtomic(BRANCH_STATE_PATH, branchState);
-    registerEvent(id, 'SLICE_DEFERRED', { slice_id: String(id), reason: 'gate-running' });
-    log('info', 'merge', { id, msg: 'Slice deferred — gate is running' });
-    return { success: true, sha: null, deferred: true };
-  }
+  // Feature flag: gate flow (squash to dev) vs legacy (direct to main)
+  const USE_GATE_FLOW = process.env.DS9_USE_GATE_FLOW === '1';
 
-  // No gate — squash to dev
-  const result = squashSliceToDev(String(id), title, branchName);
-  if (result.success) {
-    return { success: true, sha: result.dev_sha, error: null };
+  if (USE_GATE_FLOW) {
+    // Gate check: defer or squash
+    if (shouldDeferSquash()) {
+      // Gate is running — defer squash to post-gate drain
+      let branchState;
+      try {
+        branchState = JSON.parse(fs.readFileSync(BRANCH_STATE_PATH, 'utf-8'));
+      } catch (err) {
+        log('error', 'merge', { id, msg: 'Cannot read branch-state.json for defer', error: err.message });
+        return { success: false, sha: null, error: 'branch_state_unreadable' };
+      }
+      if (!branchState.dev) branchState.dev = { tip_sha: null, tip_ts: null, commits_ahead_of_main: 0, commits: [], deferred_slices: [] };
+      if (!Array.isArray(branchState.dev.deferred_slices)) branchState.dev.deferred_slices = [];
+      branchState.dev.deferred_slices.push({ slice_id: String(id), accepted_ts: new Date().toISOString() });
+      writeJsonAtomic(BRANCH_STATE_PATH, branchState);
+      registerEvent(id, 'SLICE_DEFERRED', { slice_id: String(id), reason: 'gate-running' });
+      log('info', 'merge', { id, msg: 'Slice deferred — gate is running' });
+      return { success: true, sha: null, deferred: true };
+    }
+
+    // No gate — squash to dev
+    const result = squashSliceToDev(String(id), title, branchName);
+    if (result.success) {
+      return { success: true, sha: result.dev_sha, error: null };
+    } else {
+      return { success: false, sha: null, error: result.error };
+    }
   } else {
-    return { success: false, sha: null, error: result.error };
+    // Legacy direct-to-main merge path
+    const result = mergeBranch(id, branchName, title);
+    return { success: result.success, sha: result.sha, error: result.error };
   }
 }
 
@@ -6320,7 +6329,15 @@ function mergeDevToMain() {
 
     writeJsonAtomic(BRANCH_STATE_PATH, branchState);
 
-    // 8. Emit merge-complete
+    // 8. Emit per-slice SLICE_MERGED_TO_MAIN register events
+    for (const sid of sliceIds) {
+      registerEvent(sid, 'SLICE_MERGED_TO_MAIN', {
+        slice_id: sid,
+        merge_sha: mergeSha,
+      });
+    }
+
+    // 9. Emit merge-complete telemetry
     emitGateTelemetry('merge-complete', {
       merge_sha: mergeSha,
       slices: sliceIds,
@@ -6330,7 +6347,7 @@ function mergeDevToMain() {
     // Reset RR after merge-complete — dev is empty (slice 270)
     recomputeAndPersistRR();
 
-    // 9. Release mutex + drain deferred slices
+    // 10. Release mutex + drain deferred slices
     releaseGateMutex('regression_pass', ctx);
     drainDeferredAfterGate();
 

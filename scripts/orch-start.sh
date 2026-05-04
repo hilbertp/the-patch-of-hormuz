@@ -9,9 +9,25 @@ if [ ! -L "$PLIST" ]; then
   echo "Symlinked plist into ~/Library/LaunchAgents/"
 fi
 
-# Ensure log directory exists
+# Compute repo root early (needed for .env check and log dir)
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Warn if .env is missing
+ENV_FILE="$REPO_ROOT/.env"
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Warning: $ENV_FILE missing — orchestrator will launch without env-file. Create it from .env.example and reload."
+fi
+
+# Ensure log directory exists
 mkdir -p "$REPO_ROOT/bridge/logs"
+
+# Log active merge strategy
+GATE_FLOW="${DS9_USE_GATE_FLOW:-0}"
+if [ "$GATE_FLOW" = "1" ]; then
+  echo "Active merge strategy: GATE FLOW (squash → dev, Bashir → main)"
+else
+  echo "Active merge strategy: LEGACY (direct to main)"
+fi
 
 # Unload first (ignore error if not loaded), then load
 launchctl unload "$PLIST" 2>/dev/null

@@ -8,6 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/Users/phillyvanilly/.nvm/versions/node/v24.11.1/bin/node</string>
+        <string>--env-file=/Users/phillyvanilly/01 - The Liberation of Bajor/repo/.env</string>
         <string>/Users/phillyvanilly/01 - The Liberation of Bajor/repo/bridge/orchestrator.js</string>
     </array>
 
