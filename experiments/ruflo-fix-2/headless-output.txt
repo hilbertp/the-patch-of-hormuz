@@ -1,0 +1,30 @@
+## Output from: echo "What skills and plugins are available?" | claude -p
+## With ruflo-core@ruflo installed at user scope
+## Date: 2026-05-04
+
+Here are the available skills and plugins:
+
+**General Skills:**
+- `update-config` — Configure Claude Code harness via settings.json
+- `keybindings-help` — Customize keyboard shortcuts
+- `simplify` — Review changed code for reuse, quality, and efficiency
+- `loop` — Run a prompt/command on a recurring interval
+- `schedule` — Create/manage scheduled remote agents (cron triggers)
+- `claude-api` — Build Claude API / Anthropic SDK apps
+- `check-handoffs` — Scan for handoff files addressed to current role
+- `debrief` — Continuous learning capture for every role
+- `estimate-hours` — Track token burn and human-equivalent hours
+- `handoff-to-teammate` — Complete role-to-role handoffs
+- `idea-capture` — Capture future feature ideas to a central backlog
+- `wrap-up` — End-of-session consolidation (learnings, hours, ideas)
+
+**Ruflo Plugins:**
+- `ruflo-core:ruflo-status` — Show Ruflo system health and MCP server status
+- `ruflo-core:init-project` — Initialize a new Ruflo project
+- `ruflo-core:ruflo-doctor` — Run health checks on Ruflo installation
+- `ruflo-core:discover-plugins` — Discover/recommend Ruflo plugins for your workflow
+
+**Specialized Agents (via Agent tool):**
+- `ruflo-core:coder` — Implementation specialist
+- `ruflo-core:reviewer` — Code review specialist
+- `ruflo-core:researcher` — Pathfinder research specialist (RuVector memory graphs)

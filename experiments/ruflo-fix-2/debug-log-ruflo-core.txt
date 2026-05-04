@@ -1,0 +1,31 @@
+## Debug log excerpt: ruflo-core plugin loaded via claude -p (pre-installed, user scope)
+## Date: 2026-05-04
+## Command: echo "What skills and plugins are available?" | claude -p --debug-file ...
+
+2026-05-04T19:52:15.790Z [DEBUG] Loaded 1 installed plugins from /Users/phillyvanilly/.claude/plugins/installed_plugins.json
+2026-05-04T19:52:15.798Z [DEBUG] Found 1 plugins (1 enabled, 0 disabled)
+2026-05-04T19:52:15.798Z [DEBUG] getPluginSkills: Processing 1 enabled plugins
+2026-05-04T19:52:15.799Z [DEBUG] Checking plugin ruflo-core: skillsPath=exists, skillsPaths=0 paths
+2026-05-04T19:52:15.799Z [DEBUG] Attempting to load skills from plugin ruflo-core default skillsPath: /Users/phillyvanilly/.claude/plugins/cache/ruflo/ruflo-core/0.1.0/skills
+2026-05-04T19:52:15.799Z [DEBUG] Registered 0 hooks from 1 plugins         <-- KEY: 0 hooks
+2026-05-04T19:52:15.809Z [DEBUG] Loaded 1 commands from plugin ruflo-core default directory
+2026-05-04T19:52:15.809Z [DEBUG] Total plugin commands loaded: 1
+2026-05-04T19:52:15.810Z [DEBUG] Loaded 3 agents from plugin ruflo-core default directory
+2026-05-04T19:52:15.810Z [DEBUG] Total plugin agents loaded: 3
+2026-05-04T19:52:15.810Z [DEBUG] Loaded 3 skills from plugin ruflo-core default directory
+2026-05-04T19:52:15.810Z [DEBUG] Total plugin skills loaded: 3
+2026-05-04T19:52:15.810Z [DEBUG] getSkills returning: 6 skill dir commands, 3 plugin skills, 9 bundled skills, 0 builtin plugin skills
+2026-05-04T19:52:15.814Z [DEBUG] All plugins already exist, skipping migration
+2026-05-04T19:52:15.814Z [DEBUG] Initialized versioned plugins system with 1 plugins
+2026-05-04T19:52:17.430Z [DEBUG] installPluginsForHeadless: starting
+2026-05-04T19:52:17.454Z [DEBUG] Total plugin output styles loaded: 0
+2026-05-04T19:52:17.462Z [DEBUG] Plugin autoupdate: checking installed plugins
+2026-05-04T19:52:17.467Z [DEBUG] Hooks: Found 0 total hooks in registry    <-- KEY: 0 hooks in registry
+
+---
+
+## Comparison: hookify plugin (has hooks/hooks.json in plugin dir)
+
+2026-05-04T19:54:17.673Z [DEBUG] Loaded hooks from standard location for plugin hookify: /Users/phillyvanilly/.claude/plugins/cache/claude-plugins-official/hookify/unknown/hooks/hooks.json
+2026-05-04T19:54:17.674Z [DEBUG] Loading hooks from plugin: hookify
+2026-05-04T19:54:17.674Z [DEBUG] Registered 4 hooks from 2 plugins         <-- KEY: 4 hooks loaded
