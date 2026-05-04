@@ -1,0 +1,1965 @@
+diff --git a/.claude/roles/kira/RESPONSE-EVALUATOR-ARCHITECTURE-FROM-DAX.md b/.claude/roles/kira/RESPONSE-EVALUATOR-ARCHITECTURE-FROM-DAX.md
+index b7c6350..d3e98b4 100644
+--- a/.claude/roles/kira/RESPONSE-EVALUATOR-ARCHITECTURE-FROM-DAX.md
++++ b/.claude/roles/kira/RESPONSE-EVALUATOR-ARCHITECTURE-FROM-DAX.md
+@@ -113,7 +113,7 @@ The `failed_criteria` field is important — it gives O'Brien a checklist, not a
+ ### 4. Evaluation outcomes
+ 
+ **ACCEPTED:**
+-1. Register event: `registerEvent(id, 'ACCEPTED', { reason, cycle })`
++1. Register event: `appendSliceEvent(id, 'ACCEPTED', { reason, cycle })`
+ 2. Rename: `{id}-EVALUATING.md` → `{id}-ACCEPTED.md`
+ 3. **Write merge commission:** `{next_id}-PENDING.md` with:
+    - Frontmatter: `type: merge`, `source_commission_id: {id}`, `branch: {branch_name}`
+@@ -121,7 +121,7 @@ The `failed_criteria` field is important — it gives O'Brien a checklist, not a
+ 4. Call `POST /api/bridge/review` with `{ id, verdict: "ACCEPTED", reason }`
+ 
+ **AMENDMENT_NEEDED (cycle < 5):**
+-1. Register event: `registerEvent(id, 'REVIEWED', { verdict: "AMENDMENT_NEEDED", reason, failed_criteria, cycle })`
++1. Register event: `appendSliceEvent(id, 'REVIEWED', { verdict: "AMENDMENT_NEEDED", reason, failed_criteria, cycle })`
+ 2. Rename: `{id}-EVALUATING.md` → `{id}-REVIEWED.md`
+ 3. **Write amendment commission:** `{next_id}-PENDING.md` with:
+    - Frontmatter: all standard fields + `root_commission_id: {root}`, `amendment_cycle: {n+1}`, `branch: {branch_name}`, `type: amendment`
+@@ -129,7 +129,7 @@ The `failed_criteria` field is important — it gives O'Brien a checklist, not a
+ 4. Call `POST /api/bridge/review` with `{ id, verdict: "AMENDMENT_NEEDED", reason }`
+ 
+ **STUCK (cycle ≥ 5):**
+-1. Register event: `registerEvent(id, 'STUCK', { reason: "amendment cap reached", cycle, history })`
++1. Register event: `appendSliceEvent(id, 'STUCK', { reason: "amendment cap reached", cycle, history })`
+ 2. Rename: `{id}-EVALUATING.md` → `{id}-STUCK.md`
+ 3. Do NOT write another PENDING. The commission is dead until Philipp intervenes.
+ 4. Call `POST /api/bridge/review` with `{ id, verdict: "STUCK", reason }`
+diff --git a/.claude/roles/kira/inbox/RESPONSE-EVALUATOR-ARCHITECTURE-FROM-DAX.md b/.claude/roles/kira/inbox/RESPONSE-EVALUATOR-ARCHITECTURE-FROM-DAX.md
+index bcfb970..cdcc053 100644
+--- a/.claude/roles/kira/inbox/RESPONSE-EVALUATOR-ARCHITECTURE-FROM-DAX.md
++++ b/.claude/roles/kira/inbox/RESPONSE-EVALUATOR-ARCHITECTURE-FROM-DAX.md
+@@ -113,7 +113,7 @@ The `failed_criteria` field is important — it gives O'Brien a checklist, not a
+ ### 4. Evaluation outcomes
+ 
+ **ACCEPTED:**
+-1. Register event: `registerEvent(id, 'ACCEPTED', { reason, cycle })`
++1. Register event: `appendSliceEvent(id, 'ACCEPTED', { reason, cycle })`
+ 2. Rename: `{id}-EVALUATING.md` → `{id}-ACCEPTED.md`
+ 3. **Write merge commission:** `{next_id}-PENDING.md` with:
+    - Frontmatter: `type: merge`, `source_commission_id: {id}`, `branch: {branch_name}`
+@@ -121,7 +121,7 @@ The `failed_criteria` field is important — it gives O'Brien a checklist, not a
+ 4. Call `POST /api/bridge/review` with `{ id, verdict: "ACCEPTED", reason }`
+ 
+ **AMENDMENT_NEEDED (cycle < 5):**
+-1. Register event: `registerEvent(id, 'REVIEWED', { verdict: "AMENDMENT_NEEDED", reason, failed_criteria, cycle })`
++1. Register event: `appendSliceEvent(id, 'REVIEWED', { verdict: "AMENDMENT_NEEDED", reason, failed_criteria, cycle })`
+ 2. Rename: `{id}-EVALUATING.md` → `{id}-REVIEWED.md`
+ 3. **Write amendment commission:** `{next_id}-PENDING.md` with:
+    - Frontmatter: all standard fields + `root_commission_id: {root}`, `amendment_cycle: {n+1}`, `branch: {branch_name}`, `type: amendment`
+@@ -129,7 +129,7 @@ The `failed_criteria` field is important — it gives O'Brien a checklist, not a
+ 4. Call `POST /api/bridge/review` with `{ id, verdict: "AMENDMENT_NEEDED", reason }`
+ 
+ **STUCK (cycle ≥ 5):**
+-1. Register event: `registerEvent(id, 'STUCK', { reason: "amendment cap reached", cycle, history })`
++1. Register event: `appendSliceEvent(id, 'STUCK', { reason: "amendment cap reached", cycle, history })`
+ 2. Rename: `{id}-EVALUATING.md` → `{id}-STUCK.md`
+ 3. Do NOT write another PENDING. The commission is dead until Philipp intervenes.
+ 4. Call `POST /api/bridge/review` with `{ id, verdict: "STUCK", reason }`
+diff --git a/.claude/roles/obrien/HANDOFF-EVALUATOR-IMPLEMENTATION-FROM-DAX.md b/.claude/roles/obrien/HANDOFF-EVALUATOR-IMPLEMENTATION-FROM-DAX.md
+index 72994e9..db8c265 100644
+--- a/.claude/roles/obrien/HANDOFF-EVALUATOR-IMPLEMENTATION-FROM-DAX.md
++++ b/.claude/roles/obrien/HANDOFF-EVALUATOR-IMPLEMENTATION-FROM-DAX.md
+@@ -125,6 +125,6 @@ Feed this via stdin to `claude -p`, same as commission execution. Parse the JSON
+ ## Reference files
+ 
+ - Full ADR: `repo/.claude/roles/kira/RESPONSE-EVALUATOR-ARCHITECTURE-FROM-DAX.md` (complete design with register event timeline example)
+-- Current watcher: `repo/bridge/watcher.js` (945 lines — read it, especially `invokeOBrien`, `poll`, `crashRecovery`, `registerEvent`)
++- Current watcher: `repo/bridge/watcher.js` (945 lines — read it, especially `invokeOBrien`, `poll`, `crashRecovery`, `appendSliceEvent`)
+ - Current server: `repo/dashboard/server.js` (137 lines — the CORS fix target)
+ - Architecture doc: `repo/docs/architecture/BET2-RELAY-DASHBOARD-ARCHITECTURE.md` Section 10 (B0 detail)
+diff --git a/.claude/roles/obrien/inbox/HANDOFF-EVALUATOR-IMPLEMENTATION-FROM-DAX.md b/.claude/roles/obrien/inbox/HANDOFF-EVALUATOR-IMPLEMENTATION-FROM-DAX.md
+index 3b6c105..e2cf159 100644
+--- a/.claude/roles/obrien/inbox/HANDOFF-EVALUATOR-IMPLEMENTATION-FROM-DAX.md
++++ b/.claude/roles/obrien/inbox/HANDOFF-EVALUATOR-IMPLEMENTATION-FROM-DAX.md
+@@ -125,6 +125,6 @@ Feed this via stdin to `claude -p`, same as commission execution. Parse the JSON
+ ## Reference files
+ 
+ - Full ADR: `repo/.claude/roles/kira/RESPONSE-EVALUATOR-ARCHITECTURE-FROM-DAX.md` (complete design with register event timeline example)
+-- Current watcher: `repo/bridge/orchestrator.js` (945 lines — read it, especially `invokeOBrien`, `poll`, `crashRecovery`, `registerEvent`)
++- Current watcher: `repo/bridge/orchestrator.js` (945 lines — read it, especially `invokeOBrien`, `poll`, `crashRecovery`, `appendSliceEvent`)
+ - Current server: `repo/dashboard/server.js` (137 lines — the CORS fix target)
+ - Architecture doc: `repo/docs/architecture/BET2-RELAY-DASHBOARD-ARCHITECTURE.md` Section 10 (B0 detail)
+diff --git a/bridge/git-finalizer.js b/bridge/git-finalizer.js
+index f248a62..de196de 100644
+--- a/bridge/git-finalizer.js
++++ b/bridge/git-finalizer.js
+@@ -36,7 +36,7 @@ function assertWorktreePath(p) {
+ // ---------------------------------------------------------------------------
+ 
+ let PROJECT_DIR = null;
+-let registerEvent = null;
++let appendSliceEvent = null;
+ let log = null;
+ let HEARTBEAT_FILE = null;
+ let QUEUE_DIR = null;
+@@ -48,7 +48,7 @@ let QUEUE_DIR = null;
+  */
+ function init(deps) {
+   PROJECT_DIR = deps.PROJECT_DIR;
+-  registerEvent = deps.registerEvent;
++  appendSliceEvent = deps.appendSliceEvent;
+   log = deps.log;
+   HEARTBEAT_FILE = deps.HEARTBEAT_FILE;
+   QUEUE_DIR = deps.QUEUE_DIR;
+@@ -178,7 +178,7 @@ function pruneOrphanLock(sliceId, op) {
+   try {
+     const stat = fs.statSync(indexLockPath());
+     fs.unlinkSync(indexLockPath());
+-    registerEvent(sliceId || '0', 'LOCK_ORPHAN_PRUNED', {
++    appendSliceEvent(sliceId || '0', 'LOCK_ORPHAN_PRUNED', {
+       op,
+       artifact: indexLockPath(),
+       lock_mtime: stat.mtime.toISOString(),
+@@ -283,7 +283,7 @@ function pruneOrphanRefsLocks(diagnostics) {
+ 
+     if (isLockHeldByProcess(lockPath)) {
+       skipped++;
+-      registerEvent('0', 'REFS_LOCK_DETECTED', {
++      appendSliceEvent('0', 'REFS_LOCK_DETECTED', {
+         lock_path: lockPath,
+         lock_age_s: lockAgeS,
+         decline_reason: 'process_alive',
+@@ -294,7 +294,7 @@ function pruneOrphanRefsLocks(diagnostics) {
+ 
+     if (lockAgeS < MIN_LOCK_AGE_SECONDS) {
+       skipped++;
+-      registerEvent('0', 'REFS_LOCK_DETECTED', {
++      appendSliceEvent('0', 'REFS_LOCK_DETECTED', {
+         lock_path: lockPath,
+         lock_age_s: lockAgeS,
+         decline_reason: 'too_young',
+@@ -307,7 +307,7 @@ function pruneOrphanRefsLocks(diagnostics) {
+     try {
+       fs.unlinkSync(lockPath);
+       pruned++;
+-      registerEvent('0', 'REFS_LOCK_ORPHAN_PRUNED', {
++      appendSliceEvent('0', 'REFS_LOCK_ORPHAN_PRUNED', {
+         lock_path: lockPath,
+         lock_age_s: lockAgeS,
+         lock_mtime: stat.mtime.toISOString(),
+@@ -350,11 +350,11 @@ function runGit(cmd, opts) {
+   const execOpts = Object.assign({ cwd }, opts.execOpts || {});
+   if (opts.encoding) execOpts.encoding = opts.encoding;
+ 
+-  registerEvent(sliceId, 'LOCK_CLAIMED', { op, cmd: cmd.slice(0, 120) });
++  appendSliceEvent(sliceId, 'LOCK_CLAIMED', { op, cmd: cmd.slice(0, 120) });
+ 
+   try {
+     const result = execSync(cmd, execOpts);
+-    registerEvent(sliceId, 'LOCK_RELEASED', { op });
++    appendSliceEvent(sliceId, 'LOCK_RELEASED', { op });
+     return result;
+   } catch (err) {
+     // Finalizer: check for orphan lock and prune if safe
+@@ -365,7 +365,7 @@ function runGit(cmd, opts) {
+       try {
+         assertWorktreePath(opts.worktreePath);
+         fs.rmSync(opts.worktreePath, { recursive: true, force: true });
+-        registerEvent(sliceId, 'WORKTREE_ORPHAN_PRUNED', {
++        appendSliceEvent(sliceId, 'WORKTREE_ORPHAN_PRUNED', {
+           op,
+           artifact: opts.worktreePath,
+         });
+@@ -456,7 +456,7 @@ function sweepStaleResources() {
+         const stat = fs.statSync(indexLockPath());
+         const lockAge = Math.round((Date.now() - stat.mtimeMs) / 1000);
+         fs.unlinkSync(indexLockPath());
+-        registerEvent('0', 'LOCK_ORPHAN_PRUNED', {
++        appendSliceEvent('0', 'LOCK_ORPHAN_PRUNED', {
+           phase: 'cycle_start_sweep',
+           artifact: indexLockPath(),
+           lock_mtime: stat.mtime.toISOString(),
+@@ -467,7 +467,7 @@ function sweepStaleResources() {
+         log('warn', 'sweep', { msg: 'Cycle-start: failed to prune lock', error: err.message });
+       }
+     } else {
+-      registerEvent('0', 'STALE_LOCK_DETECTED', diagnostics);
++      appendSliceEvent('0', 'STALE_LOCK_DETECTED', diagnostics);
+       log('info', 'sweep', { msg: 'Cycle-start: stale lock detected but declined to prune', diagnostics });
+       // Something is in flight — skip dispatch this tick
+       return false;
+@@ -531,7 +531,7 @@ function sweepStaleResources() {
+         assertWorktreePath(fullPath);
+         const stat = fs.statSync(fullPath);
+         fs.rmSync(fullPath, { recursive: true, force: true });
+-        registerEvent('0', 'WORKTREE_ORPHAN_PRUNED', {
++        appendSliceEvent('0', 'WORKTREE_ORPHAN_PRUNED', {
+           phase: 'cycle_start_sweep',
+           artifact: fullPath,
+           dir_mtime: stat.mtime.toISOString(),
+@@ -595,7 +595,7 @@ function createWorktreeWithRetry(createFn, id, branchName, maxRetries) {
+ 
+       // Backoff: 2^(attempt+1) seconds = 2, 4, 8, 16, 32
+       const backoffMs = Math.pow(2, attempt + 1) * 1000;
+-      registerEvent(id, 'WORKTREE_SETUP_RETRY', {
++      appendSliceEvent(id, 'WORKTREE_SETUP_RETRY', {
+         attempt: attempt + 1,
+         max_retries: maxRetries,
+         backoff_ms: backoffMs,
+diff --git a/bridge/orchestrator.js b/bridge/orchestrator.js
+index 0fdab60..a71fe2f 100644
+--- a/bridge/orchestrator.js
++++ b/bridge/orchestrator.js
+@@ -611,19 +611,19 @@ function truncStderr(s) {
+ }
+ 
+ /**
+- * INVARIANT: registerEvent is the SOLE writer of pipeline events to register.jsonl.
++ * INVARIANT: appendSliceEvent is the SOLE writer of pipeline events to register.jsonl.
+  *
+  * All state transitions must flow through this function, synchronously, in canonical
+  * order: dev → review → accept → merge. No HTTP handler, SSE push, CLI helper, or
+  * background task may append to register.jsonl directly. If you are about to add a
+- * second writer, stop — use registerEvent or emit a control-file action for the
++ * second writer, stop — use appendSliceEvent or emit a control-file action for the
+  * orchestrator to dispatch synchronously. Slices 168 + 169 removed the last side channel
+  * (callReviewAPI); keep it that way.
+  */
+ // Write-time dedupe for MERGED events on (slice_id, sha).
+ const _writtenMerged = new Set();
+ 
+-function registerEvent(id, event, extra) {
++function appendSliceEvent(id, event, extra) {
+   // Dedupe MERGED at write time on (slice_id, sha)
+   if (event === 'MERGED' && extra && extra.sha) {
+     const key = `${extra.slice_id || id}:${extra.sha}`;
+@@ -1381,7 +1381,7 @@ function ensureMainIsFresh(id) {
+       log('info', 'git_safety', { id, msg: `local ahead of origin by ${aheadCount}; pushing`, ahead: aheadCount });
+       gitFinalizer.runGit('git push origin main', { slice_id: id, op: 'ensureMainIsFresh_push', execOpts: { stdio: 'pipe' } });
+       const after = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'ensureMainIsFresh_verifyPush', encoding: 'utf-8' }).trim();
+-      registerEvent(id, 'MAIN_PUSHED_TO_ORIGIN', { sha: after, ahead_count: aheadCount });
++      appendSliceEvent(id, 'MAIN_PUSHED_TO_ORIGIN', { sha: after, ahead_count: aheadCount });
+       log('info', 'git_safety', { id, msg: `Pushed main to origin: ${after.slice(0, 8)}, ${aheadCount} commit(s)` });
+     } else {
+       // Local behind only — safe fast-forward (aheadCount === 0, behindCount > 0)
+@@ -1530,7 +1530,7 @@ function createWorktree(id, branchName) {
+     gitFinalizer.runGit(`git worktree add "${wtPath}" -b ${branchName} main`, { slice_id: id, op: 'createWorktree', execOpts: { stdio: 'pipe' }, worktreePath: wtPath });
+   }
+ 
+-  registerEvent(id, 'WORKTREE_CREATED', { path: wtPath, branch: branchName });
++  appendSliceEvent(id, 'WORKTREE_CREATED', { path: wtPath, branch: branchName });
+   log('info', 'worktree', { id, msg: `Created worktree at ${wtPath} on branch ${branchName}`, branchExists });
+   return wtPath;
+ }
+@@ -1581,7 +1581,7 @@ function cleanupWorktree(id, branchName) {
+     }
+   }
+ 
+-  registerEvent(id, 'WORKTREE_REMOVED', { path: wtPath });
++  appendSliceEvent(id, 'WORKTREE_REMOVED', { path: wtPath });
+   log('info', 'worktree', { id, msg: `Cleaned up worktree for slice ${id}` });
+ }
+ 
+@@ -2008,7 +2008,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
+     const errorPath2 = path.join(QUEUE_DIR, `${id}-ERROR.md`);
+     writeErrorFile(errorPath2, id, reason, err, '', '', extraFields);
+     log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason });
+-    registerEvent(id, 'ERROR', {
++    appendSliceEvent(id, 'ERROR', {
+       reason,
+       phase: 'worktree_setup',
+       command: `git worktree add … ${sliceBranch}`,
+@@ -2109,16 +2109,16 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
+     if (shouldForceFreshSession(nogReason)) {
+       const freshReason = nogReason.length > 500 ? 'long_feedback' : 'trigger_keyword';
+       log('info', 'session', { id, msg: `Rework round ${romRound} — forcing fresh session`, reason: freshReason });
+-      registerEvent(id, 'ROM_SESSION_FRESH', { session_id: romSessionId, round: romRound, reason_for_fresh: freshReason });
++      appendSliceEvent(id, 'ROM_SESSION_FRESH', { session_id: romSessionId, round: romRound, reason_for_fresh: freshReason });
+     } else {
+       clauseArgs = ['--resume', romSessionId, ...config.claudeArgs.filter(a => a !== '-p')];
+       sessionResumed = true;
+       log('info', 'session', { id, msg: `Rework round ${romRound} — resuming session ${romSessionId}` });
+-      registerEvent(id, 'ROM_SESSION_RESUMED', { session_id: romSessionId, round: romRound, reason_for_fresh: null });
++      appendSliceEvent(id, 'ROM_SESSION_RESUMED', { session_id: romSessionId, round: romRound, reason_for_fresh: null });
+     }
+   } else if (romRound > 1 && !romSessionId) {
+     log('info', 'session', { id, msg: `Rework round ${romRound} — no session_id available, using fresh session` });
+-    registerEvent(id, 'ROM_SESSION_FRESH', { session_id: null, round: romRound, reason_for_fresh: 'no_session_id' });
++    appendSliceEvent(id, 'ROM_SESSION_FRESH', { session_id: null, round: romRound, reason_for_fresh: 'no_session_id' });
+   }
+ 
+   log('info', 'invoke', {
+@@ -2212,7 +2212,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
+             });
+             writeErrorFile(errorPath, id, 'incomplete_metrics', null, stdout, '', { missingFields: metricsValid.invalid, durationMs });
+             log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason: 'incomplete_metrics' });
+-            registerEvent(id, 'ERROR', {
++            appendSliceEvent(id, 'ERROR', {
+               reason: 'incomplete_metrics',
+               phase: 'rom_invocation',
+               command: [config.claudeCommand, ...config.claudeArgs].join(' '),
+@@ -2236,7 +2236,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
+             const verify = verifyRomActuallyWorked(id, sliceBranch, durationMs, tokensOut);
+             if (!verify.ok) {
+               writeErrorFile(errorPath, id, verify.reason, null, stdout, stderr, { detail: verify.detail, durationMs });
+-              registerEvent(id, 'ERROR', {
++              appendSliceEvent(id, 'ERROR', {
+                 reason: verify.reason,
+                 phase: 'rom_verification',
+                 detail: verify.detail,
+@@ -2296,7 +2296,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
+ 
+             log('info', 'complete', { id, msg: "Rom finished — DONE file present", durationMs, tokensIn, tokensOut });
+             log('info', 'state', { id, from: 'IN_PROGRESS', to: 'DONE' });
+-            registerEvent(id, 'DONE', { durationMs, tokensIn, tokensOut, costUsd });
++            appendSliceEvent(id, 'DONE', { durationMs, tokensIn, tokensOut, costUsd });
+             closeSliceBlock(true, durationMs, tokensIn, tokensOut, costUsd, null);
+             recordSessionResult(true, tokensIn, tokensOut, costUsd);
+           }
+@@ -2323,7 +2323,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
+ 
+           writeErrorFile(errorPath, id, classifiedReason, null, stdout, stderr, { durationMs, rescue_path: rescuePath });
+           log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason: classifiedReason });
+-          registerEvent(id, 'ERROR', {
++          appendSliceEvent(id, 'ERROR', {
+             reason: classifiedReason,
+             phase: 'rom_invocation',
+             command: [config.claudeCommand, ...config.claudeArgs].join(' '),
+@@ -2406,7 +2406,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
+               waitMs,
+               durationMs,
+             });
+-            registerEvent(id, 'RATE_LIMITED', {
++            appendSliceEvent(id, 'RATE_LIMITED', {
+               waitMs,
+               resetAt,
+               durationMs,
+@@ -2462,7 +2462,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
+                 durationMs,
+               });
+               // Write to register so the dashboard can surface a toast
+-              registerEvent(id, 'API_RETRY', {
++              appendSliceEvent(id, 'API_RETRY', {
+                 retryCount: retryCount + 1,
+                 maxRetries: MAX_API_RETRIES,
+                 durationMs,
+@@ -2499,7 +2499,7 @@ function invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effect
+         // ──────���──────────────────────────────────────────────────────────────
+         writeErrorFile(errorPath, id, reason, err, stdout, stderr, extra);
+         log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason });
+-        registerEvent(id, 'ERROR', {
++        appendSliceEvent(id, 'ERROR', {
+           reason,
+           phase: 'rom_invocation',
+           command: [config.claudeCommand, ...config.claudeArgs].join(' '),
+@@ -2842,7 +2842,7 @@ function mergeBranch(id, branchName, title) {
+     // ── Step 2.5: Post-merge integrity assertion (W2) ─────────────────
+     const integrity = assertMergeIntegrity(id, newSha);
+     if (!integrity.ok) {
+-      registerEvent(id, 'MERGE_INTEGRITY_VIOLATION', {
++      appendSliceEvent(id, 'MERGE_INTEGRITY_VIOLATION', {
+         slice_id: String(id),
+         expected_sha: newSha,
+         actual_sha: integrity.actualSha,
+@@ -2899,7 +2899,7 @@ function mergeBranch(id, branchName, title) {
+         origin_sha: originCheck.originSha,
+         reason: originCheck.reason,
+       };
+-      registerEvent(id, 'MERGE_NOT_PUSHED', payload);
++      appendSliceEvent(id, 'MERGE_NOT_PUSHED', payload);
+       log('error', 'merge', { id, msg: 'Push appeared to succeed but origin did not advance', ...payload });
+       try {
+         fs.writeFileSync(PIPELINE_PAUSED_FILE, JSON.stringify(Object.assign({ ts: new Date().toISOString(), event: 'MERGE_NOT_PUSHED' }, payload), null, 2) + '\n');
+@@ -2956,7 +2956,7 @@ function acceptAndMerge(id, currentFilePath, branchName, title, opts) {
+         actual_path_if_known: currentFilePath || null,
+         error: currentFilePath ? 'source file does not exist' : 'no source file path provided',
+       };
+-      registerEvent(id, 'RENAME_FAILED', detail);
++      appendSliceEvent(id, 'RENAME_FAILED', detail);
+       log('error', 'state', { id, msg: 'RENAME_FAILED — cannot create ACCEPTED file', detail });
+       return { success: false, sha: null, error: 'rename_failed_no_source' };
+     }
+@@ -2971,7 +2971,7 @@ function acceptAndMerge(id, currentFilePath, branchName, title, opts) {
+         actual_path_if_known: currentFilePath,
+         error: err.message,
+       };
+-      registerEvent(id, 'RENAME_FAILED', detail);
++      appendSliceEvent(id, 'RENAME_FAILED', detail);
+       log('error', 'state', { id, msg: 'RENAME_FAILED — rename threw', detail });
+       return { success: false, sha: null, error: `rename_failed: ${err.message}` };
+     }
+@@ -2995,7 +2995,7 @@ function acceptAndMerge(id, currentFilePath, branchName, title, opts) {
+       if (!Array.isArray(branchState.dev.deferred_slices)) branchState.dev.deferred_slices = [];
+       branchState.dev.deferred_slices.push({ slice_id: String(id), accepted_ts: new Date().toISOString() });
+       writeJsonAtomic(BRANCH_STATE_PATH, branchState);
+-      registerEvent(id, 'SLICE_DEFERRED', { slice_id: String(id), reason: 'gate-running' });
++      appendSliceEvent(id, 'SLICE_DEFERRED', { slice_id: String(id), reason: 'gate-running' });
+       log('info', 'merge', { id, msg: 'Slice deferred — gate is running' });
+       return { success: true, sha: null, deferred: true };
+     }
+@@ -3048,7 +3048,7 @@ function archiveSiblingStateFiles(id, terminalState, opts) {
+   }
+ 
+   if (moved.length > 0) {
+-    registerEvent(id, 'STATE_FILES_ARCHIVED', { slice_id: String(id), terminal_state: terminalState, moved });
++    appendSliceEvent(id, 'STATE_FILES_ARCHIVED', { slice_id: String(id), terminal_state: terminalState, moved });
+   }
+   return moved.length;
+ }
+@@ -3098,7 +3098,7 @@ function archiveAcceptedSlice(id, branchName, opts) {
+     sha = gitFinalizer.runGit('git rev-parse main', { slice_id: id, op: 'archiveAccepted_sha', encoding: 'utf-8' }).trim();
+   } catch (_) {}
+ 
+-  registerEvent(id, 'ARCHIVED', { slice_id: String(id), branch: branchName || `slice/${id}`, sha, source });
++  appendSliceEvent(id, 'ARCHIVED', { slice_id: String(id), branch: branchName || `slice/${id}`, sha, source });
+ 
+   // Clean up sibling state files
+   archiveSiblingStateFiles(id, 'ARCHIVED', { queueDir, trashDir });
+@@ -3123,7 +3123,7 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
+   } catch (_) {}
+ 
+   // Canonical: NOG_DECISION (verdict) → rename → merge → MERGED
+-  registerEvent(id, 'NOG_DECISION', { verdict: 'ACCEPTED', reason, cycle, round: cycle });
++  appendSliceEvent(id, 'NOG_DECISION', { verdict: 'ACCEPTED', reason, cycle, round: cycle });
+   log('info', 'evaluator', { id, verdict: 'ACCEPTED', cycle, durationMs });
+ 
+   // timesheet write point 2 — update orchestrator row at terminal state
+@@ -3147,7 +3147,7 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
+     print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}Deferred (gate running) — ${branchName} queued for post-gate drain`);
+   } else if (result.success) {
+     const shortSha = (result.sha || '').slice(0, 7);
+-    registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, slice_id: id });
++    appendSliceEvent(id, 'MERGED', { branch: branchName, sha: result.sha, slice_id: id });
+     log('info', 'merge', { id, msg: `Squashed ${branchName} to dev`, branch: branchName, sha: result.sha });
+     print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}Squashed ${branchName}${SYM.arrow}dev (${shortSha})`);
+     // Clean up the worktree after successful squash
+@@ -3159,7 +3159,7 @@ function handleAccepted(id, reason, cycle, branchName, evaluatingPath, durationM
+       log('warn', 'archive', { id, msg: 'Post-squash archival failed (non-fatal)', error: archErr.message });
+     }
+   } else {
+-    registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, slice_id: id });
++    appendSliceEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, slice_id: id });
+     log('error', 'merge', { id, msg: `Squash failed for ${branchName}`, branch: branchName, reason: result.error });
+     print(`${B.vert}    ${C.green}${SYM.check}${C.reset} ACCEPTED${SYM.sep}${C.red}${SYM.cross}${C.reset} Squash failed: ${result.error}`);
+     printMergeFailedAlert(id, title, branchName, result.error);
+@@ -3303,10 +3303,10 @@ function invokeNog(id) {
+       nog_reason: 'Rom exhausted 5 rounds without Nog sign-off',
+     });
+ 
+-    registerEvent(id, 'NOG_ESCALATION', { round, branch: branchName });
++    appendSliceEvent(id, 'NOG_ESCALATION', { round, branch: branchName });
+ 
+     // Emit MAX_ROUNDS_EXHAUSTED terminal event for UI1 history rendering.
+-    registerEvent(id, 'MAX_ROUNDS_EXHAUSTED', {
++    appendSliceEvent(id, 'MAX_ROUNDS_EXHAUSTED', {
+       round: 5,
+       reason: 'Rom exhausted 5 rounds without Nog sign-off',
+     });
+@@ -3489,7 +3489,7 @@ function invokeNog(id) {
+           nog_reason: 'verdict_unreadable',
+         });
+ 
+-        registerEvent(id, 'NOG_DECISION', { round, verdict: 'REJECTED', reason: 'verdict_unreadable', apendment_cycle: round });
++        appendSliceEvent(id, 'NOG_DECISION', { round, verdict: 'REJECTED', reason: 'verdict_unreadable', apendment_cycle: round });
+         appendKiraEvent({
+           event: 'NOG_ESCALATION',
+           slice_id: id,
+@@ -3535,7 +3535,7 @@ function invokeNog(id) {
+           nog_reason: summary || 'Nog determined acceptance criteria cannot be satisfied as written',
+         });
+ 
+-        registerEvent(id, 'ESCALATED_TO_OBRIEN', {
++        appendSliceEvent(id, 'ESCALATED_TO_OBRIEN', {
+           round,
+           reason: summary || 'Nog determined acceptance criteria cannot be satisfied as written',
+         });
+@@ -3663,7 +3663,7 @@ function invokeNog(id) {
+ 
+       // REJECTED verdict (translated from RETURN if legacy) → NOG_DECISION{verdict: REJECTED}
+       log('info', 'nog', { id, verdict: 'REJECTED', round, durationMs, summary });
+-      registerEvent(id, 'NOG_DECISION', { round, verdict: 'REJECTED', reason: summary || 'Nog review findings — see slice file', apendment_cycle: round });
++      appendSliceEvent(id, 'NOG_DECISION', { round, verdict: 'REJECTED', reason: summary || 'Nog review findings — see slice file', apendment_cycle: round });
+ 
+       // Append round entry to PARKED file before handleNogReturn rewrites it.
+       const romTelemetryReturn = extractRomTelemetry(doneReportContents);
+@@ -4065,7 +4065,7 @@ function handleReturnToStage(sliceId) {
+     // ERROR sidecars lack required frontmatter + body — reconstruct from trash/register.
+     const recovered = findOriginalSliceBody(id);
+     if (!recovered) {
+-      registerEvent(id, 'RETURN_TO_STAGE', { from_event: fromEvent, reason: 'manual', body_source: 'none' });
++      appendSliceEvent(id, 'RETURN_TO_STAGE', { from_event: fromEvent, reason: 'manual', body_source: 'none' });
+       return { ok: false, error: `Slice ${id}: ERROR sidecar has no usable body and no recoverable source found in trash or register. Cannot return to stage.` };
+     }
+ 
+@@ -4074,7 +4074,7 @@ function handleReturnToStage(sliceId) {
+     const requiredFields = ['id', 'title', 'goal', 'from', 'to', 'priority', 'created'];
+     const missing = requiredFields.filter(f => !recoveredFm[f]);
+     if (missing.length > 0) {
+-      registerEvent(id, 'RETURN_TO_STAGE', { from_event: fromEvent, reason: 'manual', body_source: recovered.source });
++      appendSliceEvent(id, 'RETURN_TO_STAGE', { from_event: fromEvent, reason: 'manual', body_source: recovered.source });
+       return { ok: false, error: `Slice ${id}: recovered body from ${recovered.source} is missing required fields: ${missing.join(', ')}. Cannot return to stage.` };
+     }
+ 
+@@ -4094,7 +4094,7 @@ function handleReturnToStage(sliceId) {
+   }
+ 
+   // Emit RETURN_TO_STAGE register event.
+-  registerEvent(id, 'RETURN_TO_STAGE', {
++  appendSliceEvent(id, 'RETURN_TO_STAGE', {
+     from_event: fromEvent,
+     reason: 'manual',
+     body_source: bodySource,
+@@ -4225,7 +4225,7 @@ function handlePause(sliceId) {
+   }
+ 
+   const round = getRoundFromRegister(id);
+-  registerEvent(id, 'ROM_PAUSED', { round });
++  appendSliceEvent(id, 'ROM_PAUSED', { round });
+   log('info', 'control', { id, msg: `Paused Rom subprocess (PID ${entry.child.pid})`, round });
+   print(`  ${C.cyan}${SYM.back}${C.reset} Pause${SYM.sep}Slice ${id} paused (round ${round})`);
+ 
+@@ -4258,7 +4258,7 @@ function handleResume(sliceId) {
+   }
+ 
+   const round = getRoundFromRegister(id);
+-  registerEvent(id, 'ROM_RESUMED', { round });
++  appendSliceEvent(id, 'ROM_RESUMED', { round });
+   log('info', 'control', { id, msg: `Resumed Rom subprocess (PID ${entry.child.pid})`, round });
+   print(`  ${C.cyan}${SYM.back}${C.reset} Resume${SYM.sep}Slice ${id} resumed (round ${round})`);
+ 
+@@ -4327,7 +4327,7 @@ function handleAbort(sliceId) {
+   writeHeartbeat();
+ 
+   const round = getRoundFromRegister(id);
+-  registerEvent(id, 'ROM_ABORTED', { round, reason: 'manual' });
++  appendSliceEvent(id, 'ROM_ABORTED', { round, reason: 'manual' });
+   log('info', 'control', { id, msg: `Aborted Rom subprocess — slice returned to STAGED`, round });
+   print(`  ${C.cyan}${SYM.back}${C.reset} Abort${SYM.sep}Slice ${id} aborted (round ${round})${SYM.arrow}STAGED`);
+ 
+@@ -4558,7 +4558,7 @@ function poll() {
+       const acceptedPath = path.join(QUEUE_DIR, `${doneId}-ACCEPTED.md`);
+       try { fs.renameSync(donePath, acceptedPath); } catch (_) {}
+       // Canonical: NOG_DECISION (auto-accepted merge)
+-      registerEvent(doneId, 'NOG_DECISION', { verdict: 'ACCEPTED', reason: 'auto-accepted merge', cycle: 0, round: 0 });
++      appendSliceEvent(doneId, 'NOG_DECISION', { verdict: 'ACCEPTED', reason: 'auto-accepted merge', cycle: 0, round: 0 });
+       print(`  ${C.green}${SYM.check}${C.reset} Slice ${doneId}${SYM.dash}Merge auto-accepted`);
+       continue;
+     }
+@@ -4573,7 +4573,7 @@ function poll() {
+       const doneContent = fs.readFileSync(donePath, 'utf-8');
+       if (/^## Rom Escalation — Slice Broken\s*$/m.test(doneContent)) {
+         fs.renameSync(donePath, path.join(STAGED_DIR, `${doneId}-STAGED.md`));
+-        registerEvent(doneId, 'ROM_ESCALATE', { reason: 'slice-broken fast path' });
++        appendSliceEvent(doneId, 'ROM_ESCALATE', { reason: 'slice-broken fast path' });
+         log('info', 'state', { id: doneId, from: 'DONE', to: 'STAGED', reason: 'rom_escalate' });
+         continue;
+       }
+@@ -4609,7 +4609,7 @@ function poll() {
+       const nogRounds = (parkedContent.match(/^## Nog Review — Round \d+/gm) || []).length;
+       waitRound = nogRounds + 1;
+     } catch (_) {}
+-    registerEvent(doneId, 'NOG_INVOKED', { round: waitRound });
++    appendSliceEvent(doneId, 'NOG_INVOKED', { round: waitRound });
+ 
+     heartbeatState.status = 'nog_review';
+     writeHeartbeat();
+@@ -4730,7 +4730,7 @@ function poll() {
+ 
+     writeErrorFile(errPath, errId, 'invalid_slice', null, '', '', { missingFields });
+     log('info', 'state', { id: errId, from: 'QUEUED', to: 'ERROR', reason: 'invalid_slice' });
+-    registerEvent(errId, 'ERROR', {
++    appendSliceEvent(errId, 'ERROR', {
+       reason: 'invalid_slice',
+       phase: 'validation',
+       command: null,
+@@ -4946,11 +4946,11 @@ function crashRecovery() {
+       log('info', 'startup_recovery', { id, msg: `Recovery deferred for ${branchName} — gate is running`, branch: branchName });
+       actions.push({ id, type: 'recovery_deferred', branch: branchName });
+     } else if (result.success) {
+-      registerEvent(id, 'MERGED', { branch: branchName, sha: result.sha, slice_id: id, recovery: true });
++      appendSliceEvent(id, 'MERGED', { branch: branchName, sha: result.sha, slice_id: id, recovery: true });
+       log('info', 'startup_recovery', { id, msg: `Recovery squash succeeded for ${branchName}`, branch: branchName, sha: result.sha });
+       actions.push({ id, type: 'recovery_merged', branch: branchName, sha: result.sha });
+     } else {
+-      registerEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, slice_id: id, recovery: true });
++      appendSliceEvent(id, 'MERGE_FAILED', { branch: branchName, reason: result.error, slice_id: id, recovery: true });
+       log('warn', 'startup_recovery', { id, msg: `Recovery squash failed for ${branchName}`, branch: branchName, reason: result.error });
+       actions.push({ id, type: 'recovery_merge_failed', branch: branchName, reason: result.error });
+       printUnmergedAlert(id, title, branchName);
+@@ -4994,7 +4994,7 @@ function crashRecovery() {
+         processing = true;
+         heartbeatState.status = 'processing';
+         heartbeatState.current_slice = id;
+-        registerEvent(id, 'ERROR', {
++        appendSliceEvent(id, 'ERROR', {
+           phase: 'paused_child_died',
+           reason: 'Watcher restarted while slice was paused — child process lost',
+           stderr_tail: '',
+@@ -5205,7 +5205,7 @@ function backfillArchive(opts) {
+     }
+   }
+ 
+-  registerEvent('backfill', 'BACKFILL_ARCHIVE_COMPLETE', { processed, skipped });
++  appendSliceEvent('backfill', 'BACKFILL_ARCHIVE_COMPLETE', { processed, skipped });
+ 
+   try {
+     fs.writeFileSync(markerFile, new Date().toISOString() + '\n');
+@@ -5259,7 +5259,7 @@ function backfillBranches(opts) {
+     }
+   }
+ 
+-  registerEvent('backfill', 'BACKFILL_BRANCHES_COMPLETE', { processed, skipped });
++  appendSliceEvent('backfill', 'BACKFILL_BRANCHES_COMPLETE', { processed, skipped });
+ 
+   try {
+     fs.writeFileSync(markerFile, new Date().toISOString() + '\n');
+@@ -5351,7 +5351,7 @@ function backfillAcceptedFiles(opts) {
+     }
+   }
+ 
+-  registerEvent('backfill', 'BACKFILL_ACCEPTED_COMPLETE', { processed, skipped });
++  appendSliceEvent('backfill', 'BACKFILL_ACCEPTED_COMPLETE', { processed, skipped });
+ 
+   try {
+     fs.writeFileSync(markerFile, new Date().toISOString() + '\n');
+@@ -5375,7 +5375,7 @@ function auditLegacyFiles(opts) {
+   if (nonCanonical.length === 0) return;
+ 
+   const sample = nonCanonical.slice(0, 10);
+-  registerEvent('audit', 'LEGACY_FILES_DETECTED', { count: nonCanonical.length, sample });
++  appendSliceEvent('audit', 'LEGACY_FILES_DETECTED', { count: nonCanonical.length, sample });
+   log('warn', 'audit', { msg: `${nonCanonical.length} non-canonical file(s) in queue`, sample });
+ }
+ 
+@@ -5404,7 +5404,7 @@ if (require.main === module) {
+   clearStaleGitLocks();
+ 
+   // Initialise git-finalizer with orchestrator dependencies.
+-  gitFinalizer.init({ PROJECT_DIR, registerEvent, log, HEARTBEAT_FILE, QUEUE_DIR });
++  gitFinalizer.init({ PROJECT_DIR, appendSliceEvent, log, HEARTBEAT_FILE, QUEUE_DIR });
+ 
+   // Clean up .dead worktree/branch entries from prior sessions.
+   cleanupDeadWorktrees();
+@@ -5413,8 +5413,8 @@ if (require.main === module) {
+   pruneOrphanDoneFiles();
+   migrateArchivedToParked();
+   restagedBootstrap();
+-  reconcileBranchState({ registerEvent, log, runGit: gitFinalizer.runGit });
+-  recoverGateMutex({ registerEvent, log });
++  reconcileBranchState({ appendSliceEvent, log, runGit: gitFinalizer.runGit });
++  recoverGateMutex({ appendSliceEvent, log });
+   backfillAcceptedFiles();
+   backfillArchive();
+   backfillBranches();
+@@ -5566,7 +5566,7 @@ function buildBashirPrompt(branchState) {
+  * Throws if mutex acquisition fails or branch-state is unreadable.
+  */
+ function startGate() {
+-  const ctx = { registerEvent, log };
++  const ctx = { appendSliceEvent, log };
+ 
+   // 1. Read current branch-state
+   let branchState;
+@@ -5877,7 +5877,7 @@ function _gateTestsUpdated(devTipSha, ctx) {
+       const { failedAcs, hasNamingViolation } = _parseFailedAcs(output);
+ 
+       if (hasNamingViolation) {
+-        registerEvent('gate', 'BASHIR_TEST_NAMING_VIOLATION', {
++        appendSliceEvent('gate', 'BASHIR_TEST_NAMING_VIOLATION', {
+           msg: 'One or more failing tests do not follow slice-<id>-ac-<index> naming convention',
+           dev_tip_sha: devTipSha,
+         });
+@@ -5960,7 +5960,7 @@ function _gateAbort(devTipSha, reason, ctx) {
+  * Throws if gate.status is not GATE_FAILED or GATE_ABORTED.
+  */
+ function abortGate() {
+-  const ctx = { registerEvent, log };
++  const ctx = { appendSliceEvent, log };
+ 
+   // 1. Read current branch-state
+   let branchState;
+@@ -6090,7 +6090,7 @@ function squashSliceToDev(sliceId, sliceTitle, sliceBranch) {
+   }
+ 
+   // Step 4: Emit register event
+-  registerEvent(sliceId, 'SLICE_SQUASHED_TO_DEV', {
++  appendSliceEvent(sliceId, 'SLICE_SQUASHED_TO_DEV', {
+     slice_id: String(sliceId),
+     dev_tip_sha: devSha,
+     squash_sha: devSha,
+@@ -6225,7 +6225,7 @@ function drainDeferredAfterGate() {
+  * On failure emits gate-abort, releases mutex, leaves main unchanged.
+  */
+ function mergeDevToMain() {
+-  const ctx = { registerEvent, log };
++  const ctx = { appendSliceEvent, log };
+ 
+   // 1. Read branch-state for batch info
+   let branchState;
+@@ -6331,7 +6331,7 @@ function mergeDevToMain() {
+ 
+     // 8. Emit per-slice SLICE_MERGED_TO_MAIN register events
+     for (const sid of sliceIds) {
+-      registerEvent(sid, 'SLICE_MERGED_TO_MAIN', {
++      appendSliceEvent(sid, 'SLICE_MERGED_TO_MAIN', {
+         slice_id: sid,
+         merge_sha: mergeSha,
+       });
+diff --git a/bridge/queue/143-DONE.md b/bridge/queue/143-DONE.md
+index dd52b3d..a99c0d6 100644
+--- a/bridge/queue/143-DONE.md
++++ b/bridge/queue/143-DONE.md
+@@ -24,7 +24,7 @@ Wired BR invariant #9 (Rom slice-broken fast path) into `bridge/watcher.js`. Whe
+ 
+ 1. Reads the DONE file content.
+ 2. Tests for `/^## Rom Escalation — Slice Broken\s*$/m`.
+-3. On match: renames to `STAGED_DIR/{id}-STAGED.md`, calls `registerEvent(id, 'ROM_ESCALATE', { reason: 'slice-broken fast path' })`, logs state transition with reason `rom_escalate`, and `continue`s (skips Nog entirely).
++3. On match: renames to `STAGED_DIR/{id}-STAGED.md`, calls `appendSliceEvent(id, 'ROM_ESCALATE', { reason: 'slice-broken fast path' })`, logs state transition with reason `rom_escalate`, and `continue`s (skips Nog entirely).
+ 4. On no match: falls through to existing EVALUATING/Nog flow unchanged.
+ 
+ ## Acceptance criteria verification
+diff --git a/bridge/queue/147-DONE.md b/bridge/queue/147-DONE.md
+index fffe782..d5de47f 100644
+--- a/bridge/queue/147-DONE.md
++++ b/bridge/queue/147-DONE.md
+@@ -49,7 +49,7 @@ Renamed the on-disk review sidecar suffix from `-REVIEWED.md` to `-IN_REVIEW.md`
+ | `grep -c "IN_REVIEW" dashboard/server.js` ≥ 1 | 1 ✓ |
+ | `grep -c "IN_REVIEW" docs/contracts/slice-pipeline.md` ≥ 3 | 10 ✓ |
+ | `grep -c "REVIEWED" bridge/watcher.js` ≥ 3 (dual-accept + event) | 5 ✓ |
+-| `registerEvent(.*'REVIEWED'` preserved | 1 match ✓ |
++| `appendSliceEvent(.*'REVIEWED'` preserved | 1 match ✓ |
+ | §4 table row 5 contains `-IN_REVIEW.md` | ✓ |
+ | §12 item 2 contains "slice 147" and "resolved" | ✓ |
+ | §12 item 4 contains "slice 147" and "documented"/"deferred" | ✓ |
+diff --git a/bridge/queue/161-DONE.md b/bridge/queue/161-DONE.md
+index 035db01..775bb20 100644
+--- a/bridge/queue/161-DONE.md
++++ b/bridge/queue/161-DONE.md
+@@ -36,7 +36,7 @@ Fixed by deriving `branchName = slice/${rootId}` when the DONE report doesn't in
+ 
+ Added `truncStderr()` helper (last 2000 chars of stderr, for register readability).
+ 
+-All 5 `registerEvent(id, 'ERROR', ...)` call sites now include:
++All 5 `appendSliceEvent(id, 'ERROR', ...)` call sites now include:
+ - `phase` — which lifecycle stage failed (e.g. `rom_invocation`, `worktree_setup`, `validation`)
+ - `command` — the failing command string
+ - `exit_code` — numeric exit code or null
+diff --git a/bridge/queue/168-DONE.md b/bridge/queue/168-DONE.md
+index c4abab5..23b85e2 100644
+--- a/bridge/queue/168-DONE.md
++++ b/bridge/queue/168-DONE.md
+@@ -38,7 +38,7 @@ The dashboard `/api/bridge/review` endpoint has been demoted to a UI-refresh nud
+ 
+ | AC | Status |
+ |----|--------|
+-| 1. Register order: NOG_PASS → REVIEW_RECEIVED → ACCEPTED → MERGED | Met — all registerEvent calls are synchronous and in canonical order |
++| 1. Register order: NOG_PASS → REVIEW_RECEIVED → ACCEPTED → MERGED | Met — all appendSliceEvent calls are synchronous and in canonical order |
+ | 2. ACCEPTED event body has no `reason` field | Met — `{ cycle }` only |
+ | 3. `grep callReviewAPI( bridge/watcher.js` returns zero call sites | Met — only function definition remains |
+ | 4. `/api/bridge/review` does not write to register | Met — writeRegisterEvent removed from handler |
+diff --git a/bridge/queue/170-DONE.md b/bridge/queue/170-DONE.md
+index e5fd2e5..fd98ee2 100644
+--- a/bridge/queue/170-DONE.md
++++ b/bridge/queue/170-DONE.md
+@@ -1,6 +1,6 @@
+ ---
+ id: "170"
+-title: "Post-restart event-order proof — add INVARIANT comment above registerEvent"
++title: "Post-restart event-order proof — add INVARIANT comment above appendSliceEvent"
+ from: rom
+ to: nog
+ status: DONE
+@@ -16,15 +16,15 @@ compaction_occurred: false
+ 
+ ## Summary
+ 
+-Inserted the verbatim `/** INVARIANT: ... */` doc-comment block directly above `function registerEvent(id, event, extra)` in `bridge/watcher.js`. No other changes made.
++Inserted the verbatim `/** INVARIANT: ... */` doc-comment block directly above `function appendSliceEvent(id, event, extra)` in `bridge/watcher.js`. No other changes made.
+ 
+ ## What changed
+ 
+-- **`bridge/watcher.js`** — Added 10-line JSDoc invariant comment block at line 518 (now lines 518-527), immediately above the `registerEvent` function declaration. The comment states that `registerEvent` is the sole writer of pipeline events to `register.jsonl` and references slices 168+169 as the historical context.
++- **`bridge/watcher.js`** — Added 10-line JSDoc invariant comment block at line 518 (now lines 518-527), immediately above the `appendSliceEvent` function declaration. The comment states that `appendSliceEvent` is the sole writer of pipeline events to `register.jsonl` and references slices 168+169 as the historical context.
+ 
+ ## Verification
+ 
+-1. `grep -n "INVARIANT: registerEvent is the SOLE writer" bridge/watcher.js` returns exactly 1 hit at line 519.
++1. `grep -n "INVARIANT: appendSliceEvent is the SOLE writer" bridge/watcher.js` returns exactly 1 hit at line 519.
+ 2. `node -c bridge/watcher.js` passes (syntax OK).
+ 3. `git diff --stat` shows 1 file changed, 10 insertions.
+ 4. Comment text matches the scope block verbatim.
+@@ -34,7 +34,7 @@ Inserted the verbatim `/** INVARIANT: ... */` doc-comment block directly above `
+ 
+ | AC | Status | Note |
+ |----|--------|------|
+-| 1. grep returns exactly one hit above `function registerEvent(` | PASS | Line 519 |
++| 1. grep returns exactly one hit above `function appendSliceEvent(` | PASS | Line 519 |
+ | 2. `node bridge/watcher.js` starts cleanly | PASS | Syntax check passed |
+ | 3. Test suite passes | PASS | No test script configured; syntax validation confirms no errors |
+ | 4. Register trail shows canonical order | DEFERRED | Observable after end-to-end run under restarted watcher |
+diff --git a/bridge/queue/176-DONE.md b/bridge/queue/176-DONE.md
+index cedde21..2ff16ef 100644
+--- a/bridge/queue/176-DONE.md
++++ b/bridge/queue/176-DONE.md
+@@ -45,7 +45,7 @@ Shipped the consumer-side half of Dax's lifecycle migration. Re-staged from slic
+ - Dedicated test file `test/verdict-parser-widening.test.js` with 15 assertions
+ 
+ ### 5. Register write sites use canonical events (from 174 + new slice_id key)
+-- All `registerEvent` calls emit canonical names (NOG_DECISION, NOG_INVOKED, etc.)
++- All `appendSliceEvent` calls emit canonical names (NOG_DECISION, NOG_INVOKED, etc.)
+ - New writes use `slice_id` key instead of `id`
+ - Dashboard write sites updated to use `slice_id`
+ - `registerCommissioned` also uses `slice_id`
+diff --git a/bridge/queue/211-DONE.md b/bridge/queue/211-DONE.md
+index 2cf51fa..e7606e9 100644
+--- a/bridge/queue/211-DONE.md
++++ b/bridge/queue/211-DONE.md
+@@ -42,7 +42,7 @@ Added `assertMergeIntegrity(id, expectedSha)` — a post-merge local integrity g
+ - **B** — not_ancestor: unreachable SHA → `{ ok: false, reason: 'not_ancestor' }`
+ - **C** — tip_mismatch: ancestor but not tip → `{ ok: false, reason: 'tip_mismatch' }`
+ - **D** — register emission: MERGE_INTEGRITY_VIOLATION event with correct fields
+-- **E** (4 tests) — source-level integration: call site ordering, failure return shape, registerEvent emission, handleAccepted success gate
++- **E** (4 tests) — source-level integration: call site ordering, failure return shape, appendSliceEvent emission, handleAccepted success gate
+ 
+ ## Acceptance criteria
+ 
+diff --git a/bridge/queue/258-DONE.md b/bridge/queue/258-DONE.md
+index 5b949f0..2033447 100644
+--- a/bridge/queue/258-DONE.md
++++ b/bridge/queue/258-DONE.md
+@@ -33,7 +33,7 @@ Exports `createInitialBranchState()` returning the ADR §8 schema: `schema_versi
+ Initial file with the schema from §Scope item 3. All branch fields null/empty, gate at IDLE.
+ 
+ ### 5. `bridge/state/branch-state-recovery.js`
+-Exports `reconcileBranchState({ registerEvent, log, runGit })`:
++Exports `reconcileBranchState({ appendSliceEvent, log, runGit })`:
+ - **Missing file**: writes initial schema, emits `BRANCH_STATE_INITIALIZED`.
+ - **Present + parseable**: re-derives `main`, `dev`, `last_merge` from git. Preserves `gate` section and `deferred_slices`. Writes atomically.
+ - **Corrupt file**: logs warning, emits `BRANCH_STATE_RESET_FROM_CORRUPT` with corrupt content truncated to 1KB, writes fresh schema with gate at IDLE.
+diff --git a/bridge/queue/260-DONE.md b/bridge/queue/260-DONE.md
+index 19e0b85..2cdcfcb 100644
+--- a/bridge/queue/260-DONE.md
++++ b/bridge/queue/260-DONE.md
+@@ -16,13 +16,13 @@ compaction_occurred: false
+ 
+ ## Summary
+ 
+-Fixed the regression in `test/state-gate-mutex.test.js` caused by removing `registerEvent` calls from `gate-mutex.js` in round 1.
++Fixed the regression in `test/state-gate-mutex.test.js` caused by removing `appendSliceEvent` calls from `gate-mutex.js` in round 1.
+ 
+ ### Fix applied
+ 
+-Updated 4 failing tests in `test/state-gate-mutex.test.js` to use gate-telemetry's register file instead of asserting on `registerEvent` callbacks:
++Updated 4 failing tests in `test/state-gate-mutex.test.js` to use gate-telemetry's register file instead of asserting on `appendSliceEvent` callbacks:
+ 
+-- **Test 1 (acquire happy path):** Now reads `gate-mutex-acquired` event from telemetry register instead of checking `registerEvent` callback for `GATE_MUTEX_ACQUIRED`.
++- **Test 1 (acquire happy path):** Now reads `gate-mutex-acquired` event from telemetry register instead of checking `appendSliceEvent` callback for `GATE_MUTEX_ACQUIRED`.
+ - **Test 3 (release happy path):** Now reads `gate-mutex-released` event from telemetry register instead of checking for `GATE_MUTEX_RELEASED`.
+ - **Test 7 (recovery orphan):** Now reads `gate-mutex-orphan-recovered` event with `recovery_signal: 'heartbeat-stale'` instead of checking for `GATE_ABORTED`.
+ - **Test 8 (recovery missing-heartbeat):** Now reads `gate-mutex-orphan-recovered` event with `recovery_signal: 'process-gone'` instead of checking for `GATE_ABORTED`.
+diff --git a/bridge/queue/268-DONE.md b/bridge/queue/268-DONE.md
+index 7aa773f..9648bc6 100644
+--- a/bridge/queue/268-DONE.md
++++ b/bridge/queue/268-DONE.md
+@@ -33,7 +33,7 @@ Replaced the placeholder `regression-fail` in `_gateTestsUpdated` with a real te
+ 
+ - **`_updateBranchStateOnFail(devTipSha, failedAcs)`**: New helper. Sets `gate.status = "GATE_FAILED"`, clears `current_run`, records `last_failure`.
+ 
+-- **Naming violation handling**: When a failing test doesn't match `slice-<id>-ac-<index>`, emits `BASHIR_TEST_NAMING_VIOLATION` via `registerEvent` (not gate-telemetry — it's not a gate event). Pipeline does NOT block.
++- **Naming violation handling**: When a failing test doesn't match `slice-<id>-ac-<index>`, emits `BASHIR_TEST_NAMING_VIOLATION` via `appendSliceEvent` (not gate-telemetry — it's not a gate event). Pipeline does NOT block.
+ 
+ - **Timeout**: Configurable via `DS9_REGRESSION_TIMEOUT_S` env var (default 600s = 10 min).
+ 
+@@ -59,7 +59,7 @@ Updated slice 267's tests to reflect the new async behavior. The old synchronous
+ 3. ✅ Any-fail case: `regression-fail` event with structured `failed_acs`; `gate.status = "GATE_FAILED"`; mutex released.
+ 4. ✅ Timeout: `regression-fail { reason: "suite-timeout" }`; mutex released; runner subprocess killed.
+ 5. ✅ Naming-violation case: fallback payload + `BASHIR_TEST_NAMING_VIOLATION` register event; pipeline does NOT block.
+-6. ✅ All gate events through `gate-telemetry.emit`; naming-violation through `registerEvent`.
++6. ✅ All gate events through `gate-telemetry.emit`; naming-violation through `appendSliceEvent`.
+ 7. ✅ Worf's gate-recovery suite (`test/state-gate-mutex.test.js`) passes — 9/9.
+ 8. ✅ All four new tests pass.
+ 
+diff --git a/bridge/queue/273-DONE.md b/bridge/queue/273-DONE.md
+index 3f36cae..3a3bd11 100644
+--- a/bridge/queue/273-DONE.md
++++ b/bridge/queue/273-DONE.md
+@@ -84,7 +84,7 @@ Replaced `acceptAndMerge`'s legacy slice→main merge path with gate-aware squas
+ 
+ - `acceptAndMerge` contains zero `git merge --no-ff` calls targeting main ✓
+ - `acceptAndMerge` contains zero direct `gate-running.json` reads ✓
+-- `SLICE_DEFERRED` goes through `registerEvent` helper ✓
++- `SLICE_DEFERRED` goes through `appendSliceEvent` helper ✓
+ - `drainDeferredAfterGate` emits no new events itself (delegates to `squashSliceToDev` which emits `SLICE_SQUASHED_TO_DEV`) ✓
+ - No changes to `bridge/state/*` modules ✓
+ 
+diff --git a/bridge/state/branch-state-recovery.js b/bridge/state/branch-state-recovery.js
+index afe2054..11f1698 100644
+--- a/bridge/state/branch-state-recovery.js
++++ b/bridge/state/branch-state-recovery.js
+@@ -8,14 +8,14 @@ const { createInitialBranchState } = require('./initial-schema');
+ const STATE_FILE = path.resolve(__dirname, 'branch-state.json');
+ 
+ /**
+- * reconcileBranchState({ registerEvent, log, runGit })
++ * reconcileBranchState({ appendSliceEvent, log, runGit })
+  *
+  * Startup recovery scan for branch-state.json (ADR §8).
+  * - Missing file: write initial schema, emit BRANCH_STATE_INITIALIZED.
+  * - Present + parseable: re-derive branch section from git, preserve gate.
+  * - Present + corrupt: log warning, emit BRANCH_STATE_RESET_FROM_CORRUPT, write fresh.
+  */
+-function reconcileBranchState({ registerEvent, log, runGit }) {
++function reconcileBranchState({ appendSliceEvent, log, runGit }) {
+   let existing = null;
+   let corrupt = false;
+ 
+@@ -28,7 +28,7 @@ function reconcileBranchState({ registerEvent, log, runGit }) {
+       corrupt = true;
+       const truncated = raw.length > 1024 ? raw.slice(0, 1024) : raw;
+       log('warn', 'branch_state', { msg: 'branch-state.json is corrupt, resetting to initial schema' });
+-      registerEvent('0', 'BRANCH_STATE_RESET_FROM_CORRUPT', { corrupt_content: truncated });
++      appendSliceEvent('0', 'BRANCH_STATE_RESET_FROM_CORRUPT', { corrupt_content: truncated });
+     }
+   }
+ 
+@@ -37,7 +37,7 @@ function reconcileBranchState({ registerEvent, log, runGit }) {
+     const initial = createInitialBranchState();
+     writeJsonAtomic(STATE_FILE, initial);
+     if (!corrupt) {
+-      registerEvent('0', 'BRANCH_STATE_INITIALIZED', {});
++      appendSliceEvent('0', 'BRANCH_STATE_INITIALIZED', {});
+     }
+     return initial;
+   }
+diff --git a/bridge/state/gate-mutex.js b/bridge/state/gate-mutex.js
+index 8f9339d..9e1a34e 100644
+--- a/bridge/state/gate-mutex.js
++++ b/bridge/state/gate-mutex.js
+@@ -28,12 +28,12 @@ function squashSliceToDev(sliceId) {
+ // ---------------------------------------------------------------------------
+ 
+ /**
+- * acquireGateMutex(devTipSha, bashirPid, heartbeatPath, { registerEvent, log })
++ * acquireGateMutex(devTipSha, bashirPid, heartbeatPath, { appendSliceEvent, log })
+  *
+  * Creates gate-running.json via writeJsonAtomic.
+  * If the file already exists, returns { ok: false, reason: "already_held" }.
+  */
+-function acquireGateMutex(devTipSha, bashirPid, heartbeatPath, { registerEvent, log }) {
++function acquireGateMutex(devTipSha, bashirPid, heartbeatPath, { appendSliceEvent, log }) {
+   if (fs.existsSync(MUTEX_PATH)) {
+     log('warn', 'gate_mutex', { msg: 'acquireGateMutex called but mutex already held' });
+     return { ok: false, reason: 'already_held' };
+@@ -58,13 +58,13 @@ function acquireGateMutex(devTipSha, bashirPid, heartbeatPath, { registerEvent,
+ }
+ 
+ /**
+- * releaseGateMutex(reason, { registerEvent, log })
++ * releaseGateMutex(reason, { appendSliceEvent, log })
+  *
+  * Deletes the mutex file and emits GATE_MUTEX_RELEASED.
+  * reason ∈ { regression_pass, regression_fail, gate_abort }
+  * Triggers drainDeferredSlices() after release.
+  */
+-function releaseGateMutex(reason, { registerEvent, log }) {
++function releaseGateMutex(reason, { appendSliceEvent, log }) {
+   let heldDurationMs = null;
+   try {
+     const mutex = JSON.parse(fs.readFileSync(MUTEX_PATH, 'utf-8'));
+@@ -79,17 +79,17 @@ function releaseGateMutex(reason, { registerEvent, log }) {
+     log('warn', 'gate_mutex', { msg: 'releaseGateMutex: mutex file already absent', error: err.message });
+   }
+   emit('gate-mutex-released', { reason, held_duration_ms: heldDurationMs });
+-  drainDeferredSlices({ registerEvent, log });
++  drainDeferredSlices({ appendSliceEvent, log });
+ }
+ 
+ /**
+- * drainDeferredSlices({ registerEvent, log })
++ * drainDeferredSlices({ appendSliceEvent, log })
+  *
+  * Reads branch-state.json.dev.deferred_slices, sorts FIFO by accepted_ts
+  * (tiebreak: numeric slice ID), and invokes squashSliceToDev for each.
+  * Removes each entry from deferred_slices on success.
+  */
+-function drainDeferredSlices({ registerEvent, log }) {
++function drainDeferredSlices({ appendSliceEvent, log }) {
+   let state;
+   try {
+     const raw = fs.readFileSync(BRANCH_STATE_PATH, 'utf-8');
+@@ -141,7 +141,7 @@ function shouldDeferSquash() {
+ // ---------------------------------------------------------------------------
+ 
+ /**
+- * recoverGateMutex({ registerEvent, log })
++ * recoverGateMutex({ appendSliceEvent, log })
+  *
+  * Run after reconcileBranchState(). If gate-running.json exists, check
+  * Bashir's heartbeat freshness:
+@@ -149,7 +149,7 @@ function shouldDeferSquash() {
+  *   - Stale or missing: emit GATE_ABORTED, delete mutex, drain deferred.
+  * PID is diagnostic only — heartbeat is canonical per ADR amendment.
+  */
+-function recoverGateMutex({ registerEvent, log }) {
++function recoverGateMutex({ appendSliceEvent, log }) {
+   if (!fs.existsSync(MUTEX_PATH)) return;
+ 
+   let mutex;
+@@ -157,7 +157,7 @@ function recoverGateMutex({ registerEvent, log }) {
+     mutex = JSON.parse(fs.readFileSync(MUTEX_PATH, 'utf-8'));
+   } catch (err) {
+     log('warn', 'gate_mutex', { msg: 'recoverGateMutex: corrupt mutex file, treating as orphan', error: err.message });
+-    _abortOrphan('process-gone', { registerEvent, log });
++    _abortOrphan('process-gone', { appendSliceEvent, log });
+     return;
+   }
+ 
+@@ -182,10 +182,10 @@ function recoverGateMutex({ registerEvent, log }) {
+   }
+ 
+   const signal = heartbeatReadable ? 'heartbeat-stale' : 'process-gone';
+-  _abortOrphan(signal, { registerEvent, log });
++  _abortOrphan(signal, { appendSliceEvent, log });
+ }
+ 
+-function _abortOrphan(recoverySignal, { registerEvent, log }) {
++function _abortOrphan(recoverySignal, { appendSliceEvent, log }) {
+   let heldDurationMs = null;
+   let lastHeartbeatAgeMs = null;
+   try {
+@@ -210,7 +210,7 @@ function _abortOrphan(recoverySignal, { registerEvent, log }) {
+   try {
+     fs.unlinkSync(MUTEX_PATH);
+   } catch (_) { /* already gone */ }
+-  drainDeferredSlices({ registerEvent, log });
++  drainDeferredSlices({ appendSliceEvent, log });
+ }
+ 
+ // ---------------------------------------------------------------------------
+diff --git a/bridge/state/gate-telemetry.js b/bridge/state/gate-telemetry.js
+index 1654897..0bd2f90 100644
+--- a/bridge/state/gate-telemetry.js
++++ b/bridge/state/gate-telemetry.js
+@@ -4,7 +4,7 @@
+  * gate-telemetry.js — Single module that owns all gate-related metric emission.
+  *
+  * Imported by orchestrator and gate-mutex. No metric writes scattered across
+- * call sites. All gate events flow through emit() → registerEvent().
++ * call sites. All gate events flow through emit() → appendSliceEvent().
+  *
+  * Slice 260 (W-Bash-C).
+  */
+diff --git a/bridge/test/gate-recovery.test.js b/bridge/test/gate-recovery.test.js
+index 8d43366..315d9d3 100644
+--- a/bridge/test/gate-recovery.test.js
++++ b/bridge/test/gate-recovery.test.js
+@@ -90,7 +90,7 @@ function makeDeps() {
+   const logs = [];
+   return {
+     deps: {
+-      registerEvent(id, event, extra) { events.push({ id, event, ...extra }); },
++      appendSliceEvent(id, event, extra) { events.push({ id, event, ...extra }); },
+       log(level, tag, data) { logs.push({ level, tag, ...data }); },
+     },
+     events,
+@@ -200,7 +200,7 @@ describe('Gate recovery integration tests', () => {
+ 
+     assert.equal(realMutexExists(), false, 'mutex should be deleted');
+ 
+-    // Check telemetry event (gate-telemetry is sole gate writer — no legacy registerEvent)
++    // Check telemetry event (gate-telemetry is sole gate writer — no legacy appendSliceEvent)
+     const telEvents = readTelemetryEvents();
+     const orphanEvt = telEvents.find(e => e.event === 'gate-mutex-orphan-recovered');
+     assert.ok(orphanEvt, 'should emit gate-mutex-orphan-recovered');
+@@ -312,7 +312,7 @@ describe('Gate recovery integration tests', () => {
+ 
+     const logs = [];
+     const deps = {
+-      registerEvent() {},
++      appendSliceEvent() {},
+       log(level, tag, data) { logs.push({ level, tag, ...data }); },
+     };
+ 
+@@ -343,7 +343,7 @@ describe('Gate recovery integration tests', () => {
+ 
+     const logs = [];
+     const deps = {
+-      registerEvent() {},
++      appendSliceEvent() {},
+       log(level, tag, data) { logs.push({ level, tag, ...data }); },
+     };
+ 
+@@ -375,7 +375,7 @@ describe('Gate recovery integration tests', () => {
+     const recovery = require('../state/branch-state-recovery');
+     const events = [];
+     const recDeps = {
+-      registerEvent(id, event, extra) { events.push({ id, event, ...extra }); },
++      appendSliceEvent(id, event, extra) { events.push({ id, event, ...extra }); },
+       log() {},
+       runGit() { return ''; },
+     };
+diff --git a/docs/adr/0001-orchestrator-refactor-and-watcher-deprecation.md b/docs/adr/0001-orchestrator-refactor-and-watcher-deprecation.md
+index 2765547..16805b5 100644
+--- a/docs/adr/0001-orchestrator-refactor-and-watcher-deprecation.md
++++ b/docs/adr/0001-orchestrator-refactor-and-watcher-deprecation.md
+@@ -32,7 +32,7 @@ The historical `watcher.js` was renamed to `orchestrator.js` in slice 176; there
+ | 6 | Queue snapshot (`getQueueSnapshot`) | ~25 | L337 |
+ | 7 | Startup directory creation + lifecycle blocks | ~120 | L361 |
+ | 8 | Structured logging to `bridge.log` | ~50 | L485 |
+-| 9 | Register / event log (`registerEvent`, `registerCommissioned`) | ~80 | L505 |
++| 9 | Register / event log (`appendSliceEvent`, `registerCommissioned`) | ~80 | L505 |
+ | 10 | Frontmatter parsing + mutation | ~175 | L584 |
+ | 11 | FUSE-safe checkout (deprecated) | ~257 | L760 |
+ | 12 | Worktree management (create/cleanup/verify) | ~368 | L1268 |
+@@ -62,7 +62,7 @@ Target layout: `bridge/relay/`. All modules target ≤600 LOC. Two currently-dea
+ | Module | Drawn from (post-193) | Concerns | Est. LOC |
+ |---|---|---|---|
+ | `relay/config.js` | L12–85 | Config loading, path constants, defaults | ~85 |
+-| `relay/register.js` | L485–759 | Structured logging, event log (`registerEvent`, `registerCommissioned`), frontmatter parsing/mutation | ~305 |
++| `relay/register.js` | L485–759 | Structured logging, event log (`appendSliceEvent`, `registerCommissioned`), frontmatter parsing/mutation | ~305 |
+ | `relay/git.js` | L1268–1636 (post-193) | Worktree create/cleanup/verify, branch creation, merge to main, stale-lock sweep | ~370 |
+ | `relay/telemetry.js` | L79–140, L213–360, L1637–1683 | Rate-limit state, activity tracking, token/cost, session state, heartbeat | ~275 |
+ | `relay/subprocess.js` | Shared helpers from L1699–3534 | Spawn, signal helpers (SIGSTOP/SIGCONT/SIGTERM), inactivity-kill pattern, stdout/stderr capture | ~300 |
+@@ -180,7 +180,7 @@ All citations are verifiable in `bridge/orchestrator.js` on `main` at the time o
+ 3. **Nog reads PARKED for ACs** — `L2421–2428`: `invokeNog()` reads PARKED file, not DONE, for original success criteria
+ 4. **Deprecated FUSE-safe checkout** — `L843`: inline comment "DEPRECATED—worktree model obsoletes this"
+ 5. **nextSliceId export** — `L4716`: `module.exports = { nextSliceId, getQueueSnapshot, ... }`
+-6. **Register sole writer** — `L534`: `function registerEvent(id, event, extra)` — single write path for `register.jsonl`
++6. **Register sole writer** — `L534`: `function appendSliceEvent(id, event, extra)` — single write path for `register.jsonl`
+ 7. **registerCommissioned embeds spec** — `L564–581`: full slice body embedded in COMMISSIONED event (precedent for Path A)
+ 8. **Poll loop entry** — `L4040`: `function poll()`
+ 9. **Crash recovery entry** — `L4367`: `function crashRecovery()`
+diff --git a/docs/ruflo/LEARNINGS.md b/docs/ruflo/LEARNINGS.md
+index 22bcb6d..85efcab 100644
+--- a/docs/ruflo/LEARNINGS.md
++++ b/docs/ruflo/LEARNINGS.md
+@@ -26,7 +26,7 @@ Three A/B experiments after the initial probe, each attaching claude-flow's MCP
+ | Slice | Experiment | Hypothesis | Setup | Result |
+ |---|---|---|---|---|
+ | 282 (V1) | [RAG-AB-FINDINGS.md](RAG-AB-FINDINGS.md) | Ruflo MCP attached to `claude -p` improves single-task code generation | Single-shot module write (`gate-history.js` + test), claude-flow MCP attached | 0 tool calls. Equivalent output. 23% cheaper (prompt cache variance from sequential runs, not Ruflo). |
+-| 284 (V2) | [RAG-AB-FINDINGS-V2.md](RAG-AB-FINDINGS-V2.md) | Retrieval-heavy task forces RAG tool usage | Cross-file event catalog audit (scan 13 files for all `registerEvent` sites) | 0 tool calls. Missed 6 events vs base. 29% cheaper (fewer turns = less thorough scanning). |
++| 284 (V2) | [RAG-AB-FINDINGS-V2.md](RAG-AB-FINDINGS-V2.md) | Retrieval-heavy task forces RAG tool usage | Cross-file event catalog audit (scan 13 files for all `appendSliceEvent` sites) | 0 tool calls. Missed 6 events vs base. 29% cheaper (fewer turns = less thorough scanning). |
+ | 285 (V3) | [RAG-AB-FINDINGS-V3.md](RAG-AB-FINDINGS-V3.md) | Explicit prompt instruction forces Ruflo tool calls | Prompt explicitly named claude-flow tools to call; required documenting tool usage | MCP server never connected. 0 tools registered. 3 ToolSearch queries returned 0 matches. 91% more expensive (wasted turns searching for non-existent tools). |
+ 
+ ---
+diff --git a/docs/ruflo/RAG-AB-FINDINGS-V2.md b/docs/ruflo/RAG-AB-FINDINGS-V2.md
+index 459f641..aff54e4 100644
+--- a/docs/ruflo/RAG-AB-FINDINGS-V2.md
++++ b/docs/ruflo/RAG-AB-FINDINGS-V2.md
+@@ -15,7 +15,7 @@ Ruflo-RAG lost this round on completeness and **still did not invoke any Ruflo M
+ 
+ ## 2. Setup
+ 
+-- **What changed from V1:** Task switched from single-file code generation to a genuine retrieval task requiring scanning 6+ source files for all `registerEvent`/`emit` callsites.
++- **What changed from V1:** Task switched from single-file code generation to a genuine retrieval task requiring scanning 6+ source files for all `appendSliceEvent`/`emit` callsites.
+ - **Experiment directory:** `experiments/rag-ab/run-2/`
+ - **MCP configs:** Same as V1 — `mcp-base.json` (empty) and `mcp-ruflo.json` (claude-flow MCP server)
+ - **Prompt:** Audit all register.jsonl emission sites, produce markdown catalog with file:line, trigger, and payload shape
+diff --git a/docs/ruflo/RAG-AB-FINDINGS-V3.md b/docs/ruflo/RAG-AB-FINDINGS-V3.md
+index 33790e3..fc5c266 100644
+--- a/docs/ruflo/RAG-AB-FINDINGS-V3.md
++++ b/docs/ruflo/RAG-AB-FINDINGS-V3.md
+@@ -32,8 +32,8 @@ Rom **could not** call Ruflo tools because the MCP server never finished connect
+ | `Glob("bridge/state/*")` | State files | 7 files + .gitkeep |
+ | `Read` x6 | Each .js/.json in bridge/state/ | Headers extracted |
+ | `Read("docs/contracts/slice-lifecycle.md")` | Lifecycle spec | 8 states, transitions, invariants |
+-| `Grep("registerEvent")` | bridge/orchestrator.js | 35 call sites, 19+ event types |
+-| `Grep("registerEvent")` | bridge/git-finalizer.js | 12 call sites, 7 event types |
++| `Grep("appendSliceEvent")` | bridge/orchestrator.js | 35 call sites, 19+ event types |
++| `Grep("appendSliceEvent")` | bridge/git-finalizer.js | 12 call sites, 7 event types |
+ | `Glob("**/register*.jsonl")` | Register file | Not on disk (runtime artifact) |
+ | `Write` | experiments/rag-ab/run-3/output.md | Lifecycle summary written |
+ 
+diff --git a/experiments/rag-ab/run-2/output-base.md b/experiments/rag-ab/run-2/output-base.md
+index ab030d4..799bd79 100644
+--- a/experiments/rag-ab/run-2/output-base.md
++++ b/experiments/rag-ab/run-2/output-base.md
+@@ -75,7 +75,7 @@ The table below lists additional payload fields beyond those three.
+ 
+ Events reach `register.jsonl` through two channels:
+ 
+-1. **`registerEvent(id, event, extra)`** — defined at orchestrator.js:626. Writes `{ ts, slice_id, event, ...extra }`. Used by orchestrator.js, git-finalizer.js, state/branch-state-recovery.js, and new-slice.js. Special variant `registerCommissioned()` at orchestrator.js:656 adds retry logic.
++1. **`appendSliceEvent(id, event, extra)`** — defined at orchestrator.js:626. Writes `{ ts, slice_id, event, ...extra }`. Used by orchestrator.js, git-finalizer.js, state/branch-state-recovery.js, and new-slice.js. Special variant `registerCommissioned()` at orchestrator.js:656 adds retry logic.
+ 
+ 2. **`emit(eventName, fields)`** — defined at state/gate-telemetry.js:66. Writes `{ ts, event, ...fields }` (no `slice_id` in base). Validates against `VALID_EVENTS` allowlist. Used by state/gate-mutex.js directly and by orchestrator.js via the `emitGateTelemetry` wrapper.
+ 
+diff --git a/experiments/rag-ab/run-2/output-ruflo.md b/experiments/rag-ab/run-2/output-ruflo.md
+index 80b97db..f24267d 100644
+--- a/experiments/rag-ab/run-2/output-ruflo.md
++++ b/experiments/rag-ab/run-2/output-ruflo.md
+@@ -3,7 +3,7 @@
+ Every event shares base fields: `ts` (ISO 8601), `event` (string), and `slice_id` (string).
+ The table below lists additional payload fields beyond those three.
+ 
+-## Writer A: `registerEvent()` (orchestrator.js:626)
++## Writer A: `appendSliceEvent()` (orchestrator.js:626)
+ 
+ Synchronous append via `fs.appendFileSync`. Sole writer for pipeline events. Includes write-time dedupe for MERGED on `(slice_id, sha)`.
+ 
+diff --git a/experiments/rag-ab/run-2/prompt.md b/experiments/rag-ab/run-2/prompt.md
+index ac1dcba..728d61f 100644
+--- a/experiments/rag-ab/run-2/prompt.md
++++ b/experiments/rag-ab/run-2/prompt.md
+@@ -8,6 +8,6 @@ For each unique event name:
+ 
+ Write the catalog as a markdown table sorted alphabetically by event name. Save it to `experiments/rag-ab/run-2/output-{base|ruflo}.md` (replace {base|ruflo} with the run identifier passed by the runner script).
+ 
+-Search broadly. Events are emitted from `bridge/orchestrator.js`, `bridge/git-finalizer.js`, `bridge/state/*.js`, and possibly other files. Look at every callsite of `registerEvent`, `register.append`, and any direct writes to `register.jsonl`. Do not miss any.
++Search broadly. Events are emitted from `bridge/orchestrator.js`, `bridge/git-finalizer.js`, `bridge/state/*.js`, and possibly other files. Look at every callsite of `appendSliceEvent`, `register.append`, and any direct writes to `register.jsonl`. Do not miss any.
+ 
+ Stop when the catalog is written. Report the total event-name count and which files you scanned.
+diff --git a/experiments/rag-ab/run-2/run-a-base.json b/experiments/rag-ab/run-2/run-a-base.json
+index 28d4b17..e1eb905 100644
+--- a/experiments/rag-ab/run-2/run-a-base.json
++++ b/experiments/rag-ab/run-2/run-a-base.json
+@@ -1 +1 @@
+-{"type":"result","subtype":"success","is_error":false,"duration_ms":328103,"duration_api_ms":327291,"num_turns":43,"result":"Catalog written to `experiments/rag-ab/run-2/output-base.md`.\n\n**Summary:**\n- **61 unique event names** cataloged\n- **13 source files scanned** across `bridge/`, `bridge/state/`, and `bridge/scripts/`\n- Events flow through 2 internal channels (`registerEvent` in orchestrator.js:626, `emit` in gate-telemetry.js:66) plus 5 events written by the external Bashir subprocess\n- Heaviest emitters: `orchestrator.js` (46 sites, 36 event types), `git-finalizer.js` (8 sites, 7 event types), `gate-mutex.js` (3 sites, 3 event types)","stop_reason":"end_turn","session_id":"1e0c219b-577f-4984-a3bf-abbed3fee706","total_cost_usd":1.3524817500000004,"usage":{"input_tokens":30,"cache_creation_input_tokens":53146,"cache_read_input_tokens":1018253,"output_tokens":11838,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":53146,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-6[1m]":{"inputTokens":30,"outputTokens":11838,"cacheReadInputTokens":1018253,"cacheCreationInputTokens":53146,"webSearchRequests":0,"costUSD":1.137389,"contextWindow":1000000,"maxOutputTokens":64000},"claude-haiku-4-5-20251001":{"inputTokens":59,"outputTokens":7312,"cacheReadInputTokens":728000,"cacheCreationInputTokens":84539,"webSearchRequests":0,"costUSD":0.21509275000000003,"contextWindow":200000,"maxOutputTokens":32000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"ccb1f0ef-24be-4812-96c7-444c941d0c62"}
++{"type":"result","subtype":"success","is_error":false,"duration_ms":328103,"duration_api_ms":327291,"num_turns":43,"result":"Catalog written to `experiments/rag-ab/run-2/output-base.md`.\n\n**Summary:**\n- **61 unique event names** cataloged\n- **13 source files scanned** across `bridge/`, `bridge/state/`, and `bridge/scripts/`\n- Events flow through 2 internal channels (`appendSliceEvent` in orchestrator.js:626, `emit` in gate-telemetry.js:66) plus 5 events written by the external Bashir subprocess\n- Heaviest emitters: `orchestrator.js` (46 sites, 36 event types), `git-finalizer.js` (8 sites, 7 event types), `gate-mutex.js` (3 sites, 3 event types)","stop_reason":"end_turn","session_id":"1e0c219b-577f-4984-a3bf-abbed3fee706","total_cost_usd":1.3524817500000004,"usage":{"input_tokens":30,"cache_creation_input_tokens":53146,"cache_read_input_tokens":1018253,"output_tokens":11838,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":53146,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-6[1m]":{"inputTokens":30,"outputTokens":11838,"cacheReadInputTokens":1018253,"cacheCreationInputTokens":53146,"webSearchRequests":0,"costUSD":1.137389,"contextWindow":1000000,"maxOutputTokens":64000},"claude-haiku-4-5-20251001":{"inputTokens":59,"outputTokens":7312,"cacheReadInputTokens":728000,"cacheCreationInputTokens":84539,"webSearchRequests":0,"costUSD":0.21509275000000003,"contextWindow":200000,"maxOutputTokens":32000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"ccb1f0ef-24be-4812-96c7-444c941d0c62"}
+diff --git a/experiments/rag-ab/run-2/run-b-ruflo.json b/experiments/rag-ab/run-2/run-b-ruflo.json
+index 3729612..f36c5cd 100644
+--- a/experiments/rag-ab/run-2/run-b-ruflo.json
++++ b/experiments/rag-ab/run-2/run-b-ruflo.json
+@@ -1 +1 @@
+-{"type":"result","subtype":"success","is_error":false,"duration_ms":277007,"duration_api_ms":276118,"num_turns":31,"result":"Catalog written to `experiments/rag-ab/run-2/output-ruflo.md`.\n\n**Summary:**\n- **55 unique event names** actively emitted to `bridge/register.jsonl`\n- **5 additional event names** reserved in `VALID_EVENTS` but not currently emitted\n- **13 files scanned** — emission sites found in 6 of them:\n  - `bridge/orchestrator.js` (42 sites, bulk of events)\n  - `bridge/git-finalizer.js` (10 sites, lock/worktree events)\n  - `bridge/state/gate-mutex.js` (3 sites)\n  - `bridge/state/branch-state-recovery.js` (2 sites)\n  - `bridge/new-slice.js` (1 site)\n  - `bridge/scripts/backfill-register.js` (1 site, one-time migration)\n\nTwo distinct writer paths: `registerEvent()` for pipeline events (with MERGED dedupe) and `emit()` via gate-telemetry for gate-specific events (with VALID_EVENTS validation). Plus two direct `appendFileSync` calls for RESTAGED and one dedicated `registerCommissioned()` wrapper.","stop_reason":"end_turn","session_id":"0e7003c9-a84c-47a7-936c-a5adb38e2ee5","total_cost_usd":0.955349,"usage":{"input_tokens":20,"cache_creation_input_tokens":37241,"cache_read_input_tokens":587703,"output_tokens":8117,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":37241,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-6[1m]":{"inputTokens":20,"outputTokens":8117,"cacheReadInputTokens":587703,"cacheCreationInputTokens":37241,"webSearchRequests":0,"costUSD":0.7296327499999999,"contextWindow":1000000,"maxOutputTokens":64000},"claude-haiku-4-5-20251001":{"inputTokens":107,"outputTokens":10963,"cacheReadInputTokens":1053405,"cacheCreationInputTokens":52363,"webSearchRequests":0,"costUSD":0.22571625,"contextWindow":200000,"maxOutputTokens":32000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"32791440-05e5-4256-aa00-337b7ea56180"}
++{"type":"result","subtype":"success","is_error":false,"duration_ms":277007,"duration_api_ms":276118,"num_turns":31,"result":"Catalog written to `experiments/rag-ab/run-2/output-ruflo.md`.\n\n**Summary:**\n- **55 unique event names** actively emitted to `bridge/register.jsonl`\n- **5 additional event names** reserved in `VALID_EVENTS` but not currently emitted\n- **13 files scanned** — emission sites found in 6 of them:\n  - `bridge/orchestrator.js` (42 sites, bulk of events)\n  - `bridge/git-finalizer.js` (10 sites, lock/worktree events)\n  - `bridge/state/gate-mutex.js` (3 sites)\n  - `bridge/state/branch-state-recovery.js` (2 sites)\n  - `bridge/new-slice.js` (1 site)\n  - `bridge/scripts/backfill-register.js` (1 site, one-time migration)\n\nTwo distinct writer paths: `appendSliceEvent()` for pipeline events (with MERGED dedupe) and `emit()` via gate-telemetry for gate-specific events (with VALID_EVENTS validation). Plus two direct `appendFileSync` calls for RESTAGED and one dedicated `registerCommissioned()` wrapper.","stop_reason":"end_turn","session_id":"0e7003c9-a84c-47a7-936c-a5adb38e2ee5","total_cost_usd":0.955349,"usage":{"input_tokens":20,"cache_creation_input_tokens":37241,"cache_read_input_tokens":587703,"output_tokens":8117,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":37241,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-6[1m]":{"inputTokens":20,"outputTokens":8117,"cacheReadInputTokens":587703,"cacheCreationInputTokens":37241,"webSearchRequests":0,"costUSD":0.7296327499999999,"contextWindow":1000000,"maxOutputTokens":64000},"claude-haiku-4-5-20251001":{"inputTokens":107,"outputTokens":10963,"cacheReadInputTokens":1053405,"cacheCreationInputTokens":52363,"webSearchRequests":0,"costUSD":0.22571625,"contextWindow":200000,"maxOutputTokens":32000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"32791440-05e5-4256-aa00-337b7ea56180"}
+diff --git a/experiments/rag-ab/run-3/output.md b/experiments/rag-ab/run-3/output.md
+index f8e60c1..939a21c 100644
+--- a/experiments/rag-ab/run-3/output.md
++++ b/experiments/rag-ab/run-3/output.md
+@@ -26,12 +26,12 @@ A slice is a single-file Kanban ticket. The filename suffix **is** the status. E
+ | `branch-state-recovery.js` | Startup reconciliation: re-derives branch state from git, emits BRANCH_STATE_INITIALIZED |
+ | `atomic-write.js` | Safe JSON writes via temp+rename (no partial writes) |
+ | `gate-mutex.js` | Prevents concurrent gate runs; owns `gate-running.json` lock file |
+-| `gate-telemetry.js` | Single owner of all gate metric emission via `emit()` -> `registerEvent()` |
++| `gate-telemetry.js` | Single owner of all gate metric emission via `emit()` -> `appendSliceEvent()` |
+ | `gate-alerts.js` | Pure functions evaluating register tail + gate state, returning structured alerts |
+ 
+ ## Register Events (top 10 by emit-site frequency)
+ 
+-`registerEvent()` in `bridge/orchestrator.js` is the **sole writer** to `register.jsonl`. Events ordered by number of distinct call sites in code:
++`appendSliceEvent()` in `bridge/orchestrator.js` is the **sole writer** to `register.jsonl`. Events ordered by number of distinct call sites in code:
+ 
+ | Event | Call sites | Context |
+ |-------|-----------|---------|
+diff --git a/experiments/rag-ab/run-3/run.json b/experiments/rag-ab/run-3/run.json
+index e1b79c2..8679443 100644
+--- a/experiments/rag-ab/run-3/run.json
++++ b/experiments/rag-ab/run-3/run.json
+@@ -1 +1 @@
+-{"type":"result","subtype":"success","is_error":false,"duration_ms":102077,"duration_api_ms":101645,"num_turns":26,"result":"Done. Here's the full tool-call log:\n\n---\n\n## Claude-Flow Tool-Call Log\n\n### 1. `mcp__claude-flow__memory_usage` (store evidence)\n- **Attempted tool:** `ToolSearch` query `\"mcp__claude-flow\"` and `\"+claude-flow\"` and `\"mcp memory store\"`\n- **Arguments:** searched for any tool matching `claude-flow` in the deferred tool registry\n- **Succeeded:** No. **The `mcp__claude-flow__*` namespace is empty.** Zero tools registered under `claude-flow`. The MCP server `ruflo-rag` was listed as \"still connecting\" but never produced claude-flow tools.\n- **Substitution:** No equivalent memory-store tool exists in any loaded MCP namespace. Evidence was gathered directly via `Read` and `Grep` and held in-context.\n\n### 2. `mcp__claude-flow__performance_report` (analysis)\n- **Attempted tool:** `ToolSearch` query `\"claude-flow analysis performance\"`\n- **Arguments:** keyword search for analysis/performance tools\n- **Succeeded:** No. Zero matches in the claude-flow namespace.\n- **Substitution:** Analysis performed manually from the gathered data — event frequency counted by distinct `registerEvent()` call sites in `bridge/orchestrator.js` and `bridge/git-finalizer.js`.\n\n### 3. `mcp__claude-flow__task_orchestrate` (decompose into subtasks)\n- **Attempted tool:** `ToolSearch` query `\"claude-flow task\"`\n- **Arguments:** keyword search for task orchestration tools\n- **Succeeded:** No. Only built-in `TodoWrite`/`TaskOutput`/`TaskStop` returned — no claude-flow task tools.\n- **Substitution:** Task decomposition done implicitly: (a) read state files, (b) extract lifecycle states, (c) count register events, (d) write summary.\n\n### 4. Data gathering (successful, using native tools)\n\n| Tool | Target | Result |\n|------|--------|--------|\n| `Glob(\"bridge/state/*\")` | State files | 7 files + `.gitkeep` |\n| `Read` x6 | Each `.js`/`.json` in `bridge/state/` | Headers extracted (purpose of each file) |\n| `Read(\"docs/contracts/slice-lifecycle.md\")` | Lifecycle spec | 8 states, transition table, rejection flow, invariants |\n| `Grep(\"registerEvent\")` | `bridge/orchestrator.js` | 35 distinct `registerEvent()` call sites, 19+ event types |\n| `Grep(\"registerEvent\")` | `bridge/git-finalizer.js` | 12 additional call sites, 7 event types |\n| `Glob(\"**/register*.jsonl\")` | Register file | No `.jsonl` file on disk (runtime-only artifact) |\n\n### 5. Output written\n- **Tool:** `Write`\n- **Path:** `experiments/rag-ab/run-3/output.md`\n- **Succeeded:** Yes.","stop_reason":"end_turn","session_id":"55e1ebbf-8199-43d7-8863-5b217dc641d8","total_cost_usd":0.5569975,"usage":{"input_tokens":13,"cache_creation_input_tokens":52302,"cache_read_input_tokens":224040,"output_tokens":4721,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":52302,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-6[1m]":{"inputTokens":13,"outputTokens":4721,"cacheReadInputTokens":224040,"cacheCreationInputTokens":52302,"webSearchRequests":0,"costUSD":0.5569975,"contextWindow":1000000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"b8faea95-dd7c-49da-9c22-339a6b95ccac"}
++{"type":"result","subtype":"success","is_error":false,"duration_ms":102077,"duration_api_ms":101645,"num_turns":26,"result":"Done. Here's the full tool-call log:\n\n---\n\n## Claude-Flow Tool-Call Log\n\n### 1. `mcp__claude-flow__memory_usage` (store evidence)\n- **Attempted tool:** `ToolSearch` query `\"mcp__claude-flow\"` and `\"+claude-flow\"` and `\"mcp memory store\"`\n- **Arguments:** searched for any tool matching `claude-flow` in the deferred tool registry\n- **Succeeded:** No. **The `mcp__claude-flow__*` namespace is empty.** Zero tools registered under `claude-flow`. The MCP server `ruflo-rag` was listed as \"still connecting\" but never produced claude-flow tools.\n- **Substitution:** No equivalent memory-store tool exists in any loaded MCP namespace. Evidence was gathered directly via `Read` and `Grep` and held in-context.\n\n### 2. `mcp__claude-flow__performance_report` (analysis)\n- **Attempted tool:** `ToolSearch` query `\"claude-flow analysis performance\"`\n- **Arguments:** keyword search for analysis/performance tools\n- **Succeeded:** No. Zero matches in the claude-flow namespace.\n- **Substitution:** Analysis performed manually from the gathered data — event frequency counted by distinct `appendSliceEvent()` call sites in `bridge/orchestrator.js` and `bridge/git-finalizer.js`.\n\n### 3. `mcp__claude-flow__task_orchestrate` (decompose into subtasks)\n- **Attempted tool:** `ToolSearch` query `\"claude-flow task\"`\n- **Arguments:** keyword search for task orchestration tools\n- **Succeeded:** No. Only built-in `TodoWrite`/`TaskOutput`/`TaskStop` returned — no claude-flow task tools.\n- **Substitution:** Task decomposition done implicitly: (a) read state files, (b) extract lifecycle states, (c) count register events, (d) write summary.\n\n### 4. Data gathering (successful, using native tools)\n\n| Tool | Target | Result |\n|------|--------|--------|\n| `Glob(\"bridge/state/*\")` | State files | 7 files + `.gitkeep` |\n| `Read` x6 | Each `.js`/`.json` in `bridge/state/` | Headers extracted (purpose of each file) |\n| `Read(\"docs/contracts/slice-lifecycle.md\")` | Lifecycle spec | 8 states, transition table, rejection flow, invariants |\n| `Grep(\"appendSliceEvent\")` | `bridge/orchestrator.js` | 35 distinct `appendSliceEvent()` call sites, 19+ event types |\n| `Grep(\"appendSliceEvent\")` | `bridge/git-finalizer.js` | 12 additional call sites, 7 event types |\n| `Glob(\"**/register*.jsonl\")` | Register file | No `.jsonl` file on disk (runtime-only artifact) |\n\n### 5. Output written\n- **Tool:** `Write`\n- **Path:** `experiments/rag-ab/run-3/output.md`\n- **Succeeded:** Yes.","stop_reason":"end_turn","session_id":"55e1ebbf-8199-43d7-8863-5b217dc641d8","total_cost_usd":0.5569975,"usage":{"input_tokens":13,"cache_creation_input_tokens":52302,"cache_read_input_tokens":224040,"output_tokens":4721,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":52302,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-6[1m]":{"inputTokens":13,"outputTokens":4721,"cacheReadInputTokens":224040,"cacheCreationInputTokens":52302,"webSearchRequests":0,"costUSD":0.5569975,"contextWindow":1000000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"b8faea95-dd7c-49da-9c22-339a6b95ccac"}
+diff --git a/test/apendment-id-retention.test.js b/test/apendment-id-retention.test.js
+index c9bf978..754d8af 100644
+--- a/test/apendment-id-retention.test.js
++++ b/test/apendment-id-retention.test.js
+@@ -439,15 +439,15 @@ test('invokeEvaluator does NOT exist in orchestrator (removed slice 191)', () =>
+ // ---------------------------------------------------------------------------
+ 
+ test('NOG_DECISION register event for REJECTED includes apendment_cycle field', () => {
+-  // Find registerEvent calls with NOG_DECISION that carry REJECTED verdict
++  // Find appendSliceEvent calls with NOG_DECISION that carry REJECTED verdict
+   const lines = watcherSource.split('\n');
+   const nogDecisionCalls = [];
+   for (let i = 0; i < lines.length; i++) {
+-    if (lines[i].includes("'NOG_DECISION'") && lines[i].includes('registerEvent')) {
++    if (lines[i].includes("'NOG_DECISION'") && lines[i].includes('appendSliceEvent')) {
+       nogDecisionCalls.push(lines.slice(i, i + 5).join('\n'));
+     }
+   }
+-  assert.ok(nogDecisionCalls.length > 0, 'Must have NOG_DECISION registerEvent calls');
++  assert.ok(nogDecisionCalls.length > 0, 'Must have NOG_DECISION appendSliceEvent calls');
+   assert.ok(
+     nogDecisionCalls.some(c => c.includes('apendment_cycle')),
+     'NOG_DECISION REJECTED register event must include apendment_cycle'
+diff --git a/test/bashir-crash-recovery.test.js b/test/bashir-crash-recovery.test.js
+index 954b020..d73c14a 100644
+--- a/test/bashir-crash-recovery.test.js
++++ b/test/bashir-crash-recovery.test.js
+@@ -80,7 +80,7 @@ function createMutex() {
+ const orchestrator = require('../bridge/orchestrator');
+ 
+ const ctx = {
+-  registerEvent: () => {},
++  appendSliceEvent: () => {},
+   log: () => {},
+ };
+ 
+diff --git a/test/bashir-tests-updated.test.js b/test/bashir-tests-updated.test.js
+index e5fb2ee..3666716 100644
+--- a/test/bashir-tests-updated.test.js
++++ b/test/bashir-tests-updated.test.js
+@@ -73,10 +73,10 @@ function cleanup() {
+ 
+ const orchestrator = require('../bridge/orchestrator');
+ 
+-// Stub registerEvent and log for ctx
++// Stub appendSliceEvent and log for ctx
+ const logEntries = [];
+ const ctx = {
+-  registerEvent: () => {},
++  appendSliceEvent: () => {},
+   log: (level, event, fields) => { logEntries.push({ level, event, fields }); },
+ };
+ 
+diff --git a/test/ensure-main-fresh.test.js b/test/ensure-main-fresh.test.js
+index 80df691..4c00df5 100644
+--- a/test/ensure-main-fresh.test.js
++++ b/test/ensure-main-fresh.test.js
+@@ -98,10 +98,10 @@ function makeMockRunGit(responses) {
+ }
+ 
+ // Ensure gitFinalizer has minimal init so internal references don't crash
+-// (registerEvent / log inside runGit are bypassed since we monkeypatch runGit itself)
++// (appendSliceEvent / log inside runGit are bypassed since we monkeypatch runGit itself)
+ gitFinalizer.init({
+   PROJECT_DIR: REPO_ROOT,
+-  registerEvent: () => {},
++  appendSliceEvent: () => {},
+   log: () => {},
+   HEARTBEAT_FILE: path.join(BRIDGE_DIR, 'heartbeat.json'),
+   QUEUE_DIR: path.join(BRIDGE_DIR, 'queue'),
+diff --git a/test/event-order.test.js b/test/event-order.test.js
+index 8da66d1..e69ce26 100644
+--- a/test/event-order.test.js
++++ b/test/event-order.test.js
+@@ -57,8 +57,8 @@ test('handleAccepted emits NOG_DECISION with verdict ACCEPTED', () => {
+   assert(fnMatch, 'Could not find handleAccepted function');
+   const body = fnMatch[1];
+ 
+-  const nogDecision = body.match(/registerEvent\(id,\s*'NOG_DECISION',\s*\{([^}]+)\}/);
+-  assert(nogDecision, 'NOG_DECISION registerEvent not found in handleAccepted');
++  const nogDecision = body.match(/appendSliceEvent\(id,\s*'NOG_DECISION',\s*\{([^}]+)\}/);
++  assert(nogDecision, 'NOG_DECISION appendSliceEvent not found in handleAccepted');
+   assert(nogDecision[1].includes("'ACCEPTED'"), 'NOG_DECISION must carry ACCEPTED verdict');
+   assert(nogDecision[1].includes('reason'), 'NOG_DECISION must carry reason');
+   assert(nogDecision[1].includes('round'), 'NOG_DECISION must carry round');
+@@ -73,8 +73,8 @@ test('handleAccepted does NOT emit REVIEW_RECEIVED', () => {
+ test('handleAccepted does NOT emit ACCEPTED as separate event', () => {
+   const fnMatch = orchestratorSource.match(/function handleAccepted\([^)]*\)\s*\{([\s\S]*?)^}/m);
+   const body = fnMatch[1];
+-  // Should not have registerEvent(id, 'ACCEPTED' — only NOG_DECISION
+-  const acceptedCalls = (body.match(/registerEvent\(id,\s*'ACCEPTED'/g) || []);
++  // Should not have appendSliceEvent(id, 'ACCEPTED' — only NOG_DECISION
++  const acceptedCalls = (body.match(/appendSliceEvent\(id,\s*'ACCEPTED'/g) || []);
+   assert.strictEqual(acceptedCalls.length, 0, 'handleAccepted must not emit ACCEPTED as separate event');
+ });
+ 
+@@ -98,7 +98,7 @@ test('invokeNog emits NOG_DECISION with verdict REJECTED on REJECTED path', () =
+   const fnMatch = orchestratorSource.match(/function invokeNog\([^)]*\)\s*\{([\s\S]*?)^function /m);
+   assert(fnMatch, 'Could not find invokeNog function');
+   const body = fnMatch[1];
+-  const rejectedLine = body.match(/registerEvent\(id,\s*'NOG_DECISION',\s*\{[^}]*'REJECTED'/);
++  const rejectedLine = body.match(/appendSliceEvent\(id,\s*'NOG_DECISION',\s*\{[^}]*'REJECTED'/);
+   assert(rejectedLine, 'invokeNog must emit NOG_DECISION with REJECTED verdict');
+ });
+ 
+@@ -139,7 +139,7 @@ test('auto-accept path emits NOG_DECISION', () => {
+ 
+   assert(body.includes("'NOG_DECISION'"), 'auto-accept must emit NOG_DECISION');
+   assert(!body.includes("'REVIEW_RECEIVED'"), 'auto-accept must not emit REVIEW_RECEIVED');
+-  assert(!body.includes("registerEvent(doneId, 'ACCEPTED'"), 'auto-accept must not emit ACCEPTED as separate event');
++  assert(!body.includes("appendSliceEvent(doneId, 'ACCEPTED'"), 'auto-accept must not emit ACCEPTED as separate event');
+ });
+ 
+ test('auto-accept path does not call callReviewAPI', () => {
+@@ -193,25 +193,25 @@ test('dashboard /api/bridge/review returns nudge response', () => {
+ console.log('\n-- Part 7: No legacy event emissions --');
+ 
+ test('orchestrator does not emit REVIEW_RECEIVED anywhere', () => {
+-  const calls = (orchestratorSource.match(/registerEvent\([^,]+,\s*'REVIEW_RECEIVED'/g) || []);
++  const calls = (orchestratorSource.match(/appendSliceEvent\([^,]+,\s*'REVIEW_RECEIVED'/g) || []);
+   assert.strictEqual(calls.length, 0,
+     `Expected 0 REVIEW_RECEIVED emissions, found ${calls.length}`);
+ });
+ 
+ test('orchestrator does not emit NOG_PASS anywhere', () => {
+-  const calls = (orchestratorSource.match(/registerEvent\([^,]+,\s*'NOG_PASS'/g) || []);
++  const calls = (orchestratorSource.match(/appendSliceEvent\([^,]+,\s*'NOG_PASS'/g) || []);
+   assert.strictEqual(calls.length, 0,
+     `Expected 0 NOG_PASS emissions, found ${calls.length}`);
+ });
+ 
+ test('orchestrator does not emit ROM_WAITING_FOR_NOG anywhere', () => {
+-  const calls = (orchestratorSource.match(/registerEvent\([^,]+,\s*'ROM_WAITING_FOR_NOG'/g) || []);
++  const calls = (orchestratorSource.match(/appendSliceEvent\([^,]+,\s*'ROM_WAITING_FOR_NOG'/g) || []);
+   assert.strictEqual(calls.length, 0,
+     `Expected 0 ROM_WAITING_FOR_NOG emissions, found ${calls.length}`);
+ });
+ 
+ test('orchestrator does not emit REVIEWED anywhere', () => {
+-  const calls = (orchestratorSource.match(/registerEvent\([^,]+,\s*'REVIEWED'/g) || []);
++  const calls = (orchestratorSource.match(/appendSliceEvent\([^,]+,\s*'REVIEWED'/g) || []);
+   assert.strictEqual(calls.length, 0,
+     `Expected 0 REVIEWED emissions, found ${calls.length}`);
+ });
+diff --git a/test/git-finalizer.test.js b/test/git-finalizer.test.js
+index d056368..6ac2f10 100644
+--- a/test/git-finalizer.test.js
++++ b/test/git-finalizer.test.js
+@@ -101,7 +101,7 @@ test('runGit: prunes orphan .git/index.lock on exception', () => {
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: path.join(fakeProject, 'heartbeat.json'),
+     QUEUE_DIR: path.join(fakeProject, 'queue'),
+@@ -141,7 +141,7 @@ test('runGit: emits LOCK_CLAIMED + LOCK_RELEASED on success', () => {
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: path.join(fakeProject, 'heartbeat.json'),
+     QUEUE_DIR: path.join(fakeProject, 'queue'),
+@@ -186,7 +186,7 @@ test('sweepStaleResources: prunes orphan worktree dir with no git metadata', ()
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: hbPath,
+     QUEUE_DIR: queueDir,
+@@ -232,7 +232,7 @@ test('sweepStaleResources: prunes stale .git/index.lock when idle and no IN_PROG
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: hbPath,
+     QUEUE_DIR: queueDir,
+@@ -272,7 +272,7 @@ test('sweepStaleResources: declines to prune lock when IN_PROGRESS file exists',
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: hbPath,
+     QUEUE_DIR: queueDir,
+@@ -299,7 +299,7 @@ test('createWorktreeWithRetry: succeeds after transient index.lock failures', ()
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: path.join(fakeProject, 'heartbeat.json'),
+     QUEUE_DIR: path.join(fakeProject, 'queue'),
+@@ -346,7 +346,7 @@ test('createWorktreeWithRetry: exhausts retries and throws with stale reason', (
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: path.join(fakeProject, 'heartbeat.json'),
+     QUEUE_DIR: path.join(fakeProject, 'queue'),
+@@ -394,7 +394,7 @@ test('assertWorktreePath: rejects paths outside worktree base', () => {
+   // Reset to production paths for this test
+   gitFinalizer.init({
+     PROJECT_DIR: '/tmp/fake',
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: '/tmp/fake/hb.json',
+     QUEUE_DIR: '/tmp/fake/queue',
+@@ -430,7 +430,7 @@ test('isGitProcessAlive: returns alive=false with reason lsof_empty when no proc
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: path.join(fakeProject, 'heartbeat.json'),
+     QUEUE_DIR: path.join(fakeProject, 'queue'),
+@@ -461,7 +461,7 @@ test('isGitProcessAlive: lock <60s old with lsof held and no readable PID → al
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: path.join(fakeProject, 'heartbeat.json'),
+     QUEUE_DIR: path.join(fakeProject, 'queue'),
+@@ -544,7 +544,7 @@ test('pruneOrphanLock: prunes lock when lsof returns empty (existing path preser
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: path.join(fakeProject, 'heartbeat.json'),
+     QUEUE_DIR: path.join(fakeProject, 'queue'),
+@@ -574,7 +574,7 @@ test('pruneOrphanLock: prunes lock with dead PID content', () => {
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: path.join(fakeProject, 'heartbeat.json'),
+     QUEUE_DIR: path.join(fakeProject, 'queue'),
+@@ -602,7 +602,7 @@ test('isGitProcessAlive: returns object with alive and reason properties', () =>
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: fakeProject,
+-    registerEvent: mockRegisterEvent,
++    appendSliceEvent: mockRegisterEvent,
+     log: mockLog,
+     HEARTBEAT_FILE: path.join(fakeProject, 'heartbeat.json'),
+     QUEUE_DIR: path.join(fakeProject, 'queue'),
+diff --git a/test/lifecycle-events.test.js b/test/lifecycle-events.test.js
+index 9b2cb98..99d8d6a 100644
+--- a/test/lifecycle-events.test.js
++++ b/test/lifecycle-events.test.js
+@@ -86,13 +86,13 @@ test('Watcher source contains MAX_ROUNDS_EXHAUSTED event emission', () => {
+ });
+ 
+ test('MAX_ROUNDS_EXHAUSTED is emitted at exactly one site', () => {
+-  const matches = watcherSource.match(/registerEvent\([^,]+,\s*'MAX_ROUNDS_EXHAUSTED'/g);
+-  assert.ok(matches, 'No MAX_ROUNDS_EXHAUSTED registerEvent call found');
++  const matches = watcherSource.match(/appendSliceEvent\([^,]+,\s*'MAX_ROUNDS_EXHAUSTED'/g);
++  assert.ok(matches, 'No MAX_ROUNDS_EXHAUSTED appendSliceEvent call found');
+   assert.strictEqual(matches.length, 1, `Expected 1 emission site, found ${matches.length}`);
+ });
+ 
+ test('MAX_ROUNDS_EXHAUSTED event includes round and reason fields', () => {
+-  // Find the registerEvent call and its surrounding block
++  // Find the appendSliceEvent call and its surrounding block
+   const idx = watcherSource.indexOf("'MAX_ROUNDS_EXHAUSTED'");
+   const block = watcherSource.slice(Math.max(0, idx - 100), idx + 300);
+   assert.ok(block.includes('round'), 'MAX_ROUNDS_EXHAUSTED must include round field');
+@@ -144,8 +144,8 @@ test('Watcher source contains ESCALATED_TO_OBRIEN event emission', () => {
+ });
+ 
+ test('ESCALATED_TO_OBRIEN is emitted at exactly one site', () => {
+-  const matches = watcherSource.match(/registerEvent\([^,]+,\s*'ESCALATED_TO_OBRIEN'/g);
+-  assert.ok(matches, 'No ESCALATED_TO_OBRIEN registerEvent call found');
++  const matches = watcherSource.match(/appendSliceEvent\([^,]+,\s*'ESCALATED_TO_OBRIEN'/g);
++  assert.ok(matches, 'No ESCALATED_TO_OBRIEN appendSliceEvent call found');
+   assert.strictEqual(matches.length, 1, `Expected 1 emission site, found ${matches.length}`);
+ });
+ 
+@@ -182,8 +182,8 @@ test('Watcher source contains NOG_INVOKED event emission', () => {
+ });
+ 
+ test('NOG_INVOKED is emitted at exactly one site', () => {
+-  const matches = watcherSource.match(/registerEvent\([^,]+,\s*'NOG_INVOKED'/g);
+-  assert.ok(matches, 'No NOG_INVOKED registerEvent call found');
++  const matches = watcherSource.match(/appendSliceEvent\([^,]+,\s*'NOG_INVOKED'/g);
++  assert.ok(matches, 'No NOG_INVOKED appendSliceEvent call found');
+   assert.strictEqual(matches.length, 1, `Expected 1 emission site, found ${matches.length}`);
+ });
+ 
+diff --git a/test/nog-return-round2.test.js b/test/nog-return-round2.test.js
+index 1a58136..ed44ad3 100644
+--- a/test/nog-return-round2.test.js
++++ b/test/nog-return-round2.test.js
+@@ -257,11 +257,11 @@ test('ERROR register event payload has phase, command, exit_code, stderr_tail',
+ // Test 6: Verify orchestrator.js source has enriched ERROR events
+ // ---------------------------------------------------------------------------
+ 
+-test('All registerEvent ERROR calls include phase field', () => {
++test('All appendSliceEvent ERROR calls include phase field', () => {
+   const errorCalls = [];
+   const lines = watcherSource.split('\n');
+   for (let i = 0; i < lines.length; i++) {
+-    if (lines[i].includes("registerEvent") && lines[i].includes("'ERROR'")) {
++    if (lines[i].includes("appendSliceEvent") && lines[i].includes("'ERROR'")) {
+       const block = lines.slice(i, i + 12).join('\n');
+       errorCalls.push({ line: i + 1, block });
+     }
+diff --git a/test/orchestrator-merge-integrity.test.js b/test/orchestrator-merge-integrity.test.js
+index 990fe8a..9182dda 100644
+--- a/test/orchestrator-merge-integrity.test.js
++++ b/test/orchestrator-merge-integrity.test.js
+@@ -155,11 +155,11 @@ test('D — MERGE_INTEGRITY_VIOLATION event written to register on failure', ()
+   const result = assertMergeIntegrity('test-D', fakeSha);
+   assert.strictEqual(result.ok, false);
+ 
+-  // Simulate the registerEvent call that mergeBranch makes
+-  const { registerEvent } = (function() {
+-    // We need to call registerEvent via the orchestrator's internal path.
+-    // Since we set _testSetRegisterFile, registerEvent will write to our tmp file.
+-    // We can call it by requiring the module — but registerEvent isn't exported.
++  // Simulate the appendSliceEvent call that mergeBranch makes
++  const { appendSliceEvent } = (function() {
++    // We need to call appendSliceEvent via the orchestrator's internal path.
++    // Since we set _testSetRegisterFile, appendSliceEvent will write to our tmp file.
++    // We can call it by requiring the module — but appendSliceEvent isn't exported.
+     // Instead, verify the source code pattern and test via the register file.
+     // Write the event manually matching the format.
+     const entry = {
+@@ -171,7 +171,7 @@ test('D — MERGE_INTEGRITY_VIOLATION event written to register on failure', ()
+       reason: result.reason,
+     };
+     fs.appendFileSync(tmpRegister, JSON.stringify(entry) + '\n');
+-    return { registerEvent: null };
++    return { appendSliceEvent: null };
+   })();
+ 
+   const lines = fs.readFileSync(tmpRegister, 'utf-8').trim().split('\n').filter(Boolean);
+@@ -221,9 +221,9 @@ test('E — on integrity failure, mergeBranch returns { success: false, sha: nul
+   assert.ok(integrityBlock < pushCall, 'integrity failure return must come before git push call in mergeBranch');
+ });
+ 
+-test('E — MERGE_INTEGRITY_VIOLATION registerEvent is emitted on failure path', () => {
+-  const violationEvent = orchestratorSource.indexOf("registerEvent(id, 'MERGE_INTEGRITY_VIOLATION'");
+-  assert.ok(violationEvent > 0, 'MERGE_INTEGRITY_VIOLATION registerEvent call must exist');
++test('E — MERGE_INTEGRITY_VIOLATION appendSliceEvent is emitted on failure path', () => {
++  const violationEvent = orchestratorSource.indexOf("appendSliceEvent(id, 'MERGE_INTEGRITY_VIOLATION'");
++  assert.ok(violationEvent > 0, 'MERGE_INTEGRITY_VIOLATION appendSliceEvent call must exist');
+ 
+   // Verify it includes the required fields
+   const eventBlock = orchestratorSource.substring(violationEvent, violationEvent + 300);
+@@ -240,11 +240,11 @@ test('E — handleAccepted only emits MERGED when mergeBranch succeeds', () => {
+   const handleAcceptedBody = orchestratorSource.substring(handleAcceptedIdx, handleAcceptedEnd);
+ 
+   assert.ok(handleAcceptedBody.includes('if (result.success)'), 'MERGED must be gated on result.success');
+-  assert.ok(handleAcceptedBody.includes("registerEvent(id, 'MERGED'"), 'MERGED event must exist in handleAccepted');
++  assert.ok(handleAcceptedBody.includes("appendSliceEvent(id, 'MERGED'"), 'MERGED event must exist in handleAccepted');
+ 
+   // Verify MERGED is inside the success block, not outside it
+   const successIdx = handleAcceptedBody.indexOf('if (result.success)');
+-  const mergedIdx = handleAcceptedBody.indexOf("registerEvent(id, 'MERGED'");
++  const mergedIdx = handleAcceptedBody.indexOf("appendSliceEvent(id, 'MERGED'");
+   const elseIdx = handleAcceptedBody.indexOf('} else {', successIdx);
+   assert.ok(mergedIdx > successIdx && mergedIdx < elseIdx, 'MERGED emission must be inside the success branch');
+ });
+diff --git a/test/orchestrator-push-verify.test.js b/test/orchestrator-push-verify.test.js
+index 949cae8..8791033 100644
+--- a/test/orchestrator-push-verify.test.js
++++ b/test/orchestrator-push-verify.test.js
+@@ -106,13 +106,13 @@ test('B2 — ls-remote failure → { ok: false, reason starts with ls_remote_fai
+ 
+ console.log('\n-- Source-level integration checks --');
+ 
+-test('C — MERGE_NOT_PUSHED registerEvent emitted with required payload fields', () => {
+-  const eventCall = orchestratorSource.indexOf("registerEvent(id, 'MERGE_NOT_PUSHED'");
+-  assert.ok(eventCall > 0, 'MERGE_NOT_PUSHED registerEvent call must exist');
++test('C — MERGE_NOT_PUSHED appendSliceEvent emitted with required payload fields', () => {
++  const eventCall = orchestratorSource.indexOf("appendSliceEvent(id, 'MERGE_NOT_PUSHED'");
++  assert.ok(eventCall > 0, 'MERGE_NOT_PUSHED appendSliceEvent call must exist');
+ 
+-  // The payload is built just above the registerEvent call — look at a wider window
++  // The payload is built just above the appendSliceEvent call — look at a wider window
+   const payloadStart = orchestratorSource.lastIndexOf('const payload', eventCall);
+-  assert.ok(payloadStart > 0, 'payload variable must exist before registerEvent');
++  assert.ok(payloadStart > 0, 'payload variable must exist before appendSliceEvent');
+   const payloadBlock = orchestratorSource.substring(payloadStart, eventCall + 100);
+   assert.ok(payloadBlock.includes('local_sha'), 'payload must include local_sha');
+   assert.ok(payloadBlock.includes('origin_sha'), 'payload must include origin_sha');
+diff --git a/test/orchestrator-refs-lock-selfheal.test.js b/test/orchestrator-refs-lock-selfheal.test.js
+index 4e5faea..fce13ff 100644
+--- a/test/orchestrator-refs-lock-selfheal.test.js
++++ b/test/orchestrator-refs-lock-selfheal.test.js
+@@ -51,7 +51,7 @@ function createTestEnv() {
+ 
+   gitFinalizer.init({
+     PROJECT_DIR: tmpDir,
+-    registerEvent: (sliceId, event, data) => {
++    appendSliceEvent: (sliceId, event, data) => {
+       events.push({ sliceId, event, ...data });
+     },
+     log: (level, source, data) => {
+diff --git a/test/pause-resume-abort.test.js b/test/pause-resume-abort.test.js
+index 34dc041..536bdfb 100644
+--- a/test/pause-resume-abort.test.js
++++ b/test/pause-resume-abort.test.js
+@@ -71,9 +71,9 @@ test('Watcher handles "pause" control action', () => {
+ });
+ 
+ test('Pause emits ROM_PAUSED register event', () => {
+-  const matches = watcherSource.match(/registerEvent\([^)]*'ROM_PAUSED'/g) ||
+-                  watcherSource.match(/registerEvent\([^)]*"ROM_PAUSED"/g);
+-  assert.ok(matches && matches.length >= 1, 'orchestrator.js must emit ROM_PAUSED via registerEvent');
++  const matches = watcherSource.match(/appendSliceEvent\([^)]*'ROM_PAUSED'/g) ||
++                  watcherSource.match(/appendSliceEvent\([^)]*"ROM_PAUSED"/g);
++  assert.ok(matches && matches.length >= 1, 'orchestrator.js must emit ROM_PAUSED via appendSliceEvent');
+ });
+ 
+ test('Pause sends SIGSTOP to child process', () => {
+@@ -107,9 +107,9 @@ test('Watcher handles "resume" control action', () => {
+ });
+ 
+ test('Resume emits ROM_RESUMED register event', () => {
+-  const matches = watcherSource.match(/registerEvent\([^)]*'ROM_RESUMED'/g) ||
+-                  watcherSource.match(/registerEvent\([^)]*"ROM_RESUMED"/g);
+-  assert.ok(matches && matches.length >= 1, 'orchestrator.js must emit ROM_RESUMED via registerEvent');
++  const matches = watcherSource.match(/appendSliceEvent\([^)]*'ROM_RESUMED'/g) ||
++                  watcherSource.match(/appendSliceEvent\([^)]*"ROM_RESUMED"/g);
++  assert.ok(matches && matches.length >= 1, 'orchestrator.js must emit ROM_RESUMED via appendSliceEvent');
+ });
+ 
+ test('Resume sends SIGCONT to child process', () => {
+@@ -133,9 +133,9 @@ test('Watcher handles "abort" control action', () => {
+ });
+ 
+ test('Abort emits ROM_ABORTED register event', () => {
+-  const matches = watcherSource.match(/registerEvent\([^)]*'ROM_ABORTED'/g) ||
+-                  watcherSource.match(/registerEvent\([^)]*"ROM_ABORTED"/g);
+-  assert.ok(matches && matches.length >= 1, 'orchestrator.js must emit ROM_ABORTED via registerEvent');
++  const matches = watcherSource.match(/appendSliceEvent\([^)]*'ROM_ABORTED'/g) ||
++                  watcherSource.match(/appendSliceEvent\([^)]*"ROM_ABORTED"/g);
++  assert.ok(matches && matches.length >= 1, 'orchestrator.js must emit ROM_ABORTED via appendSliceEvent');
+ });
+ 
+ test('Abort sends SIGKILL to child process', () => {
+diff --git a/test/regression-fail.test.js b/test/regression-fail.test.js
+index fa901ea..cc8fe99 100644
+--- a/test/regression-fail.test.js
++++ b/test/regression-fail.test.js
+@@ -63,7 +63,7 @@ function cleanup() {
+ }
+ 
+ const ctx = {
+-  registerEvent: () => {},
++  appendSliceEvent: () => {},
+   log: () => {},
+ };
+ 
+diff --git a/test/regression-naming-violation.test.js b/test/regression-naming-violation.test.js
+index 9b3cb86..0ef3af1 100644
+--- a/test/regression-naming-violation.test.js
++++ b/test/regression-naming-violation.test.js
+@@ -75,14 +75,14 @@ function cleanup() {
+ }
+ 
+ const ctx = {
+-  registerEvent: () => {},
++  appendSliceEvent: () => {},
+   log: () => {},
+ };
+ 
+ const orchestrator = require('../bridge/orchestrator');
+ 
+ // Redirect orchestrator's register file to main register so we can capture
+-// registerEvent calls (BASHIR_TEST_NAMING_VIOLATION goes through registerEvent,
++// appendSliceEvent calls (BASHIR_TEST_NAMING_VIOLATION goes through appendSliceEvent,
+ // not gate-telemetry)
+ orchestrator._testSetRegisterFile(MAIN_REGISTER);
+ 
+@@ -175,7 +175,7 @@ test('this test has no convention name and fails', () => { assert.strictEqual(1,
+       const allRegEvents = readMainRegister();
+       const newEvents = allRegEvents.slice(beforeLen);
+       const violation = newEvents.find(e => e.event === 'BASHIR_TEST_NAMING_VIOLATION');
+-      assert.ok(violation, 'BASHIR_TEST_NAMING_VIOLATION should be emitted via registerEvent');
++      assert.ok(violation, 'BASHIR_TEST_NAMING_VIOLATION should be emitted via appendSliceEvent');
+ 
+       // Pipeline did not block — regression-fail fired
+       assert.ok(failEvent, 'regression-fail should still emit despite naming violation');
+diff --git a/test/regression-pass.test.js b/test/regression-pass.test.js
+index e6daf2a..a894a04 100644
+--- a/test/regression-pass.test.js
++++ b/test/regression-pass.test.js
+@@ -64,7 +64,7 @@ function cleanup() {
+ 
+ // Stub ctx
+ const ctx = {
+-  registerEvent: () => {},
++  appendSliceEvent: () => {},
+   log: () => {},
+ };
+ 
+diff --git a/test/regression-timeout.test.js b/test/regression-timeout.test.js
+index 7145ae0..5d28f1f 100644
+--- a/test/regression-timeout.test.js
++++ b/test/regression-timeout.test.js
+@@ -64,7 +64,7 @@ function cleanup() {
+ }
+ 
+ const ctx = {
+-  registerEvent: () => {},
++  appendSliceEvent: () => {},
+   log: () => {},
+ };
+ 
+diff --git a/test/rom-verification.test.js b/test/rom-verification.test.js
+index 8bd0ffc..228cd58 100644
+--- a/test/rom-verification.test.js
++++ b/test/rom-verification.test.js
+@@ -122,10 +122,10 @@ test('verifyRomActuallyWorked is exported', () => {
+ 
+ test('invokeRom calls verifyRomActuallyWorked before DONE event', () => {
+   const verifyIdx = orchestratorSource.indexOf('verifyRomActuallyWorked(id, sliceBranch');
+-  const doneEventIdx = orchestratorSource.indexOf("registerEvent(id, 'DONE'");
++  const doneEventIdx = orchestratorSource.indexOf("appendSliceEvent(id, 'DONE'");
+   assert.ok(verifyIdx > 0, 'verifyRomActuallyWorked call not found in invokeRom');
+-  assert.ok(doneEventIdx > 0, "registerEvent(id, 'DONE') not found");
+-  assert.ok(verifyIdx < doneEventIdx, 'verifyRomActuallyWorked must come before DONE registerEvent');
++  assert.ok(doneEventIdx > 0, "appendSliceEvent(id, 'DONE') not found");
++  assert.ok(verifyIdx < doneEventIdx, 'verifyRomActuallyWorked must come before DONE appendSliceEvent');
+ });
+ 
+ test('writeErrorFile handles rom_no_commits reason', () => {
+@@ -151,7 +151,7 @@ test('verification failure writes ERROR and returns early (no DONE)', () => {
+   const verifyBlock = orchestratorSource.match(/if \(!verify\.ok\)[\s\S]*?return;\s*\}/);
+   assert.ok(verifyBlock, 'verify.ok false block with return not found');
+   assert.ok(verifyBlock[0].includes('writeErrorFile'), 'verify failure must call writeErrorFile');
+-  assert.ok(verifyBlock[0].includes("registerEvent(id, 'ERROR'"), 'verify failure must emit ERROR event');
++  assert.ok(verifyBlock[0].includes("appendSliceEvent(id, 'ERROR'"), 'verify failure must emit ERROR event');
+ });
+ 
+ // ---------------------------------------------------------------------------
+diff --git a/test/state-branch-recovery.test.js b/test/state-branch-recovery.test.js
+index 266dbf3..036c574 100644
+--- a/test/state-branch-recovery.test.js
++++ b/test/state-branch-recovery.test.js
+@@ -52,7 +52,7 @@ const { createInitialBranchState } = require('../bridge/state/initial-schema');
+  * Portable version of reconcileBranchState that accepts a custom stateFile path.
+  * Mirrors the real implementation exactly.
+  */
+-function reconcileForTest(stateFile, { registerEvent, log, runGit }) {
++function reconcileForTest(stateFile, { appendSliceEvent, log, runGit }) {
+   let existing = null;
+   let corrupt = false;
+ 
+@@ -64,7 +64,7 @@ function reconcileForTest(stateFile, { registerEvent, log, runGit }) {
+       corrupt = true;
+       const truncated = raw.length > 1024 ? raw.slice(0, 1024) : raw;
+       log('warn', 'branch_state', { msg: 'branch-state.json is corrupt, resetting to initial schema' });
+-      registerEvent('0', 'BRANCH_STATE_RESET_FROM_CORRUPT', { corrupt_content: truncated });
++      appendSliceEvent('0', 'BRANCH_STATE_RESET_FROM_CORRUPT', { corrupt_content: truncated });
+     }
+   }
+ 
+@@ -72,7 +72,7 @@ function reconcileForTest(stateFile, { registerEvent, log, runGit }) {
+     const initial = createInitialBranchState();
+     writeJsonAtomic(stateFile, initial);
+     if (!corrupt) {
+-      registerEvent('0', 'BRANCH_STATE_INITIALIZED', {});
++      appendSliceEvent('0', 'BRANCH_STATE_INITIALIZED', {});
+     }
+     return initial;
+   }
+@@ -139,7 +139,7 @@ function makeEvents() {
+   const events = [];
+   return {
+     events,
+-    registerEvent: (id, event, extra) => events.push({ id, event, extra }),
++    appendSliceEvent: (id, event, extra) => events.push({ id, event, extra }),
+   };
+ }
+ 
+@@ -171,11 +171,11 @@ console.log('\nstate-branch-recovery.test.js');
+ 
+ test('absent file: writes initial schema and emits BRANCH_STATE_INITIALIZED', () => {
+   const stateFile = path.join(TEST_ROOT, 'absent-test.json');
+-  const { events, registerEvent } = makeEvents();
++  const { events, appendSliceEvent } = makeEvents();
+   const { log } = makeLogs();
+   const runGit = fakeRunGit({});
+ 
+-  const result = reconcileForTest(stateFile, { registerEvent, log, runGit });
++  const result = reconcileForTest(stateFile, { appendSliceEvent, log, runGit });
+ 
+   // File written
+   assert.strictEqual(fs.existsSync(stateFile), true);
+@@ -200,7 +200,7 @@ test('present + parseable: re-derives branch section from git, preserves gate',
+   existing.dev.deferred_slices = ['slice/99'];
+   fs.writeFileSync(stateFile, JSON.stringify(existing, null, 2) + '\n');
+ 
+-  const { events, registerEvent } = makeEvents();
++  const { events, appendSliceEvent } = makeEvents();
+   const { log } = makeLogs();
+   const runGit = fakeRunGit({
+     'rev-parse main': 'abc123\n',
+@@ -214,7 +214,7 @@ test('present + parseable: re-derives branch section from git, preserves gate',
+     'log -1 --format=%cI abc123': '2026-04-28T09:00:00+00:00\n',
+   });
+ 
+-  const result = reconcileForTest(stateFile, { registerEvent, log, runGit });
++  const result = reconcileForTest(stateFile, { appendSliceEvent, log, runGit });
+ 
+   // Branch section re-derived
+   assert.strictEqual(result.main.tip_sha, 'abc123');
+@@ -248,11 +248,11 @@ test('corrupt file: emits BRANCH_STATE_RESET_FROM_CORRUPT, writes fresh schema',
+   const corruptContent = '{this is not valid JSON!!!';
+   fs.writeFileSync(stateFile, corruptContent);
+ 
+-  const { events, registerEvent } = makeEvents();
++  const { events, appendSliceEvent } = makeEvents();
+   const { logs, log } = makeLogs();
+   const runGit = fakeRunGit({});
+ 
+-  const result = reconcileForTest(stateFile, { registerEvent, log, runGit });
++  const result = reconcileForTest(stateFile, { appendSliceEvent, log, runGit });
+ 
+   // Fresh schema written
+   const written = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+@@ -277,18 +277,18 @@ test('corrupt file: truncates content to 1KB in event', () => {
+   const longCorrupt = 'x'.repeat(2048);
+   fs.writeFileSync(stateFile, longCorrupt);
+ 
+-  const { events, registerEvent } = makeEvents();
++  const { events, appendSliceEvent } = makeEvents();
+   const { log } = makeLogs();
+   const runGit = fakeRunGit({});
+ 
+-  reconcileForTest(stateFile, { registerEvent, log, runGit });
++  reconcileForTest(stateFile, { appendSliceEvent, log, runGit });
+ 
+   assert.strictEqual(events[0].extra.corrupt_content.length, 1024);
+ });
+ 
+ test('idempotent: same git state produces same output on re-run', () => {
+   const stateFile = path.join(TEST_ROOT, 'idempotent-test.json');
+-  const { registerEvent } = makeEvents();
++  const { appendSliceEvent } = makeEvents();
+   const { log } = makeLogs();
+   const gitResponses = {
+     'rev-parse main': 'abc123\n',
+@@ -302,11 +302,11 @@ test('idempotent: same git state produces same output on re-run', () => {
+   };
+ 
+   // First run: creates from absent
+-  reconcileForTest(stateFile, { registerEvent, log, runGit: fakeRunGit(gitResponses) });
++  reconcileForTest(stateFile, { appendSliceEvent, log, runGit: fakeRunGit(gitResponses) });
+   const first = fs.readFileSync(stateFile, 'utf-8');
+ 
+   // Second run: reconciles from existing
+-  reconcileForTest(stateFile, { registerEvent, log, runGit: fakeRunGit(gitResponses) });
++  reconcileForTest(stateFile, { appendSliceEvent, log, runGit: fakeRunGit(gitResponses) });
+   const second = fs.readFileSync(stateFile, 'utf-8');
+ 
+   // Both produce equivalent state (ignoring the first run's null values vs derived)
+@@ -315,7 +315,7 @@ test('idempotent: same git state produces same output on re-run', () => {
+   // After second run, branch section should be derived from git
+   assert.strictEqual(secondParsed.main.tip_sha, 'abc123');
+   // Third run should produce identical output to second
+-  reconcileForTest(stateFile, { registerEvent, log, runGit: fakeRunGit(gitResponses) });
++  reconcileForTest(stateFile, { appendSliceEvent, log, runGit: fakeRunGit(gitResponses) });
+   const third = fs.readFileSync(stateFile, 'utf-8');
+   assert.strictEqual(second, third);
+ });
+diff --git a/test/state-gate-mutex.test.js b/test/state-gate-mutex.test.js
+index 1dd577e..dc47cae 100644
+--- a/test/state-gate-mutex.test.js
++++ b/test/state-gate-mutex.test.js
+@@ -85,7 +85,7 @@ function makeDeps() {
+   const logs = [];
+   return {
+     deps: {
+-      registerEvent(id, event, extra) { events.push({ id, event, ...extra }); },
++      appendSliceEvent(id, event, extra) { events.push({ id, event, ...extra }); },
+       log(level, tag, data) { logs.push({ level, tag, ...data }); },
+     },
+     events,
+@@ -116,7 +116,7 @@ test('acquire happy path: file appears, GATE_MUTEX_ACQUIRED event fires', () =>
+   assert.strictEqual(content.bashir_heartbeat_path, 'bridge/state/bashir-heartbeat.json');
+   assert.ok(content.started_ts);
+ 
+-  // gate-telemetry emits gate-mutex-acquired (not via registerEvent)
++  // gate-telemetry emits gate-mutex-acquired (not via appendSliceEvent)
+   const telEvents = readTelemetryEvents();
+   const acquired = telEvents.find(e => e.event === 'gate-mutex-acquired');
+   assert.ok(acquired, 'Expected gate-mutex-acquired telemetry event');
+@@ -158,7 +158,7 @@ test('release happy path: file deleted, GATE_MUTEX_RELEASED event fires, drain r
+   gateMutex.releaseGateMutex('regression_pass', deps);
+ 
+   assert.strictEqual(fs.existsSync(MUTEX_PATH), false);
+-  // gate-telemetry emits gate-mutex-released (not via registerEvent)
++  // gate-telemetry emits gate-mutex-released (not via appendSliceEvent)
+   const telEvents = readTelemetryEvents();
+   const released = telEvents.find(e => e.event === 'gate-mutex-released');
+   assert.ok(released, 'Expected gate-mutex-released telemetry event');
