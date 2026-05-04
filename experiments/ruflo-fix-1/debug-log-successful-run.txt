@@ -1,0 +1,146 @@
+2026-05-04T19:29:13.136Z [DEBUG] MDM settings load completed in 0ms
+2026-05-04T19:29:13.269Z [DEBUG] Broken symlink or missing file encountered for settings.json at path: /private/tmp/ds9-worktrees/287/.claude/settings.local.json
+2026-05-04T19:29:13.269Z [DEBUG] Broken symlink or missing file encountered for settings.json at path: /Library/Application Support/ClaudeCode/managed-settings.json
+2026-05-04T19:29:13.269Z [DEBUG] CA certs: Config fallback - globalEnv keys: , settingsEnv keys: none
+2026-05-04T19:29:13.270Z [DEBUG] [init] configureGlobalMTLS starting
+2026-05-04T19:29:13.270Z [DEBUG] [init] configureGlobalMTLS complete
+2026-05-04T19:29:13.270Z [DEBUG] [init] configureGlobalAgents starting
+2026-05-04T19:29:13.270Z [DEBUG] CA certs: useSystemCA=false, extraCertsPath=undefined
+2026-05-04T19:29:13.270Z [DEBUG] [init] configureGlobalAgents complete
+2026-05-04T19:29:13.289Z [DEBUG] Error log sink initialized
+2026-05-04T19:29:13.299Z [ERROR] SyntaxError: SyntaxError: Unexpected token '/', "/private/t"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at ex7 (file:///Users/phillyvanilly/.nvm/versions/node/v24.11.1/lib/node_modules/@anthropic-ai/claude-code/cli.js:168:10090)
+    at Y (file:///Users/phillyvanilly/.nvm/versions/node/v24.11.1/lib/node_modules/@anthropic-ai/claude-code/cli.js:132:18186)
+    at Object.assign.cache (file:///Users/phillyvanilly/.nvm/versions/node/v24.11.1/lib/node_modules/@anthropic-ai/claude-code/cli.js:170:1133)
+    at R$7.<anonymous> (file:///Users/phillyvanilly/.nvm/versions/node/v24.11.1/lib/node_modules/@anthropic-ai/claude-code/cli.js:16759:345)
+    at R$7.K [as _actionHandler] (file:///Users/phillyvanilly/.nvm/versions/node/v24.11.1/lib/node_modules/@anthropic-ai/claude-code/cli.js:8134:528)
+    at file:///Users/phillyvanilly/.nvm/versions/node/v24.11.1/lib/node_modules/@anthropic-ai/claude-code/cli.js:8138:3119
+    at file:///Users/phillyvanilly/.nvm/versions/node/v24.11.1/lib/node_modules/@anthropic-ai/claude-code/cli.js:8138:1674
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async R$7.parseAsync (file:///Users/phillyvanilly/.nvm/versions/node/v24.11.1/lib/node_modules/@anthropic-ai/claude-code/cli.js:8135:4156)
+2026-05-04T19:29:13.304Z [DEBUG] [claudeai-mcp] Fetching from https://api.anthropic.com/v1/mcp_servers?limit=1000
+2026-05-04T19:29:13.307Z [DEBUG] [STARTUP] Loading MCP configs...
+2026-05-04T19:29:13.310Z [DEBUG] [ToolSearch:optimistic] mode=tst, ENABLE_TOOL_SEARCH=undefined, result=true
+2026-05-04T19:29:13.310Z [DEBUG] [STARTUP] Running setup()...
+2026-05-04T19:29:13.312Z [DEBUG] Loading skills from: managed=/Library/Application Support/ClaudeCode/.claude/skills, user=/Users/phillyvanilly/.claude/skills, project=[/private/tmp/ds9-worktrees/287/.claude/skills]
+2026-05-04T19:29:13.314Z [DEBUG] Error log sink initialized
+2026-05-04T19:29:13.317Z [DEBUG] installed_plugins.json doesn't exist, returning empty V2 object
+2026-05-04T19:29:13.317Z [DEBUG] Found 0 plugins (0 enabled, 0 disabled)
+2026-05-04T19:29:13.317Z [DEBUG] getPluginSkills: Processing 0 enabled plugins
+2026-05-04T19:29:13.317Z [DEBUG] Registered 0 hooks from 0 plugins
+2026-05-04T19:29:13.317Z [DEBUG] Total plugin skills loaded: 0
+2026-05-04T19:29:13.317Z [DEBUG] Total plugin commands loaded: 0
+2026-05-04T19:29:13.320Z [DEBUG] [STARTUP] setup() completed in 10ms
+2026-05-04T19:29:13.320Z [DEBUG] Cleared CA certificates cache
+2026-05-04T19:29:13.320Z [DEBUG] Cleared mTLS configuration cache
+2026-05-04T19:29:13.320Z [DEBUG] Cleared proxy agent cache
+2026-05-04T19:29:13.320Z [DEBUG] CA certs: useSystemCA=false, extraCertsPath=undefined
+2026-05-04T19:29:13.320Z [DEBUG] [STARTUP] Loading commands and agents...
+2026-05-04T19:29:13.368Z [DEBUG] Ripgrep first use test: PASSED (mode=builtin, path=/Users/phillyvanilly/.nvm/versions/node/v24.11.1/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg)
+2026-05-04T19:29:13.369Z [DEBUG] rg error (signal=null, code=2, stderr: rg: /Users/phillyvanilly/01 - The Liberation of Bajor/repo/.claude/commands: IO error for operation on /Users/phillyvanilly/01 - The Liberation of Bajor/repo/.claude/commands: No such file or directory (os error 2)
+), 0 results
+2026-05-04T19:29:13.369Z [DEBUG] rg error (signal=null, code=2, stderr: rg: /Users/phillyvanilly/.claude/agents: IO error for operation on /Users/phillyvanilly/.claude/agents: No such file or directory (os error 2)
+), 0 results
+2026-05-04T19:29:13.369Z [DEBUG] rg error (signal=null, code=2, stderr: rg: /Users/phillyvanilly/01 - The Liberation of Bajor/repo/.claude/agents: IO error for operation on /Users/phillyvanilly/01 - The Liberation of Bajor/repo/.claude/agents: No such file or directory (os error 2)
+), 0 results
+2026-05-04T19:29:13.369Z [DEBUG] rg error (signal=null, code=2, stderr: rg: /Users/phillyvanilly/.claude/commands: IO error for operation on /Users/phillyvanilly/.claude/commands: No such file or directory (os error 2)
+), 0 results
+2026-05-04T19:29:13.369Z [DEBUG] rg error (signal=null, code=2, stderr: rg: /Library/Application Support/ClaudeCode/.claude/agents: IO error for operation on /Library/Application Support/ClaudeCode/.claude/agents: No such file or directory (os error 2)
+), 0 results
+2026-05-04T19:29:13.370Z [DEBUG] Total plugin agents loaded: 0
+2026-05-04T19:29:13.370Z [DEBUG] rg error (signal=null, code=2, stderr: rg: /Library/Application Support/ClaudeCode/.claude/commands: IO error for operation on /Library/Application Support/ClaudeCode/.claude/commands: No such file or directory (os error 2)
+), 0 results
+2026-05-04T19:29:13.371Z [DEBUG] Loaded 6 unique skills (6 unconditional, 0 conditional, managed: 0, user: 0, project: 6, additional: 0, legacy commands: 0)
+2026-05-04T19:29:13.371Z [DEBUG] getSkills returning: 6 skill dir commands, 0 plugin skills, 9 bundled skills, 0 builtin plugin skills
+2026-05-04T19:29:13.372Z [DEBUG] [STARTUP] Commands and agents loaded in 52ms
+2026-05-04T19:29:13.372Z [DEBUG] [LSP MANAGER] initializeLspServerManager() called
+2026-05-04T19:29:13.372Z [DEBUG] [LSP MANAGER] Created manager instance, state=pending
+2026-05-04T19:29:13.372Z [DEBUG] [LSP MANAGER] Starting async initialization (generation 1)
+2026-05-04T19:29:13.372Z [DEBUG] Starting background startup prefetches
+2026-05-04T19:29:13.372Z [DEBUG] [Bootstrap] Fetching
+2026-05-04T19:29:13.373Z [DEBUG] Passes: Using fresh cached eligibility data
+2026-05-04T19:29:13.374Z [DEBUG] [STARTUP] MCP configs resolved in 10ms (awaited at +67ms)
+2026-05-04T19:29:13.375Z [DEBUG] Total LSP servers loaded: 0
+2026-05-04T19:29:13.375Z [DEBUG] Initialized versioned plugins system with 0 plugins
+2026-05-04T19:29:13.375Z [DEBUG] [LSP SERVER MANAGER] getAllLspServers returned 0 server(s)
+2026-05-04T19:29:13.375Z [DEBUG] LSP manager initialized with 0 servers
+2026-05-04T19:29:13.395Z [DEBUG] MCP server "ruflo-rag": Starting connection with timeout of 30000ms
+2026-05-04T19:29:13.396Z [DEBUG] Cleared CA certificates cache
+2026-05-04T19:29:13.396Z [DEBUG] Cleared mTLS configuration cache
+2026-05-04T19:29:13.396Z [DEBUG] Cleared proxy agent cache
+2026-05-04T19:29:13.396Z [DEBUG] CA certs: useSystemCA=false, extraCertsPath=undefined
+2026-05-04T19:29:13.396Z [DEBUG] LSP server manager initialized successfully
+2026-05-04T19:29:13.396Z [DEBUG] LSP notification handlers registered successfully for all 0 server(s)
+2026-05-04T19:29:13.399Z [DEBUG] Fast mode unavailable: Fast mode is not available in the Agent SDK
+2026-05-04T19:29:13.400Z [DEBUG] [Perfetto] initializePerfettoTracing called, env value: undefined
+2026-05-04T19:29:13.400Z [DEBUG] [3P telemetry] isTelemetryEnabled=false (CLAUDE_CODE_ENABLE_TELEMETRY=undefined)
+2026-05-04T19:29:13.420Z [DEBUG] rg error (signal=null, code=2, stderr: rg: /Users/phillyvanilly/.claude/plugins/cache: IO error for operation on /Users/phillyvanilly/.claude/plugins/cache: No such file or directory (os error 2)
+), 0 results
+2026-05-04T19:29:13.423Z [DEBUG] Git remote URL: https://github.com/hilbertp/liberation-of-bajor.git
+2026-05-04T19:29:13.423Z [DEBUG] Parsed repository: github.com/hilbertp/liberation-of-bajor from URL: https://github.com/hilbertp/liberation-of-bajor.git
+2026-05-04T19:29:13.669Z [DEBUG] [auto-mode] verifyAutoModeGateAccess: enabledState=disabled disabledBySettings=false model=claude-opus-4-6[1m] modelSupported=true disableFastModeBreakerFires=false carouselAvailable=false canEnterAuto=false
+2026-05-04T19:29:13.669Z [WARN] auto mode disabled: tengu_auto_mode_config.enabled === "disabled" (circuit breaker)
+2026-05-04T19:29:13.669Z [DEBUG] [auto-mode] kickOutOfAutoIfNeeded applying: ctx.mode=bypassPermissions ctx.prePlanMode=undefined reason=circuit-breaker
+2026-05-04T19:29:13.669Z [DEBUG] [auto-mode] verifyAutoModeGateAccess setAvailable: true -> false
+2026-05-04T19:29:13.729Z [DEBUG] [Bootstrap] Fetch ok
+2026-05-04T19:29:13.729Z [DEBUG] [Bootstrap] Cache unchanged, skipping write
+2026-05-04T19:29:13.928Z [DEBUG] Org fast mode: enabled
+2026-05-04T19:29:14.065Z [DEBUG] [claudeai-mcp] Fetched 4 servers
+2026-05-04T19:29:14.563Z [ERROR] MCP server "ruflo-rag" Server stderr: [2026-05-04T19:29:14.560Z] INFO [claude-flow-mcp] (mcp-1777922954560-fc868343) Starting in stdio mode
+2026-05-04T19:29:14.563Z [DEBUG] MCP server "ruflo-rag": Successfully connected (transport: stdio) in 1188ms
+2026-05-04T19:29:14.563Z [DEBUG] MCP server "ruflo-rag": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":true,"hasResourceSubscribe":true,"serverVersion":{"name":"claude-flow","version":"3.0.0"}}
+2026-05-04T19:29:14.563Z [DEBUG] [MCP] Server "ruflo-rag" connected with subscribe=true
+2026-05-04T19:29:14.568Z [ERROR] MCP server "ruflo-rag" Failed to fetch resources: MCP error -32601: Method not found: resources/list
+2026-05-04T19:29:14.570Z [DEBUG] MCP server "claude.ai Figma": Initializing claude.ai proxy transport for server mcpsrv_01Y42GRrNSnPa7yjrv5NwP71
+2026-05-04T19:29:14.570Z [DEBUG] MCP server "claude.ai Figma": Using claude.ai proxy at https://mcp-proxy.anthropic.com/v1/mcp/mcpsrv_01Y42GRrNSnPa7yjrv5NwP71
+2026-05-04T19:29:14.570Z [DEBUG] MCP server "claude.ai Figma": claude.ai proxy transport created successfully
+2026-05-04T19:29:14.570Z [DEBUG] MCP server "claude.ai Figma": Starting connection with timeout of 30000ms
+2026-05-04T19:29:14.571Z [DEBUG] MCP server "claude.ai Google Drive": Skipping connection (cached needs-auth)
+2026-05-04T19:29:14.571Z [DEBUG] MCP server "claude.ai Google Calendar": Skipping connection (cached needs-auth)
+2026-05-04T19:29:14.571Z [DEBUG] MCP server "claude.ai Gmail": Skipping connection (cached needs-auth)
+2026-05-04T19:29:15.399Z [DEBUG] MCP server "claude.ai Figma": claude.ai proxy connection failed after 829ms: Streamable HTTP error: Error POSTing to endpoint: event: message
+data: {"jsonrpc":"2.0","id":0,"error":{"code":-32600,"message":"Anthropic Proxy: Invalid content from server","data":null}}
+2026-05-04T19:29:15.400Z [ERROR] MCP server "claude.ai Figma" Error: Streamable HTTP error: Error POSTing to endpoint: event: message
+data: {"jsonrpc":"2.0","id":0,"error":{"code":-32600,"message":"Anthropic Proxy: Invalid content from server","data":null}}
+2026-05-04T19:29:15.401Z [DEBUG] MCP server "claude.ai Figma": Connection failed after 830ms: Streamable HTTP error: Error POSTing to endpoint: event: message
+data: {"jsonrpc":"2.0","id":0,"error":{"code":-32600,"message":"Anthropic Proxy: Invalid content from server","data":null}}
+2026-05-04T19:29:15.401Z [ERROR] MCP server "claude.ai Figma" Connection failed: Streamable HTTP error: Error POSTing to endpoint: event: message
+data: {"jsonrpc":"2.0","id":0,"error":{"code":-32600,"message":"Anthropic Proxy: Invalid content from server","data":null}}
+2026-05-04T19:29:15.414Z [DEBUG] Grove: Using fresh cached config
+2026-05-04T19:29:15.424Z [DEBUG] Watching for changes in skill/command directories: /Users/phillyvanilly/.claude/skills, /private/tmp/ds9-worktrees/287/.claude/skills...
+2026-05-04T19:29:15.426Z [DEBUG] Watching for changes in setting files /Users/phillyvanilly/.claude/settings.json, /private/tmp/ds9-worktrees/287/.claude/settings.json, /private/tmp/ds9-worktrees/287/.claude/settings.local.json...
+2026-05-04T19:29:15.890Z [DEBUG] [ScheduledTasks] scheduler start() — enabled=false, hasTasks=false
+2026-05-04T19:29:15.891Z [DEBUG] installPluginsForHeadless: starting
+2026-05-04T19:29:15.891Z [DEBUG] installPluginsForHeadless: no marketplaces declared
+2026-05-04T19:29:15.915Z [DEBUG] rg error (signal=null, code=2, stderr: rg: /Users/phillyvanilly/01 - The Liberation of Bajor/repo/.claude/output-styles: IO error for operation on /Users/phillyvanilly/01 - The Liberation of Bajor/repo/.claude/output-styles: No such file or directory (os error 2)
+), 0 results
+2026-05-04T19:29:15.918Z [DEBUG] rg error (signal=null, code=2, stderr: rg: /Library/Application Support/ClaudeCode/.claude/output-styles: IO error for operation on /Library/Application Support/ClaudeCode/.claude/output-styles: No such file or directory (os error 2)
+), 0 results
+2026-05-04T19:29:15.918Z [DEBUG] rg error (signal=null, code=2, stderr: rg: /Users/phillyvanilly/.claude/output-styles: IO error for operation on /Users/phillyvanilly/.claude/output-styles: No such file or directory (os error 2)
+), 0 results
+2026-05-04T19:29:15.920Z [DEBUG] Total plugin output styles loaded: 0
+2026-05-04T19:29:15.927Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-05-04T19:29:15.928Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-05-04T19:29:15.928Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-05-04T19:29:15.928Z [DEBUG] Sending 12 skills via attachment (initial, 12 total sent)
+2026-05-04T19:29:15.930Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-05-04T19:29:15.931Z [WARN] [3P telemetry] Event dropped (no event logger initialized): user_prompt
+2026-05-04T19:29:15.934Z [DEBUG] Fast mode unavailable: Fast mode is not available in the Agent SDK
+2026-05-04T19:29:15.936Z [DEBUG] autocompact: tokens=778 threshold=967000 effectiveWindow=980000
+2026-05-04T19:29:15.940Z [DEBUG] Dynamic tool loading: 0/258 deferred tools included
+2026-05-04T19:29:15.941Z [DEBUG] attribution header x-anthropic-billing-header: cc_version=2.1.97.84f; cc_entrypoint=sdk-cli; cch=00000;
+2026-05-04T19:29:15.942Z [DEBUG] Fast mode unavailable: Fast mode is not available in the Agent SDK
+2026-05-04T19:29:15.942Z [DEBUG] Fast mode unavailable: Fast mode is not available in the Agent SDK
+2026-05-04T19:29:15.943Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-05-04T19:29:15.943Z [DEBUG] [API:auth] OAuth token check starting
+2026-05-04T19:29:15.950Z [DEBUG] [API:auth] OAuth token check complete
+2026-05-04T19:29:15.950Z [DEBUG] Fast mode unavailable: Fast mode is not available in the Agent SDK
+2026-05-04T19:29:15.952Z [DEBUG] [API REQUEST] /v1/messages x-client-request-id=17a2040c-39bd-412a-8403-da18ccd4f892 source=sdk
+2026-05-04T19:29:15.955Z [DEBUG] [mcp-registry] Loaded 47 official MCP URLs
+2026-05-04T19:29:16.248Z [DEBUG] Plugin autoupdate: checking installed plugins
+2026-05-04T19:29:19.585Z [DEBUG] Stream started - received first chunk
+2026-05-04T19:29:19.761Z [DEBUG] Fast mode unavailable: Fast mode is not available in the Agent SDK
+2026-05-04T19:29:19.788Z [DEBUG] MCP server "ruflo-rag": UNKNOWN connection closed after 5s (cleanly)
+2026-05-04T19:29:19.788Z [DEBUG] MCP server "ruflo-rag": Cleared connection cache for reconnection
+2026-05-04T19:29:19.794Z [DEBUG] LSP server manager shut down successfully
