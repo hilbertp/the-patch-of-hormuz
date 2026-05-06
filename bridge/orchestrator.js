@@ -82,6 +82,7 @@ const LOGS_DIR       = path.resolve(__dirname, 'logs');
 const ESCALATIONS_DIR = path.resolve(__dirname, 'kira-escalations');
 const CONTROL_DIR    = path.resolve(__dirname, 'control');
 const PIPELINE_PAUSED_FILE = path.resolve(__dirname, '.pipeline-paused');
+const MAX_ROUNDS     = 5; // Absolute cap — no round 6, ever, on any path.
 
 // Ensure queue + trash + logs + escalations + control directories exist.
 fs.mkdirSync(QUEUE_DIR, { recursive: true });
@@ -3245,7 +3246,7 @@ function invokeNog(id) {
   const round = existingRounds + 1;
 
   // Round 6 escalation: do not invoke Nog again.
-  if (round > 5) {
+  if (round > MAX_ROUNDS) {
     log('warn', 'nog', { id, msg: `Round ${round} — escalating to Kira`, round });
 
     // Write escalation file.
@@ -3501,6 +3502,40 @@ function invokeNog(id) {
           details: `Nog verdict unreadable for slice ${id} round ${round}`,
         });
 
+        // ── MAX_ROUNDS guard (verdict_unreadable path) ──────────────────────
+        // If this was round MAX_ROUNDS, re-dispatch would be round 6 — terminal.
+        if (round >= MAX_ROUNDS) {
+          registerEvent(id, 'MAX_ROUNDS_EXHAUSTED', {
+            round,
+            reason: 'verdict_unreadable at final round — no re-dispatch permitted',
+          });
+
+          const stuckPath = path.join(QUEUE_DIR, `${id}-STUCK.md`);
+          try {
+            fs.renameSync(donePath, stuckPath);
+            log('info', 'state', { id, from: 'EVALUATING', to: 'STUCK', reason: 'max_rounds_verdict_unreadable' });
+          } catch (renameErr) {
+            log('warn', 'nog', { id, msg: 'Failed to rename to STUCK', error: renameErr.message });
+          }
+
+          try { cleanupWorktree(id, branchName); } catch (_) {}
+          updateTimesheet(id, { result: 'STUCK', cycle: round, ts_result: new Date().toISOString() });
+
+          print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} MAX_ROUNDS_EXHAUSTED${SYM.sep}Slice ${id} verdict_unreadable at round ${round} — terminal`);
+          print(`${B.bl}${B.sng.repeat(W - 1)}`);
+          print('');
+
+          processing = false;
+          heartbeatState.status = 'idle';
+          heartbeatState.current_slice = null;
+          heartbeatState.current_slice_goal = null;
+          heartbeatState.pickupTime = null;
+          heartbeatState.processed_total += 1;
+          writeHeartbeat();
+          return;
+        }
+        // ────────────────────────────────────────────────────────────────────
+
         // Rewrite slice in-place for O'Brien with error details.
         handleNogReturn(id, rootId, round, branchName, donePath, updatedSliceContent, 'Nog verdict unreadable — manual review required', durationMs);
 
@@ -3681,6 +3716,43 @@ function invokeNog(id) {
         nog_verdict: 'NOG_DECISION_REJECTED',
         nog_reason: summary || 'Nog review findings — see slice file',
       });
+
+      // ── MAX_ROUNDS guard (REJECTED path) ────────────────────────────────
+      // If this was round MAX_ROUNDS, re-dispatch would be round 6 — terminal.
+      if (round >= MAX_ROUNDS) {
+        // Clean up NOG.md verdict file before terminal transition.
+        try { fs.renameSync(nogVerdictPath, path.join(TRASH_DIR, `${id}-NOG.md.return`)); } catch (_) {}
+
+        registerEvent(id, 'MAX_ROUNDS_EXHAUSTED', {
+          round,
+          reason: 'Rom exhausted 5 rounds without Nog sign-off',
+        });
+
+        const stuckPath = path.join(QUEUE_DIR, `${id}-STUCK.md`);
+        try {
+          fs.renameSync(donePath, stuckPath);
+          log('info', 'state', { id, from: 'EVALUATING', to: 'STUCK', reason: 'max_rounds_rejected' });
+        } catch (renameErr) {
+          log('warn', 'nog', { id, msg: 'Failed to rename to STUCK', error: renameErr.message });
+        }
+
+        try { cleanupWorktree(id, branchName); } catch (_) {}
+        updateTimesheet(id, { result: 'STUCK', cycle: round, ts_result: new Date().toISOString() });
+
+        print(`${B.vert}    ${C.red}${SYM.cross}${C.reset} MAX_ROUNDS_EXHAUSTED${SYM.sep}Slice ${id} rejected at round ${round} — terminal`);
+        print(`${B.bl}${B.sng.repeat(W - 1)}`);
+        print('');
+
+        processing = false;
+        heartbeatState.status = 'idle';
+        heartbeatState.current_slice = null;
+        heartbeatState.current_slice_goal = null;
+        heartbeatState.pickupTime = null;
+        heartbeatState.processed_total += 1;
+        writeHeartbeat();
+        return;
+      }
+      // ────────────────────────────────────────────────────────────────────
 
       handleNogReturn(id, rootId, round, branchName, donePath, updatedSliceContent, summary || 'Nog review findings — see slice file', durationMs);
 
