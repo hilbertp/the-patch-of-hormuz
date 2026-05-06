@@ -2721,6 +2721,46 @@ function hasMergedEvent(id, regFile) {
 }
 
 /**
+ * isTerminal(sliceId, opts)
+ *
+ * Returns true if a slice is definitively terminal — i.e. it has completed its
+ * full lifecycle and should NOT be re-processed on startup recovery.
+ *
+ * A slice is terminal if ANY of:
+ *   1. An {id}-ACCEPTED.md file exists in the queue directory.
+ *   2. An {id}-ARCHIVED.md file exists in the queue directory.
+ *   3. The register has a MERGED or SLICE_MERGED_TO_MAIN event for that slice
+ *      (after the latest RESTAGED marker, per hasMergedEvent semantics).
+ *   4. A bridge/trash/{id}-*.md archive entry exists.
+ *
+ * Accepts optional { queueDir, trashDir, regFile } for testing.
+ */
+function isTerminal(sliceId, opts) {
+  const qDir = (opts && opts.queueDir) || QUEUE_DIR;
+  const tDir = (opts && opts.trashDir) || TRASH_DIR;
+  const rFile = (opts && opts.regFile) || undefined;
+
+  const id = String(sliceId);
+
+  // Signal 1: ACCEPTED file
+  if (fs.existsSync(path.join(qDir, `${id}-ACCEPTED.md`))) return true;
+
+  // Signal 2: ARCHIVED file
+  if (fs.existsSync(path.join(qDir, `${id}-ARCHIVED.md`))) return true;
+
+  // Signal 3: MERGED or SLICE_MERGED_TO_MAIN register event
+  if (hasMergedEvent(id, rFile)) return true;
+
+  // Signal 4: trash entry
+  try {
+    const trashFiles = fs.readdirSync(tDir);
+    if (trashFiles.some(f => f.startsWith(`${id}-`))) return true;
+  } catch (_) {}
+
+  return false;
+}
+
+/**
  * depsAreMet(sliceMeta)
  *
  * Returns true if every ID in the depends_on frontmatter field has a MERGED or
@@ -4981,6 +5021,10 @@ function crashRecovery() {
   const evaluatingFiles = files.filter(f => f.endsWith('-EVALUATING.md'));
   for (const file of evaluatingFiles) {
     const id              = file.replace('-EVALUATING.md', '');
+    if (isTerminal(id)) {
+      log('debug', 'startup_recovery', { id, msg: `startup-recovery: skipped terminal slice ${id}` });
+      continue;
+    }
     const evaluatingPath  = path.join(QUEUE_DIR, file);
     const donePath        = path.join(QUEUE_DIR, `${id}-DONE.md`);
     try {
@@ -4997,6 +5041,10 @@ function crashRecovery() {
   const acceptedFiles = files.filter(f => f.endsWith('-ACCEPTED.md'));
   for (const file of acceptedFiles) {
     const id = file.replace('-ACCEPTED.md', '');
+    if (isTerminal(id)) {
+      log('debug', 'startup_recovery', { id, msg: `startup-recovery: skipped terminal slice ${id}` });
+      continue;
+    }
     const acceptedPath = path.join(QUEUE_DIR, file);
 
     // Read branch name from the ACCEPTED file (which is the renamed DONE report).
@@ -5063,6 +5111,10 @@ function crashRecovery() {
 
   for (const file of inProgressFiles) {
     const id             = file.replace('-IN_PROGRESS.md', '');
+    if (isTerminal(id)) {
+      log('debug', 'startup_recovery', { id, msg: `startup-recovery: skipped terminal slice ${id}` });
+      continue;
+    }
     const inProgressPath = path.join(QUEUE_DIR, file);
     const hasDone        = fs.existsSync(path.join(QUEUE_DIR, `${id}-DONE.md`));
     const hasError       = fs.existsSync(path.join(QUEUE_DIR, `${id}-ERROR.md`));
@@ -6479,4 +6531,4 @@ function mergeDevToMain() {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, mergeDevToMain, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, depsAreMet, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, squashSliceToDev, drainDeferredAfterGate, readSliceMeta, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; }, _testSetProjectDir: (dir) => { PROJECT_DIR = dir; BRANCH_STATE_PATH = path.join(dir, 'bridge', 'state', 'branch-state.json'); }, _testResetDeferredEmitted: () => { _deferredEmitted.clear(); }, _testGetDeferredEmitted: () => _deferredEmitted };
+module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, mergeDevToMain, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, isTerminal, depsAreMet, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, squashSliceToDev, drainDeferredAfterGate, readSliceMeta, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; }, _testSetProjectDir: (dir) => { PROJECT_DIR = dir; BRANCH_STATE_PATH = path.join(dir, 'bridge', 'state', 'branch-state.json'); }, _testResetDeferredEmitted: () => { _deferredEmitted.clear(); }, _testGetDeferredEmitted: () => _deferredEmitted };
