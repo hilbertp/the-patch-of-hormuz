@@ -24,7 +24,7 @@ A handoff can go to one role or multiple roles simultaneously. Identify every ro
 | **Ziyal** (Designer) | `roles/ziyal/` | Sisko, Kira | UI/UX design briefs, visual design, dashboard designs, frontend HTML prototypes |
 | **Leeta** (Landing Page) | `roles/leeta/` | Kira, Ziyal | Frontend/landing page slices Kira routes her way — marketing copy, landing page content |
 | **Nog** (Code Review) | `roles/nog/` | Kira, O'Brien | Code review on completed slices |
-| **Bashir** (QA) | `roles/bashir/` | Kira, O'Brien | QA and testing on completed slices |
+| **Bashir** (QA) | `.claude/roles/bashir/` | Kira, O'Brien | QA and testing on completed slices |
 
 ### Known multi-recipient handoffs
 

@@ -26,7 +26,7 @@ Every role follows the same startup sequence:
 | **Ziyal** | Designer | `roles/ziyal/ROLE.md` | `roles/ziyal/LEARNING.md` |
 | **Leeta** | Landing Page Specialist | — | `roles/leeta/LEARNING.md` |
 | **Nog** | Code Reviewer | — (not yet created) | — |
-| **Bashir** | QA | `roles/bashir/ROLE.md` | `roles/bashir/LEARNING.md` |
+| **Bashir** | QA | `.claude/roles/bashir/ROLE.md` | `.claude/roles/bashir/LEARNING.md` |
 
 All role paths are relative to `repo/.claude/` unless noted otherwise.
 

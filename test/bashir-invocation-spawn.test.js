@@ -206,7 +206,7 @@ test('buildBashirPrompt with empty commits list', () => {
 
 test('prompt template references ROLE.md', () => {
   const template = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
-  assert.ok(template.includes('roles/bashir/ROLE.md'), 'Template should reference ROLE.md');
+  assert.ok(template.includes('.claude/roles/bashir/ROLE.md'), 'Template should reference ROLE.md');
 });
 
 test('prompt template includes gate-telemetry.emit instruction', () => {
