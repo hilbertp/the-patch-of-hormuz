@@ -4470,52 +4470,74 @@ function poll() {
   const canonicalFiles = files.filter(f => CANONICAL_SUFFIX_RE.test(f));
   const doneFiles = canonicalFiles.filter(f => f.endsWith('-DONE.md')).sort();
 
-  // Read queue-order.json for human-defined pickup priority.
-  // Format: flat JSON array of slice ID strings, e.g. ["231","229","230"].
-  // If present and valid, slices are picked in this order; unordered slices
-  // fall back to amendments-first + lexicographic FIFO.
+  // FIFO dispatch via queue-order.json head consumption (slice 292).
+  // queue-order.json is the single source of truth for dispatch order.
+  // The dispatcher takes the first ID, not a sorted set.
   const QUEUE_ORDER_FILE = path.join(__dirname, 'queue-order.json');
+
+  // Build a set of IDs that actually have QUEUED files on disk.
+  const queuedFileMap = {};  // id → filename
+  for (const f of canonicalFiles) {
+    if (f.endsWith('-QUEUED.md') || f.endsWith('-PENDING.md')) {
+      const fId = f.replace(/-(?:QUEUED|PENDING)\.md$/, '');
+      queuedFileMap[fId] = f;
+    }
+  }
+
   let queueOrder = null;
+  let queueOrderDirty = false;
   try {
     const raw = JSON.parse(fs.readFileSync(QUEUE_ORDER_FILE, 'utf-8'));
-    if (Array.isArray(raw)) queueOrder = raw.map(String);
-  } catch (_) { /* absent or malformed — fall back to FIFO */ }
+    if (Array.isArray(raw) && raw.length > 0) queueOrder = raw.map(String);
+  } catch (_) { /* absent or malformed — will attempt recovery below */ }
 
-  const pendingFiles = canonicalFiles
-    .filter(f => f.endsWith('-QUEUED.md') || f.endsWith('-PENDING.md'))
-    .sort((a, b) => {
-      const idA = a.replace(/-(?:QUEUED|PENDING)\.md$/, '');
-      const idB = b.replace(/-(?:QUEUED|PENDING)\.md$/, '');
-
-      // If queue-order.json exists, respect its ordering.
-      if (queueOrder) {
-        const posA = queueOrder.indexOf(idA);
-        const posB = queueOrder.indexOf(idB);
-        if (posA !== -1 && posB !== -1) return posA - posB;
-        if (posA !== -1) return -1;
-        if (posB !== -1) return 1;
-        // Both absent from order — fall through to legacy sort
-      }
-
-      // Legacy fallback: apendments (rejections) jump the queue.
-      const isApendmentA = (() => {
-        try {
-          const content = fs.readFileSync(path.join(QUEUE_DIR, a), 'utf-8');
-          const meta = parseFrontmatter(content);
-          return meta && (meta.type === 'amendment' || !!meta.apendment || !!meta.amendment || (parseInt(meta.round, 10) > 1) || (meta.references && meta.references !== 'null'));
-        } catch (_) { return false; }
-      })();
-      const isApendmentB = (() => {
-        try {
-          const content = fs.readFileSync(path.join(QUEUE_DIR, b), 'utf-8');
-          const meta = parseFrontmatter(content);
-          return meta && (meta.type === 'amendment' || !!meta.apendment || !!meta.amendment || (parseInt(meta.round, 10) > 1) || (meta.references && meta.references !== 'null'));
-        } catch (_) { return false; }
-      })();
-      if (isApendmentA && !isApendmentB) return -1;
-      if (!isApendmentA && isApendmentB) return 1;
-      return a.localeCompare(b);
+  // Recovery: if queue-order.json is missing/empty but QUEUED files exist,
+  // reconstruct from file mtimes ascending (oldest first).
+  if (!queueOrder && Object.keys(queuedFileMap).length > 0) {
+    const entries = Object.entries(queuedFileMap).map(([fId, fname]) => {
+      let mtime = 0;
+      try { mtime = fs.statSync(path.join(QUEUE_DIR, fname)).mtimeMs; } catch (_) {}
+      return { id: fId, mtime };
     });
+    entries.sort((a, b) => a.mtime - b.mtime);
+    queueOrder = entries.map(e => e.id);
+    // Persist the recovered order atomically.
+    const tmpPath = QUEUE_ORDER_FILE + '.tmp';
+    fs.writeFileSync(tmpPath, JSON.stringify(queueOrder, null, 2) + '\n');
+    fs.renameSync(tmpPath, QUEUE_ORDER_FILE);
+    log('info', 'dispatch', { msg: 'Recovered queue-order.json from QUEUED file mtimes', order: queueOrder });
+  }
+
+  // Build pendingFiles in FIFO order from queue-order.json head.
+  // Stale IDs (no matching QUEUED file) are removed.
+  const pendingFiles = [];
+  if (queueOrder) {
+    const cleanedOrder = [];
+    for (const oid of queueOrder) {
+      if (queuedFileMap[oid]) {
+        cleanedOrder.push(oid);
+        pendingFiles.push(queuedFileMap[oid]);
+      } else {
+        // Stale ID — no matching QUEUED file on disk.
+        queueOrderDirty = true;
+        log('info', 'dispatch', { msg: `Stale ID "${oid}" removed from queue-order.json (no QUEUED file)` });
+      }
+    }
+    // Append any QUEUED files not in queue-order.json (shouldn't happen, but safety).
+    for (const [fId, fname] of Object.entries(queuedFileMap)) {
+      if (!cleanedOrder.includes(fId)) {
+        cleanedOrder.push(fId);
+        pendingFiles.push(fname);
+        queueOrderDirty = true;
+      }
+    }
+    // Persist cleaned order if stale entries were removed.
+    if (queueOrderDirty) {
+      const tmpPath = QUEUE_ORDER_FILE + '.tmp';
+      fs.writeFileSync(tmpPath, JSON.stringify(cleanedOrder, null, 2) + '\n');
+      fs.renameSync(tmpPath, QUEUE_ORDER_FILE);
+    }
+  }
 
   // Reset adaptive idle on any activity (DONE or QUEUED files present).
   if (doneFiles.length > 0 || pendingFiles.length > 0) {
