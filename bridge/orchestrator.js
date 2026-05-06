@@ -622,6 +622,8 @@ function truncStderr(s) {
  */
 // Write-time dedupe for MERGED events on (slice_id, sha).
 const _writtenMerged = new Set();
+// In-memory dedup: only emit SLICE_DISPATCH_DEFERRED once per slice per process lifetime.
+const _deferredEmitted = new Set();
 
 function registerEvent(id, event, extra) {
   // Dedupe MERGED at write time on (slice_id, sha)
@@ -2708,7 +2710,7 @@ function hasMergedEvent(id, regFile) {
       try {
         const raw = JSON.parse(line);
         const entry = translateEvent(raw);
-        if (entry && entry.id === String(id) && entry.event === 'MERGED') {
+        if (entry && entry.id === String(id) && (entry.event === 'MERGED' || entry.event === 'SLICE_MERGED_TO_MAIN')) {
           if (!cutoff || entry.ts > cutoff) return true;
         }
       } catch (_) {}
@@ -2720,8 +2722,8 @@ function hasMergedEvent(id, regFile) {
 /**
  * depsAreMet(sliceMeta)
  *
- * Returns true if every ID in the depends_on frontmatter field has a MERGED
- * event in the register. Returns true when depends_on is absent/empty/null.
+ * Returns true if every ID in the depends_on frontmatter field has a MERGED or
+ * SLICE_MERGED_TO_MAIN event in the register. Returns true when depends_on is absent/empty/null.
  */
 function depsAreMet(sliceMeta) {
   const raw = sliceMeta && sliceMeta.depends_on;
@@ -4660,6 +4662,11 @@ function poll() {
         const candId = candidate.replace(/-(?:QUEUED|PENDING)\.md$/, '');
         const unmet = String(candMeta.depends_on).split(',').map(s => s.trim()).filter(s => s && !hasMergedEvent(s));
         print(`  ${C.yellow}\u23F8${C.reset}  Slice ${candId}${SYM.dash}blocked on #${unmet.join(', #')} (not yet merged)`);
+        // Emit SLICE_DISPATCH_DEFERRED once per slice per process lifetime.
+        if (!_deferredEmitted.has(candId)) {
+          _deferredEmitted.add(candId);
+          registerEvent(candId, 'SLICE_DISPATCH_DEFERRED', { deps_unmet: unmet });
+        }
         continue;
       }
     } catch (_) { /* unreadable — let downstream validation handle it */ }
@@ -6378,4 +6385,4 @@ function mergeDevToMain() {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, mergeDevToMain, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, squashSliceToDev, drainDeferredAfterGate, readSliceMeta, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; }, _testSetProjectDir: (dir) => { PROJECT_DIR = dir; BRANCH_STATE_PATH = path.join(dir, 'bridge', 'state', 'branch-state.json'); } };
+module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, mergeDevToMain, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, depsAreMet, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, squashSliceToDev, drainDeferredAfterGate, readSliceMeta, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; }, _testSetProjectDir: (dir) => { PROJECT_DIR = dir; BRANCH_STATE_PATH = path.join(dir, 'bridge', 'state', 'branch-state.json'); }, _testResetDeferredEmitted: () => { _deferredEmitted.clear(); }, _testGetDeferredEmitted: () => _deferredEmitted };

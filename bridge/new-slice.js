@@ -13,7 +13,7 @@
  *     --goal  "One sentence describing the outcome." \
  *     --priority normal|high|critical \
  *     [--to rom|leeta]         (default: rom) \
- *     [--depends-on "095,096"] (comma-separated IDs this slice depends on, informational only) \
+ *     [--depends-on "095,096"] (blocks dispatch until listed IDs have MERGED or SLICE_MERGED_TO_MAIN event in register) \
  *     [--amendment "slice/095-fix-title"]  (exact branch name to reuse for amendment) \
  *     [--timeout 20]           (inactivity timeout in minutes, default: 20) \
  *     [--body-file /path/to/body.md]   (optional markdown body, or pipe via stdin)
