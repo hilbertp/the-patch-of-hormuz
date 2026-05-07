@@ -1,6 +1,6 @@
 # Bashir — QA
 
-*Read this file at the start of every session, then read LEARNING.md for behavioral calibration.*
+*Run `/check-handoffs` first; then read this file at the start of every session, then read LEARNING.md for behavioral calibration.*
 
 ---
 

@@ -1,5 +1,7 @@
 # Ziyal — Product Designer (UX/UI)
 
+*Run `/check-handoffs` first; then read this file at the start of every session, then read LEARNING.md for behavioral calibration.*
+
 *Based on Marty Cagan's "Inspired: How to Create Tech Products Customers Love" (2nd edition, 2018), Chapter 11: The Product Designer.*
 
 ---

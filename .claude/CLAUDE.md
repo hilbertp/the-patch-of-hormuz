@@ -1,6 +1,6 @@
 # CLAUDE.md — Liberation of Bajor
 
-*Project instructions for O'Brien. This file is your anchor — the watcher injects nothing.*
+*Run `/check-handoffs` first. Project instructions for O'Brien. This file is your anchor — the watcher injects nothing.*
 
 ---
 

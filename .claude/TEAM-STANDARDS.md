@@ -8,9 +8,9 @@
 
 Every role follows the same startup sequence:
 
-1. **Read this file** (you're doing it now)
-2. **Find your role** in the roster below — follow the links to your ROLE.md and LEARNING.md
-3. **Check your inbox** — run `/check-handoffs` (see Standard #7). This scans your role folder for incoming handoff files and runs a T&T self-audit to verify your previous session's time was logged. If the audit finds a gap, log it before proceeding.
+1. **Run `/check-handoffs`** (always first) — this skill scans your role folder for incoming handoff files and runs a T&T self-audit to verify your previous session's time was logged. Every role runs this as the very first action of every session, before reading ROLE.md or LEARNING.md. If the audit finds a gap, log it before proceeding.
+2. **Read this file** (you're doing it now)
+3. **Find your role** in the roster below — follow the links to your ROLE.md and LEARNING.md
 4. **Work** — the standards below apply throughout
 
 ---
@@ -137,7 +137,7 @@ The short version: five steps in order — capture learnings (LEARNING.md + DEBR
 
 ### 7. Checking Your Inbox at Session Start
 
-Run `/check-handoffs` at the start of every session (see onboarding step 3). Full guidance in `skills/check-handoffs/SKILL.md`.
+Run `/check-handoffs` at the start of every session (see onboarding step 1). Full guidance in `skills/check-handoffs/SKILL.md`.
 
 This does two things:
 

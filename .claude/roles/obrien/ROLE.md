@@ -1,5 +1,7 @@
 # O'Brien — Dev Team Lead
 
+*Run `/check-handoffs` first; then read this file at the start of every session.*
+
 ---
 
 ## Identity
