@@ -4912,8 +4912,19 @@ function poll() {
 
   processing = true;
 
-  // Invoke Rom asynchronously — event loop stays live.
-  invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal);
+  // Route based on `to` field: bashir slices go through the non-gate Bashir path;
+  // everything else (rom, leeta) goes through invokeRom.
+  const sliceTo = meta && meta.to ? meta.to.trim().toLowerCase() : 'rom';
+  if (sliceTo === 'bashir') {
+    // Bashir non-gate default timeout: 60 min (longer scouting/authoring work)
+    const bashirInactivityMs = timeoutMin != null && !isNaN(timeoutMin)
+      ? timeoutMin * 60 * 1000
+      : BASHIR_NON_GATE_DEFAULT_TIMEOUT_MS;
+    invokeBashirNonGate(sliceContent, donePath, inProgressPath, errorPath, id, bashirInactivityMs, title, goal);
+  } else {
+    // Invoke Rom asynchronously — event loop stays live.
+    invokeRom(sliceContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -5644,9 +5655,11 @@ let BRANCH_STATE_PATH = path.resolve(__dirname, 'state', 'branch-state.json');
 const BASHIR_HEARTBEAT_PATH = path.resolve(__dirname, 'state', 'bashir-heartbeat.json');
 const BASHIR_STDOUT_LOG = path.resolve(__dirname, 'state', 'bashir-stdout.log');
 const BASHIR_PROMPT_TEMPLATE = path.resolve(__dirname, 'templates', 'bashir-prompt.md');
+const BASHIR_NON_GATE_PROMPT_TEMPLATE = path.resolve(__dirname, 'templates', 'bashir-non-gate-prompt.md');
 const BASHIR_HEARTBEAT_POLL_MS = 30000;
 const BASHIR_HEARTBEAT_STALE_MS = 90000;
 const BASHIR_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const BASHIR_NON_GATE_DEFAULT_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
 
 // Regression suite execution (slice 268)
 const REGRESSION_STDOUT_LOG = path.resolve(__dirname, 'state', 'regression-stdout.log');
@@ -5703,6 +5716,358 @@ function buildBashirPrompt(branchState) {
   return template
     .replace('{{HEARTBEAT_PATH}}', 'bridge/state/bashir-heartbeat.json')
     .replace('{{SLICE_ACS}}', sliceAcsText);
+}
+
+/**
+ * buildBashirNonGatePrompt(sliceContent)
+ *
+ * Builds the prompt for a non-gate Bashir invocation. Hydrates the non-gate
+ * template with the slice body and heartbeat path.
+ */
+function buildBashirNonGatePrompt(sliceContent) {
+  const template = fs.readFileSync(BASHIR_NON_GATE_PROMPT_TEMPLATE, 'utf-8');
+  return template
+    .replace('{{HEARTBEAT_PATH}}', 'bridge/state/bashir-heartbeat.json')
+    .replace('{{SLICE_BODY}}', sliceContent);
+}
+
+/**
+ * invokeBashirNonGate(sliceContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal)
+ *
+ * Non-gate Bashir dispatch path. Mirrors invokeRom's lifecycle:
+ * - Creates worktree on slice/{id} branch
+ * - Acquires gate mutex (shared with gate — only one Bashir at a time)
+ * - Spawns claude -p with the non-gate Bashir prompt
+ * - Monitors heartbeat for liveness
+ * - On completion: copies DONE file, releases mutex, fires register events
+ */
+function invokeBashirNonGate(sliceContent, donePath, inProgressPath, errorPath, id, effectiveInactivityMs, title, goal) {
+  const sliceMeta = parseFrontmatter(sliceContent) || {};
+  const isApendment = !!(sliceMeta.apendment || sliceMeta.amendment || (sliceMeta.references && sliceMeta.references !== 'null') || (parseInt(sliceMeta.round, 10) > 1));
+  const sliceBranch = isApendment
+    ? (sliceMeta.apendment || sliceMeta.amendment || sliceMeta.branch || `slice/${sliceMeta.root_commission_id || id}`)
+    : `slice/${id}`;
+
+  // ── WORKTREE SETUP ──────────────────────────────────────────────────────
+  let worktreePath;
+  try {
+    ensureMainIsFresh(id);
+    worktreePath = gitFinalizer.createWorktreeWithRetry(createWorktree, id, sliceBranch);
+    log('info', 'branch', { id, msg: `Bashir worktree ready at ${worktreePath} on branch ${sliceBranch}`, isApendment });
+    registerEvent(id, 'WORKTREE_CREATED', { branch: sliceBranch, worktree: worktreePath });
+  } catch (err) {
+    const reason = err.retryReason
+      ? err.retryReason
+      : (isApendment ? 'apendment_branch_checkout_failed' : 'branch_creation_failed');
+    log('error', 'branch', { id, msg: `Failed to create worktree for ${sliceBranch} — aborting Bashir invocation`, error: err.message, reason });
+    const errorPath2 = path.join(QUEUE_DIR, `${id}-ERROR.md`);
+    writeErrorFile(errorPath2, id, reason, err, '', '');
+    log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason });
+    registerEvent(id, 'ERROR', {
+      reason,
+      phase: 'worktree_setup',
+      command: `git worktree add … ${sliceBranch}`,
+      exit_code: err.status != null ? err.status : null,
+      stderr_tail: truncStderr(err.stderr ? err.stderr.toString() : err.message),
+    });
+    appendKiraEvent({
+      event: 'ERROR',
+      slice_id: id,
+      root_id: sliceMeta.root_commission_id || null,
+      cycle: null,
+      branch: sliceBranch || null,
+      details: `Slice ${id} errored: ${reason}`,
+    });
+    processing = false;
+    heartbeatState.status = 'idle';
+    heartbeatState.current_slice = null;
+    heartbeatState.current_slice_title = null;
+    heartbeatState.current_slice_goal = null;
+    heartbeatState.pickupTime = null;
+    writeHeartbeat();
+    return;
+  }
+
+  // ── MUTEX ACQUISITION ───────────────────────────────────────────────────
+  // Share mutex with gate — only one Bashir invocation at a time (gate OR non-gate).
+  const ctx = { registerEvent, log };
+  const mutexResult = acquireGateMutex(null, null, 'bridge/state/bashir-heartbeat.json', ctx);
+  if (!mutexResult.ok) {
+    log('warn', 'bashir_non_gate', { id, msg: 'Bashir mutex already held — cannot dispatch non-gate slice', reason: mutexResult.reason });
+    // Return to QUEUED so it can be retried on next poll
+    try { fs.renameSync(inProgressPath, path.join(QUEUE_DIR, `${id}-QUEUED.md`)); } catch (_) {}
+    log('info', 'state', { id, from: 'IN_PROGRESS', to: 'QUEUED', reason: 'bashir_mutex_held' });
+    registerEvent(id, 'SLICE_DEFERRED', { slice_id: String(id), reason: 'bashir-mutex-held' });
+    processing = false;
+    heartbeatState.status = 'idle';
+    heartbeatState.current_slice = null;
+    heartbeatState.current_slice_title = null;
+    heartbeatState.current_slice_goal = null;
+    heartbeatState.pickupTime = null;
+    writeHeartbeat();
+    // Clean up worktree
+    try { execSync(`git worktree remove --force ${worktreePath}`, { cwd: PROJECT_DIR, stdio: 'pipe' }); } catch (_) {}
+    return;
+  }
+  registerEvent(id, 'LOCK_CLAIMED', { lock: 'bashir_mutex', branch: sliceBranch });
+  registerEvent(id, 'BASHIR_INVOKED', { mode: 'non-gate', branch: sliceBranch });
+
+  // Ensure the worktree has a queue directory for the DONE report
+  const worktreeQueueDir = path.join(worktreePath, 'bridge', 'queue');
+  fs.mkdirSync(worktreeQueueDir, { recursive: true });
+  const worktreeDonePath = path.join(worktreeQueueDir, `${id}-DONE.md`);
+
+  const doneTemplate = [
+    '',
+    '## DONE report template',
+    '',
+    'Write your report to: ' + worktreeDonePath,
+    '',
+    'Use this exact frontmatter structure (fill in real values):',
+    '',
+    '```',
+    '---',
+    'id: "' + id + '"',
+    'title: "(slice title)"',
+    'from: bashir',
+    'to: nog',
+    'status: DONE',
+    'slice_id: "' + id + '"',
+    'branch: "' + sliceBranch + '"',
+    'completed: "' + new Date().toISOString() + '"',
+    'tokens_in: 0',
+    'tokens_out: 0',
+    'elapsed_ms: 0',
+    'estimated_human_hours: 0.0',
+    'compaction_occurred: false',
+    '---',
+    '```',
+    '',
+    'REQUIRED: All five metrics fields (tokens_in, tokens_out, elapsed_ms, estimated_human_hours, compaction_occurred) must have real, non-zero values. Missing or zero metrics will cause ERROR with reason "incomplete_metrics".',
+    '- tokens_in: integer, total input tokens consumed this session',
+    '- tokens_out: integer, total output tokens generated this session',
+    '- elapsed_ms: integer, wall-clock milliseconds from pickup to DONE',
+    '- estimated_human_hours: float, your judgment of how long a skilled human developer would take',
+    '- compaction_occurred: boolean, true if your context window compacted mid-session',
+    '- completed: must be full ISO 8601 UTC datetime (e.g. "2026-04-12T01:22:40.000Z"), never date-only',
+  ].join('\n');
+
+  // Build the non-gate prompt
+  const prompt = buildBashirNonGatePrompt(sliceContent) + doneTemplate;
+
+  const pickupTime = Date.now();
+  let lastActivityTs = Date.now();
+  let killedByInactivity = false;
+  currentLastActivityTs = new Date();
+
+  heartbeatState.status = 'processing';
+  heartbeatState.current_slice = id;
+  heartbeatState.current_slice_title = title || null;
+  heartbeatState.current_slice_goal = goal || null;
+  heartbeatState.pickupTime = pickupTime;
+  writeHeartbeat();
+
+  log('info', 'invoke', {
+    id,
+    msg: 'Invoking Bashir (non-gate) via claude -p',
+    command: config.claudeCommand,
+    args: config.claudeArgs,
+    cwd: worktreePath,
+    inactivityTimeoutMs: effectiveInactivityMs,
+  });
+
+  // Progress tick: every 60s while Bashir is running
+  const tickInterval = setInterval(() => {
+    printProgressTick(Date.now() - pickupTime);
+  }, 60000);
+
+  let abortHandled = false;
+
+  const child = execFile(
+    config.claudeCommand,
+    config.claudeArgs,
+    {
+      cwd: worktreePath,
+      encoding: 'utf-8',
+      maxBuffer: 10 * 1024 * 1024,
+    },
+    (err, stdout, stderr) => {
+      clearInterval(tickInterval);
+      clearInterval(inactivityCheck);
+      clearInterval(heartbeatPoll);
+      currentLastActivityTs = null;
+
+      const durationMs = Date.now() - pickupTime;
+
+      // Release mutex
+      releaseGateMutex('bashir_non_gate_complete', ctx);
+      registerEvent(id, 'LOCK_RELEASED', { lock: 'bashir_mutex', branch: sliceBranch });
+
+      if (err && !killedByInactivity) {
+        log('error', 'invoke', { id, msg: 'Bashir (non-gate) exited with error', error: err.message, code: err.code, durationMs });
+        writeErrorFile(errorPath, id, 'bashir_crash', err, stdout || '', stderr || '');
+        log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason: 'bashir_crash' });
+        registerEvent(id, 'ERROR', {
+          reason: 'bashir_crash',
+          phase: 'execution',
+          exit_code: err.code,
+          stderr_tail: truncStderr(stderr || err.message),
+        });
+        appendKiraEvent({
+          event: 'ERROR',
+          slice_id: id,
+          root_id: sliceMeta.root_commission_id || null,
+          cycle: null,
+          branch: sliceBranch,
+          details: `Bashir (non-gate) crashed: ${err.message}`,
+        });
+        processing = false;
+        heartbeatState.status = 'idle';
+        heartbeatState.current_slice = null;
+        heartbeatState.current_slice_title = null;
+        heartbeatState.current_slice_goal = null;
+        heartbeatState.pickupTime = null;
+        writeHeartbeat();
+        return;
+      }
+
+      if (killedByInactivity) {
+        log('warn', 'invoke', { id, msg: 'Bashir (non-gate) killed by inactivity', durationMs });
+        writeErrorFile(errorPath, id, 'inactivity_timeout', null, stdout || '', stderr || '');
+        log('info', 'state', { id, from: 'IN_PROGRESS', to: 'ERROR', reason: 'inactivity_timeout' });
+        registerEvent(id, 'ERROR', {
+          reason: 'inactivity_timeout',
+          phase: 'execution',
+          exit_code: null,
+          stderr_tail: truncStderr(stderr || ''),
+        });
+        processing = false;
+        heartbeatState.status = 'idle';
+        heartbeatState.current_slice = null;
+        heartbeatState.current_slice_title = null;
+        heartbeatState.current_slice_goal = null;
+        heartbeatState.pickupTime = null;
+        writeHeartbeat();
+        return;
+      }
+
+      // Success path: check Bashir wrote his DONE file
+      try {
+        if (fs.existsSync(worktreeDonePath)) {
+          // Copy DONE file from worktree to main queue
+          fs.copyFileSync(worktreeDonePath, donePath);
+          log('info', 'complete', { id, msg: 'Bashir (non-gate) finished — DONE file present', durationMs });
+
+          // Extract telemetry from DONE report
+          const doneContent = fs.readFileSync(donePath, 'utf-8');
+          const doneMeta = parseFrontmatter(doneContent);
+          const tokensIn = doneMeta ? parseInt(doneMeta.tokens_in, 10) || 0 : 0;
+          const tokensOut = doneMeta ? parseInt(doneMeta.tokens_out, 10) || 0 : 0;
+          const costUsd = doneMeta ? parseFloat(doneMeta.cost_usd) || 0 : 0;
+
+          registerEvent(id, 'DONE', {
+            branch: sliceBranch,
+            durationMs,
+            tokensIn,
+            tokensOut,
+            costUsd,
+            executor: 'bashir',
+            mode: 'non-gate',
+          });
+
+          closeSliceBlock(true, durationMs, tokensIn, tokensOut, costUsd);
+        } else {
+          log('warn', 'invoke', { id, msg: 'Bashir (non-gate) exited without DONE file', durationMs });
+          writeErrorFile(errorPath, id, 'no_done_file', null, stdout || '', stderr || '');
+          registerEvent(id, 'ERROR', {
+            reason: 'no_done_file',
+            phase: 'execution',
+            exit_code: 0,
+            stderr_tail: truncStderr(stderr || ''),
+          });
+          closeSliceBlock(false, durationMs, 0, 0, 0, 'Bashir wrote no DONE file');
+        }
+      } catch (copyErr) {
+        log('warn', 'worktree', { id, msg: 'Failed to copy Bashir DONE file from worktree', error: copyErr.message });
+      }
+
+      // Clean up IN_PROGRESS file
+      try { if (fs.existsSync(inProgressPath)) fs.unlinkSync(inProgressPath); } catch (_) {}
+
+      // Archive state files
+      registerEvent(id, 'STATE_FILES_ARCHIVED', { branch: sliceBranch });
+
+      processing = false;
+      heartbeatState.status = 'idle';
+      heartbeatState.current_slice = null;
+      heartbeatState.current_slice_title = null;
+      heartbeatState.current_slice_goal = null;
+      heartbeatState.pickupTime = null;
+      writeHeartbeat();
+    }
+  );
+
+  // Track in activeChildren for pause/resume/abort
+  activeChildren.set(id, { child, worktreePath });
+
+  // Pipe prompt to Bashir's stdin
+  child.stdin.write(prompt);
+  child.stdin.end();
+
+  // Update mutex with PID
+  try {
+    const mutex = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'state', 'gate-running.json'), 'utf-8'));
+    mutex.bashir_pid = child.pid;
+    mutex.mode = 'non-gate';
+    mutex.slice_id = id;
+    writeJsonAtomic(path.resolve(__dirname, 'state', 'gate-running.json'), mutex);
+  } catch (_) { /* best effort */ }
+
+  // Activity tracking on stdout/stderr
+  if (child.stdout) {
+    child.stdout.on('data', () => {
+      lastActivityTs = Date.now();
+      currentLastActivityTs = new Date();
+    });
+  }
+  if (child.stderr) {
+    child.stderr.on('data', () => {
+      lastActivityTs = Date.now();
+      currentLastActivityTs = new Date();
+    });
+  }
+
+  // Inactivity check
+  const inactivityCheck = setInterval(() => {
+    const idle = Date.now() - lastActivityTs;
+    if (idle > effectiveInactivityMs) {
+      log('warn', 'invoke', { id, msg: 'Bashir (non-gate) inactivity timeout', idle_ms: idle, threshold_ms: effectiveInactivityMs });
+      killedByInactivity = true;
+      clearInterval(inactivityCheck);
+      clearInterval(tickInterval);
+      clearInterval(heartbeatPoll);
+      try { child.kill('SIGTERM'); } catch (_) {}
+    }
+  }, 30000);
+
+  // Heartbeat polling — check every 30s, abort if stale > 90s
+  const heartbeatPoll = setInterval(() => {
+    try {
+      const hb = JSON.parse(fs.readFileSync(BASHIR_HEARTBEAT_PATH, 'utf-8'));
+      const age = Date.now() - new Date(hb.ts).getTime();
+      if (age > BASHIR_HEARTBEAT_STALE_MS) {
+        log('warn', 'bashir_non_gate', { id, msg: 'Bashir heartbeat stale', age_ms: age });
+        clearInterval(heartbeatPoll);
+        clearInterval(tickInterval);
+        clearInterval(inactivityCheck);
+        abortHandled = true;
+        killedByInactivity = true;
+        try { child.kill('SIGTERM'); } catch (_) {}
+      }
+    } catch (_) {
+      // Heartbeat file missing — don't abort immediately; inactivity timeout will catch it.
+    }
+  }, BASHIR_HEARTBEAT_POLL_MS);
 }
 
 /**
@@ -6531,4 +6896,4 @@ function mergeDevToMain() {
 // Exports — for use by helper scripts (e.g. bridge/next-id.js)
 // ---------------------------------------------------------------------------
 
-module.exports = { startGate, abortGate, buildBashirPrompt, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, mergeDevToMain, BASHIR_HEARTBEAT_PATH, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, isTerminal, depsAreMet, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, squashSliceToDev, drainDeferredAfterGate, readSliceMeta, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; }, _testSetProjectDir: (dir) => { PROJECT_DIR = dir; BRANCH_STATE_PATH = path.join(dir, 'bridge', 'state', 'branch-state.json'); }, _testResetDeferredEmitted: () => { _deferredEmitted.clear(); }, _testGetDeferredEmitted: () => _deferredEmitted };
+module.exports = { startGate, abortGate, buildBashirPrompt, buildBashirNonGatePrompt, invokeBashirNonGate, _gateTestsUpdated, _gateAbort, _checkForEvent, _parseFailedAcs, _parseSuiteSize, _updateBranchStateOnFail, mergeDevToMain, BASHIR_HEARTBEAT_PATH, BASHIR_NON_GATE_PROMPT_TEMPLATE, BASHIR_STDOUT_LOG, BASHIR_HEARTBEAT_POLL_MS, BASHIR_HEARTBEAT_STALE_MS, BASHIR_TIMEOUT_MS, BASHIR_NON_GATE_DEFAULT_TIMEOUT_MS, REGRESSION_STDOUT_LOG, REGRESSION_STDERR_LOG, REGRESSION_TIMEOUT_MS, nextSliceId, getQueueSnapshot, classifyNoReportExit, rescueWorktree, isRomSelfTerminated, verifyRomActuallyWorked, assertMergeIntegrity, verifyOriginAdvanced, latestRestagedTs, latestAttemptStartTs, hasReviewEvent, hasMergedEvent, isTerminal, depsAreMet, restagedBootstrap, backfillArchive, backfillAcceptedFiles, backfillBranches, acceptAndMerge, archiveAcceptedSlice, archiveSiblingStateFiles, validateIntakeMeta, ensureMainIsFresh, extractSessionId, shouldForceFreshSession, appendRoundEntry, computeNextAttemptNumber, auditLegacyFiles, CANONICAL_LIVE_SUFFIXES, CANONICAL_SUFFIX_RE, handleReturnToStage, findOriginalSliceBody, reconcileBranchState, squashSliceToDev, drainDeferredAfterGate, readSliceMeta, _testSetRegisterFile: (p) => { REGISTER_FILE = p; }, _testSetDirs: (q, s, t) => { QUEUE_DIR = q; STAGED_DIR = s; TRASH_DIR = t; }, _testSetProjectDir: (dir) => { PROJECT_DIR = dir; BRANCH_STATE_PATH = path.join(dir, 'bridge', 'state', 'branch-state.json'); }, _testResetDeferredEmitted: () => { _deferredEmitted.clear(); }, _testGetDeferredEmitted: () => _deferredEmitted };

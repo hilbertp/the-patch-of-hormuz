@@ -12,7 +12,7 @@
  *     --title "F-12 — some feature" \
  *     --goal  "One sentence describing the outcome." \
  *     --priority normal|high|critical \
- *     [--to rom|leeta]         (default: rom) \
+ *     [--to rom|leeta|bashir]  (default: rom) \
  *     [--depends-on "095,096"] (blocks dispatch until listed IDs have MERGED or SLICE_MERGED_TO_MAIN event in register) \
  *     [--amendment "slice/095-fix-title"]  (exact branch name to reuse for amendment) \
  *     [--timeout 20]           (inactivity timeout in minutes, default: 20) \
@@ -73,7 +73,7 @@ function parseArgs(argv) {
 // ---------------------------------------------------------------------------
 
 const VALID_PRIORITIES = ['normal', 'high', 'critical'];
-const VALID_TO         = ['rom', 'leeta'];
+const VALID_TO         = ['rom', 'leeta', 'bashir'];
 
 function validate(fields) {
   const errors = [];
@@ -278,7 +278,7 @@ function main() {
   if (errors.length > 0) {
     console.error('ERROR: Slice not created — validation failed:\n');
     errors.forEach(e => console.error(`  • ${e}`));
-    console.error('\nUsage: node bridge/new-slice.js --title "..." --goal "..." [--to rom|leeta] [--priority normal|high|critical] [--depends-on "095,096"] [--amendment "slice/095-fix"] [--timeout 20] [--body-file body.md] [--restage <id>]');
+    console.error('\nUsage: node bridge/new-slice.js --title "..." --goal "..." [--to rom|leeta|bashir] [--priority normal|high|critical] [--depends-on "095,096"] [--amendment "slice/095-fix"] [--timeout 20] [--body-file body.md] [--restage <id>]');
     process.exit(1);
   }
 
